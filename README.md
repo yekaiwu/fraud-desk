@@ -164,24 +164,23 @@ Source, specs and the evaluation design are in this repository: start at [docs/R
   <tr>
     <td align="center" width="140">
       <a href="https://github.com/yekaiwu"><img src="https://github.com/yekaiwu.png?size=120" width="88" alt="@yekaiwu"></a><br>
-      <a href="https://github.com/yekaiwu"><b>@yekaiwu</b></a><br>
-      <sub>Maintainer</sub>
-    </td>
-    <td align="center" width="140">
-      <a href="https://github.com/Galiative"><img src="https://github.com/Galiative.png?size=120" width="88" alt="@Galiative"></a><br>
-      <a href="https://github.com/Galiative"><b>@Galiative</b></a>
+      <a href="https://github.com/yekaiwu"><b>@yekaiwu</b></a>
     </td>
     <td align="center" width="140">
       <a href="https://github.com/kenzieyii"><img src="https://github.com/kenzieyii.png?size=120" width="88" alt="@kenzieyii"></a><br>
       <a href="https://github.com/kenzieyii"><b>@kenzieyii</b></a>
     </td>
     <td align="center" width="140">
-      <a href="https://github.com/jia4152"><img src="https://github.com/jia4152.png?size=120" width="88" alt="@jia4152"></a><br>
-      <a href="https://github.com/jia4152"><b>@jia4152</b></a>
-    </td>
-    <td align="center" width="140">
       <a href="https://github.com/AnandaTris"><img src="https://github.com/AnandaTris.png?size=120" width="88" alt="@AnandaTris"></a><br>
       <a href="https://github.com/AnandaTris"><b>@AnandaTris</b></a>
+    </td>
+    <td align="center" width="140">
+      <a href="https://github.com/Galiative"><img src="https://github.com/Galiative.png?size=120" width="88" alt="@Galiative"></a><br>
+      <a href="https://github.com/Galiative"><b>@Galiative</b></a>
+    </td>
+    <td align="center" width="140">
+      <a href="https://github.com/jia4152"><img src="https://github.com/jia4152.png?size=120" width="88" alt="@jia4152"></a><br>
+      <a href="https://github.com/jia4152"><b>@jia4152</b></a>
     </td>
   </tr>
 </table>
