@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" role="img" aria-labelledby="t d">
+  <title id="t">Fraud Desk</title>
+  <desc id="d">Fraud Desk: document-fraud analysis for KYC, AML and loan checks</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f3d2e"/>
+      <stop offset="1" stop-color="#1b5e46"/>
+    </linearGradient>
+    <clipPath id="over"><rect x="33" y="14" width="10" height="9"/></clipPath>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#f6f3ec" stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="300" rx="14" fill="url(#bg)"/>
+  <rect width="1200" height="300" rx="14" fill="url(#grid)"/>
+  <rect y="292" width="1200" height="8" fill="#b8893b"/>
+  <g transform="translate(96 66) scale(3.6)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M31.8 11.1 A17 17 0 1 0 38 19.2" stroke="#f6f3ec" stroke-width="5"/>
+    <rect x="19" y="20.5" width="26" height="10" rx="5" stroke="#e3c27f" stroke-width="4.5"/>
+    <path d="M31.8 11.1 A17 17 0 1 0 38 19.2" stroke="#f6f3ec" stroke-width="5" clip-path="url(#over)"/>
+  </g>
+  <g font-family="Georgia, 'Times New Roman', serif">
+    <text x="300" y="112" font-size="22" letter-spacing="5" fill="#e3c27f" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-weight="600">GREEN LINK DIGITAL BANK</text>
+    <text x="296" y="190" font-size="84" font-weight="600" fill="#f6f3ec" letter-spacing="-1">Fraud Desk</text>
+  </g>
+  <text x="300" y="236" font-size="25" fill="#f6f3ec" fill-opacity="0.82" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">Document-fraud analysis for KYC, AML and loan checks</text>
+</svg>
