@@ -2,7 +2,7 @@
 
 <img src="assets/banner.svg" alt="Fraud Desk: document-fraud analysis for KYC, AML and loan checks" width="100%">
 
-<h3>A ranked queue of cases, with the evidence behind every flag.<br>A person decides. Nothing is decided automatically.</h3>
+<h3>Upload a bundle of documents. Get a ranked queue of cases,<br>with the evidence behind every flag.</h3>
 
 <p>
   <a href="https://github.com/yekaiwu/fraud-desk/actions/workflows/ci.yml"><img src="https://github.com/yekaiwu/fraud-desk/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -20,7 +20,7 @@
   <a href="https://github.com/yekaiwu/fraud-desk/issues/new/choose"><img src="https://img.shields.io/badge/testers-welcome-1b5e46?style=flat-square" alt="Testers welcome"></a>
 </p>
 
-[Features](#key-features) · [See it](#see-it) · [How it works](#how-it-works) · [Try to break it](#try-it-and-try-to-break-it) · [Evaluation](#how-well-does-it-work) · [Limits](#honest-limits) · [Contributors](#contributors)
+[Features](#key-features) · [See it](#see-it) · [How it works](#how-it-works) · [Try to break it](#try-it-and-try-to-break-it) · [Evaluation](#how-well-does-it-work) · [Limits](#current-limits) · [Contributors](#contributors)
 
 </div>
 
@@ -28,29 +28,29 @@
 
 ## Key features
 
+Fraud Desk reads a document bundle, runs the checks an analyst would do by hand, and ranks the cases that need a person, with the figure on the page that raised each flag.
+
 > [!IMPORTANT]
-> - **A ranked worklist, not a verdict.** An analyst uploads a bundle (bank statements, invoices, financial statements, contracts, company and ownership documents, IDs). The tool reads it, runs the checks and returns cases riskiest-first, with the reason in one plain-English line. **A person decides; nothing is approved, rejected or escalated automatically.**
-> - **Evidence you can see.** Every flag points at the exact figure on the exact page, highlighted on the document, with an analysis trail that says what ran, what did not and why.
-> - **Silence is not safety.** The score always shows *coverage*: how many checks ran out of those that applied, and which pages **nobody checked**. A failed stage or a hit budget marks the score partial instead of quietly passing.
-> - **55 checks across 12 document types.** Bank statement arithmetic, invoice and receipt matching, financial-statement consistency, cross-document reconciliation, ID and company-registry checks, ownership and director analysis, source-of-funds and pass-through patterns, name matching across transliterations.
-> - **Forensics on PDFs and images.** Editing-software and modification-date metadata, bytes added after a signature, text-layer anomalies, raster tamper cues, reused signatures. See [docs/forensics.md](docs/forensics.md).
-> - **A review workflow with teeth.** Verdicts need a reason, a high-severity dismissal needs a **second approver**, every action lands in an append-only audit log, and a case pack can be exported. The check catalogue is editable, with a change log.
-> - **Cost controls built in.** Per-case and per-day dollar caps, a response cache and a cheap-first cascade, so a paid model cannot run away with a budget.
-> - **Works on a phone.** The whole review flow is designed for 390 px as well as a desk.
-> - **Tested offline.** About 3,600 automated tests, none of which need a network or an API key.
+> - **Riskiest cases first.** Each case gets a score and a one-line plain-English reason. Analysts make every decision.
+> - **Evidence you can see.** Every flag is highlighted on the exact figure on the exact page.
+> - **Coverage on every score.** It shows how many applicable checks ran and which pages went unreviewed. A failed stage or exhausted budget marks the score partial.
+> - **55 checks across 12 document types.** Bank statements, invoices, financial statements, IDs, company and ownership records, cross-document reconciliation, name matching across transliterations.
+> - **Forensics.** File metadata, bytes added after a signature, text-layer anomalies, reused signatures. See [docs/forensics.md](docs/forensics.md).
+> - **Review workflow.** Reasons on every verdict, a second approver for high-severity dismissals, an append-only audit log and an exportable case pack.
+> - **Predictable model spend.** Per-case and per-day dollar caps.
 
 ## See it
 
 <div align="center">
   <img src="assets/screens/worklist.png" alt="The worklist: cases ranked by risk, with the reason, lane, checks completed and waiting time" width="900">
-  <br><sub><b>The worklist.</b> Riskiest first, with why it is there, what was and was not checked, and how long it has waited.</sub>
+  <br><sub><b>The worklist.</b> Riskiest first, with the reason, how many checks ran, which pages were left unreviewed and how long each case has waited.</sub>
 </div>
 
 <br>
 
 <div align="center">
   <img src="assets/screens/case.png" alt="A case: risk score, the reasons in plain English, and the flagged figure highlighted on the bank statement" width="900">
-  <br><sub><b>A case.</b> The score, the reasons in plain English, a page we could not review, and the flagged figure highlighted on the document.</sub>
+  <br><sub><b>A case.</b> The score, the reasons in plain English, a page that could not be reviewed, and the flagged figure highlighted on the document.</sub>
 </div>
 
 <br>
@@ -92,16 +92,16 @@ flowchart LR
   I --> J[(Audit log)]
 ```
 
-Reads PDFs and images: text layer first, then OCR or a vision model for scans (optional). **Without a model, scanned pages are reported as *unreadable* rather than silently passed.** All extracted text is treated as untrusted input from the person being checked, and the model has no tools: it can only fill a schema.
+Reads PDFs and images: text layer first, then OCR or a vision model for scans (optional). **Without a model, scanned pages are reported as unreadable and the score is marked partial.** All extracted text is treated as untrusted input from the person being checked, and the model has no tools, so all it can do is fill a schema.
 
 ## Try it and try to break it
 
-You do not need to install anything. A hosted demo is available to invited testers, and the most useful thing you can do is use it the way a forger or a careless customer would, then tell us what you saw.
+No install needed: a hosted demo is open to invited testers. The most useful thing you can do is use it the way a forger or a careless customer would, then tell us what you saw.
 
 **Use fictitious documents only.** Make your own (a word processor and "save as PDF" is enough), photograph or scan a printed page, or use the ten demo cases already in the worklist (open one, then read its pages and its evidence). Never upload anything real: no genuine IDs, bank statements, invoices or company records. Page text and images are sent to a third-party model for reading, so real data must never go in.
 
 <details open>
-<summary><b>What we would love you to try</b></summary>
+<summary><b>What to try</b></summary>
 
 | Try | What we want to learn |
 |:--|:--|
@@ -120,7 +120,7 @@ You do not need to install anything. A hosted demo is available to invited teste
 
 ## How well does it work?
 
-Honestly: we do not know yet. Here is what our own evaluation says, on synthetic data generated by the same people who wrote the checks (2026-10-27; full detail in [docs/validation-report.md](docs/validation-report.md)). **Every number is an upper bound.**
+Early results from our own evaluation, on synthetic data generated by the team that wrote the checks (2026-10-27; full detail in [docs/validation-report.md](docs/validation-report.md)). **Treat every number as an upper bound.** Testing on documents we did not write is the next step.
 
 | Document form | Core recall | Note |
 |:--|:--|:--|
@@ -129,7 +129,7 @@ Honestly: we do not know yet. Here is what our own evaluation says, on synthetic
 | Photo of a page | 0.57 [0.37-0.76] | Same. |
 | Scan, low quality | 0.52 [0.32-0.72] | Same. |
 
-Scans and photos are where we are weakest, and where real testing helps most. The data, the tamper catalogue and the metrics are defined in [docs/test-data-and-eval.md](docs/test-data-and-eval.md).
+Digital PDFs are the strongest case. Scans and photos score lower, and real-world testing will tell us most there. The data, the tamper catalogue and the metrics are defined in [docs/test-data-and-eval.md](docs/test-data-and-eval.md).
 
 ## Design principles
 
@@ -139,17 +139,17 @@ Scans and photos are where we are weakest, and where real testing helps most. Th
 - Every flag carries evidence and never changes after scoring; review actions are separate append-only entries.
 - All model calls go through one client interface; tests use a fake. No network and no key in tests.
 
-## Honest limits
+## Current limits
 
 <details>
-<summary><b>Read this before you trust any number above</b></summary>
+<summary><b>Read this before relying on any number above</b></summary>
 
 - **Synthetic data, our own checks.** The mock bundles and the tamper catalogue are written by the same people who wrote the checks. Weights, bands and thresholds are starting guesses.
 - **Scans are only as good as the reader.** Our scan numbers come from an oracle. With no model configured, scanned or image-only pages are reported as unreadable and the score is partial.
 - **The mock registry is a JSON file** written by the generator, not a live company-registry or identity lookup.
 - **One process, SQLite;** jobs are not durable across restarts. The hosted login is one shared username and password with self-declared reviewer names, and there are no roles.
 - The local classifier is a stub; it needs `torch` and `transformers`, which are deliberately not installed by default.
-- **Not validated, not compliance advice.** It is decision support for a human reviewer.
+- **Not yet validated on real cases, and not compliance advice.** Fraud Desk is decision support for a human reviewer.
 
 </details>
 
@@ -185,7 +185,6 @@ Source, specs and the evaluation design are in this repository: start at [docs/R
   </tr>
 </table>
 
-<sub>Want to be on this list? Test it, break it, and [tell us what you found](https://github.com/yekaiwu/fraud-desk/issues/new/choose).</sub>
 </div>
 
 ## License
@@ -193,5 +192,5 @@ Source, specs and the evaluation design are in this repository: start at [docs/R
 [MIT](LICENSE). Copyright (c) 2026 yekaiwu.
 
 <div align="center">
-<sub>Fraud Desk is a research prototype. It supports a human reviewer and decides nothing. All data shown is fictitious.</sub>
+<sub>Fraud Desk is a research prototype that supports human reviewers. All data shown is fictitious.</sub>
 </div>
