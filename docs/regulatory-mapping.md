@@ -1,0 +1,94 @@
+# Regulatory mapping
+> Our reading as students, not legal advice. Decision support only; a human decides. All data is fictitious.
+
+The tool is a control that supports customer due diligence and lending checks, and an AI system that is itself supervised (plan 7). Marks: `[found]` read in the source named in the row; `[found, secondary]` read only in a secondary source; `[confirm]` not read at primary level or not researched, a person must check it. Claims about our own tool name a code artefact; a missing artefact reads `NOT BUILT`. Companion documents: [ai-inventory.md](ai-inventory.md), [validation-report.md](validation-report.md), [check-catalogue.md](check-catalogue.md).
+
+## 1 Instruments
+
+| Instrument | Mark | Source | What it means for this project | Open items |
+|---|---|---|---|---|
+| MAS Guidelines on AI Risk Management for FIs | `[found]` date, scope, four areas; `[confirm]` every clause | [MAS](https://www.mas.gov.sg/regulation/guidelines/guidelines-on-artificial-intelligence-risk-management-for-financial-institutions), [Baker McKenzie](https://www.bakermckenzie.com/en/insight/publications/2026/10/singapore-mas-issues-guidelines-on-artificial-intelligence-risk-management) | Published 7 Oct 2026, effective 7 Oct 2027 `[found]`. Areas: (1) board and senior management oversight, (2) AI risk management systems, policies and procedures, (3) AI life-cycle controls, (4) AI capability and capacity `[found]`. Areas 1 and 2 apply by 7 Oct 2027, areas 3 and 4 by 7 Oct 2028 `[found]`. Applies to all FIs (wholesale banks included) and all AI including generative AI and agents, scaled to risk `[found]`. The system card in `docs/ai-inventory.md` is structured by these four areas | Read the 648 KB PDF and replace area-level statements with clause references `[confirm]` |
+| MAS Information Paper on AI Model Risk Management (5 Dec 2024) | `[found]` | [Allen & Gledhill](https://www.allenandgledhill.com/sg/publication/articles/29565/mas-publishes-information-paper-on-ai-model-risk-management) | Good practices on governance, key processes, development and deployment, generative AI and third-party AI `[found]`. Used as the checklist for the lifecycle and third-party sections | Map each detailed good practice to an artefact once the paper itself is read `[confirm]` |
+| FEAT (2018) and Veritas Toolkit 2.0 | `[found]` | [MAS release](https://www.mas.gov.sg/news/media-releases/2023/toolkit-for-responsible-use-of-ai-in-the-financial-sector), [github.com/veritas-toolkit](https://github.com/veritas-toolkit) | Open-source assessment methods for Fairness, Ethics, Accountability, Transparency `[found]`. We answer the applicable methodology questions and run the name-matching slice test | Methodology questionnaire not downloaded; list which questions were answered `[confirm]` |
+| MAS Notice 626 (AML/CFT, banks) | `[found]` existence, version, scope; `[confirm]` retention and threshold | [MAS](https://www.mas.gov.sg/regulation/notices/notice-626) | Current version dated 28 Mar 2024, amendments effective 1 Jul 2025, covering CDD, record keeping, reliance on third parties and STR `[found]`. The documents we check are CDD evidence. Secondary sources say 5-year record retention (setting `GLDB_RETENTION_DAYS=1825`) and a 25% beneficial-owner threshold (setting `GLDB_UBO_THRESHOLD_PERCENT=25.00`) `[confirm]` | Confirm both figures in the Notice text `[confirm]` |
+| Suspicious transaction reports (CDSA, STRO SONAR) | `[found]` | [MinLaw guidance](https://acd.mlaw.gov.sg/files/Did_You_Know_STR_Filing.pdf) | File as soon as reasonably practicable, citing five business days from forming suspicion, one for high-risk cases `[found]`. MAS has proposed a five-business-day cap `[found]`. The red-flag list includes false documents at onboarding `[found]`. The tool timestamps the escalation and does not file | Check the status of the MAS proposal before the demo `[confirm]` |
+| MAS Outsourcing Guidelines and Banking Act customer-information rules | `[found, secondary]` | [Linklaters](https://www.linklaters.com/pdfs/mkt/singapore/Client%20Alert_August%202016_Outsourcing.pdf) | "Customer Information" excludes data that is public, anonymised or securely encrypted so identities cannot readily be inferred `[found, secondary]`. A hosted model is treated as third-party AI; we minimise what leaves and do not yet pseudonymise it | Ask compliance whether page text sent to a hosted model is outsourcing and customer information `[confirm]` |
+| MAS TRM Guidelines; PDPA/PDPC guidance on NRIC numbers; AI Verify (IMDA) | `[confirm]` | none read | Not researched. Hooks only: access control, logging, change management, NRIC handling `[confirm]` | Whole row `[confirm]` |
+
+## 2 Obligation to feature to evidence
+
+Artefact = `path::symbol`. Automated evidence is a test or eval output that fails when the feature breaks. `NOT BUILT: path` names an artefact that did not exist when this table was written; it is also a gap.
+
+| # | Obligation (source, mark) | Feature | Code artefact | Automated evidence | Document evidence | Gap |
+|---|---|---|---|---|---|---|
+| O1 | Explainability (FEAT Transparency, `[found]`) | Every flag has `rule`, `evidence` (<= 1000 chars), `explanation` (<= 300), optional region; flags are built only through `make_flag`; no score point without a flag | `backend/app/core/models.py::Flag`, `backend/app/checks/registry.py::make_flag`, `backend/app/score.py::run_stage`, `backend/app/api/rules.py::router` (`GET /rules`), `frontend/src/components/case/FindingsPanel.tsx` | `backend/tests/test_check_catalogue.py` (catalogue equals registry and `GET /rules`), `backend/tests/test_checks_registry.py`; NOT BUILT: backend/tests/e2e/** and the eval acceptance rows | `docs/check-catalogue.md` | Explanation text is one sentence; no counterfactuals |
+| O2 | Human oversight and accountability (FEAT Accountability `[found]`; MAS Guidelines area 1 `[confirm]`) | Verdicts approve / request documents / refer EDD (kyc) / escalate AML / reject-or-escalate (loan); reviewer name and mandatory reason on every entry; dismissing a high flag needs a second, different reviewer; `approve` blocked while a high flag is open; no endpoint approves or rejects without a human | `backend/app/review.py`, `backend/app/audit.py`, `backend/app/api/review.py::router`, `backend/app/core/models.py::ReviewEntry`, `backend/app/core/config.py::Settings.require_second_approver` | `backend/tests/test_api_review.py`, `backend/tests/test_api_review_state.py`, `backend/tests/test_compliance_routes.py` (route inventory: no auto-decision route) | `docs/ai-inventory.md` section 4, area 1 | Reviewer identity is free text, not authenticated (api.md section 15) |
+| O3 | Suspected false documents are escalated with a time (STR guidance `[found]`; five business days `[found]`) | `escalate_aml` closes the case and sets `escalated_at`, the "suspicion formed" clock; the tool never files | `backend/app/review.py`, `backend/app/core/models.py::Case.escalated_at`, `backend/app/pack.py`; `GET /cases/{id}/pack` | `backend/tests/test_api_review.py` (`escalate_aml` sets `escalated_at`); NOT BUILT: eval acceptance row `aml-fraud` | section 3 below | No business-day countdown display; no STR drafting (out of scope) |
+| O4 | Reproducibility (Info Paper development and deployment `[found]`; Guidelines area 3 `[confirm]`) | Each case stamped with ruleset version, model ids, prompt hash, classifier and extractor versions, input file hashes, settings hash, `today` and `flags_digest`; `rerun` makes a new version; deterministic stages give identical flags | `backend/app/core/provenance.py::build_provenance`, `backend/app/pipeline.py::run_pipeline`, `backend/app/api/cases.py::router` (`POST /cases/{id}/rerun`) | `backend/tests/test_core_provenance.py`, `backend/tests/test_no_wallclock_in_checks.py`, `backend/tests/test_api_versions.py`; NOT BUILT: eval reproducibility row (9 of 9) | `docs/validation-report.md` section 11 | LLM paths are reproducible only through the cache or fixtures; a live model may differ on re-run |
+| O5 | Validation before use (Info Paper `[found]`; Guidelines area 3 `[confirm]`) | Labelled synthetic eval, regression run before each release, change log; an officer's edit of the check catalogue (switch on or off, severity, text) needs a reviewer and a written reason and is kept in a permanent change log with before and after values, and each case records the custom settings it was analysed under | `backend/scripts/make_bundle.py`, `.github/workflows/ci.yml` (pytest + ruff), `backend/app/catalogue.py`, `backend/app/core/db.py::rule_changes`; NOT BUILT: backend/scripts/eval.py, backend/scripts/make_tampered.py | `backend/tests/test_check_catalogue.py` (catalogue fresh in CI), `backend/tests/test_api_catalogue.py` (change log is append-only, every edit logged), `backend/tests/test_catalogue_engine.py` (hard stops never loosen, provenance records the overrides); NOT BUILT: `eval.py --regress` against `docs/eval-results/baseline.json` | `docs/validation-report.md`, `docs/scoring-and-queue.md` section 10a (the change log is the evidence for catalogue changes) | Synthetic upper bound; no independent or real-data validation; no threshold sign-off; a catalogue edit has one named reviewer (no second approver) and is not re-validated against the eval |
+| O6 | AI inventory and risk materiality (Guidelines area 2 `[found]` headline, `[confirm]` clause) | One inventory entry: purpose, scope, owner, inputs, models, materiality rating and reasoning, validation status, known limits | `docs/ai-inventory.md` | `backend/tests/test_compliance_docs.py` (required headings and fields) | `docs/ai-inventory.md` | GLDB's own template and materiality method unknown (plan 11 Q9) |
+| O7 | Third-party AI (Info Paper `[found]`; Outsourcing `[found, secondary]`; applicability `[confirm]`) | Table of every external model or API, the data it receives and the control; `fake` LLM backend by default; budget guard; local classification option; demos use fictitious data only | `backend/app/core/llm.py::get_llm_client`, `backend/app/core/llm.py::OpenAICompatClient`, `backend/app/core/llm_anthropic.py::AnthropicLLMClient`, `backend/app/core/llm.py::FakeLLMClient`, `backend/app/core/costs.py::CostMeter`, `backend/app/core/config.py::Settings.llm_backend`, `backend/app/classify/local.py` | `backend/tests/test_compliance_docs.py` (every `llm_*` setting appears in the register), `backend/tests/test_llm_fake.py`, `backend/tests/test_llm_openai.py`, `backend/tests/test_llm_anthropic.py` | `docs/ai-inventory.md` section 2 | **Pseudonymisation of outbound text is not implemented**, only minimisation (one page at a time, never other documents, no tools). Local model weights licence and PyMuPDF licence `[confirm]` |
+| O8 | Data minimisation and retention (Notice 626 record keeping `[confirm]`; Banking Act customer information `[found, secondary]`) | Pseudonymised logs and audit `detail`; configurable retention; delete-case; purge endpoint with dry run | `backend/app/audit.py`, `backend/app/retention.py`, `backend/app/core/config.py::Settings.retention_days`, `backend/app/core/config.py::Settings.pseudonymise_logs`, `backend/app/core/db.py::Database.delete_case`, `backend/app/api/cases.py::router` (`DELETE /cases/{id}`, `POST /admin/retention/purge`) | `backend/tests/test_api_retention.py` (dry run), `backend/tests/test_api_audit.py`, `backend/tests/test_api_cases.py` | section 2 of this document | Retention default 1825 days is `[confirm]`; audit rows survive delete in pseudonymised form (intended) |
+| O9 | Tipping-off risk: the applicant is never told which flags fired (`[confirm]`) | No applicant-facing endpoint or view; the case pack carries a disclaimer | `backend/app/main.py`, `backend/app/pack.py` | `backend/tests/test_compliance_routes.py` (registered paths equal the list in api.md section 2) | section 2 of this document | No authentication at all (plan 2 out of scope) |
+| O10 | Robustness and security: documents are untrusted input (Guidelines area 3 `[confirm]`) | Schema-constrained model output with one retry; extractor has no tools and sees one document; `Cell.verified` cross-check against the text layer; classifier cannot lower risk (`other`, `boilerplate` or low probability gives an info flag and lower coverage); magic-byte upload validation; autoescaped pack; no raw HTML in the UI | `backend/app/core/errors.py::LLMSchemaError`, `backend/app/extract/cascade.py`, `backend/app/core/builtin_checks.py::doc_unclassified`, `backend/app/classify/stage.py`, `backend/app/api/cases.py::router` (upload validation), `backend/app/pack.py` (Jinja autoescape) | `backend/tests/test_classify_canaries.py`, `backend/tests/test_api_cases.py`, `backend/tests/test_api_pack.py` (escaped `<script>`), `frontend/src/components/wording.test.ts` (no `dangerouslySetInnerHTML`) | `docs/validation-report.md` section 7 | Canaries run against `FakeLLMClient` and the rules classifier unless a key is set; the local model's injection result is in `docs/classifier-gate.md` (NOT BUILT: docs/classifier-gate.md) |
+| O11 | Fairness (FEAT Fairness, `[found]`) | Name matcher tested on fictitious names with patronymics (bin/binte/s-o/d-o), Chinese name order, mononyms, titles; false-flag rate by group | `backend/app/names.py`, `backend/scripts/make_bundle.py` (`--fairness`); NOT BUILT: backend/scripts/_eval/fairness.py | `backend/tests/test_names.py`; NOT BUILT: `docs/eval-results/fairness.csv` (six groups, Wilson intervals) | `docs/validation-report.md` section 10 | Our six groups are not a validated taxonomy; small samples; no hanzi names; no Veritas toolkit run |
+| O12 | Limits are visible: silence is not safety (plan principle 3, our own design rule, no external source) | Coverage ratio beside the score, skipped checks listed, partial score reasons, "received, not checked" document list, `doc_unreadable` info flags | `backend/app/core/models.py::Coverage`, `backend/app/checks/registry.py::run_stage_checks`, `backend/app/pack.py::not_checked_documents` | `backend/tests/test_classify_not_checked.py`, `backend/tests/test_checks_registry.py`; NOT BUILT: eval M14 miss attribution | `docs/check-catalogue.md`; NOT BUILT: docs/traceability.md | Coverage counts checks, not document quality |
+| O13 | Change management, logging, access control (TRM, `[confirm]`) | CI runs ruff and pytest; append-only review log and audit log; ruleset version and prompt hash change on any logic or prompt change; append-only change log of officers' check catalogue edits (`rule_changes`) | `.github/workflows/ci.yml`, `backend/app/audit.py`, `backend/app/checks/registry.py::CheckMeta`, `backend/app/catalogue.py` | `backend/tests/test_check_catalogue.py` (committed catalogue equals generated, so a rule change without regeneration fails), `backend/tests/test_api_catalogue.py` (change log cannot be updated or deleted) | `docs/ai-inventory.md` section 5 | TRM not researched; no access control, no secrets management beyond `.env` |
+| O14 | NRIC handling (PDPA/PDPC, `[confirm]`) | NRIC numbers are validated and cross-checked, never used as paths, SQL or HTML; logs and audit `detail` carry ids and hashes | `backend/app/core/money.py::parse_money` (IDs are not amounts), `backend/app/audit.py`, `backend/app/api/files.py` (stored name = sha256) | `backend/tests/test_money.py`, `backend/tests/test_api_audit.py` | section 2 of this document | **NRIC is shown unmasked to analysts and stored in the case JSON**; masking and PDPC guidance not researched |
+
+## 3 Escalation flow
+
+```
+ranked queue → analyst opens case → evidence, grouped findings, score and coverage
+   ├─ approve                         → case closed, reasons logged
+   ├─ request more documents          → bundle reopened, version kept
+   ├─ refer for EDD (KYC)             → enhanced due diligence review
+   ├─ escalate to AML investigation   → timestamp = "suspicion formed" clock
+   │                                    compliance decides on an STR (outside the tool)
+   └─ reject or escalate (loan)       → credit decision stays with the bank
+```
+
+| Human action | Verdict (API) | Use cases | Case effect | Field | Compliance note |
+|---|---|---|---|---|---|
+| Approve | `approve` | all | `closed`; blocked while a high flag has no effective disposition | `Case.decision` | reasons logged |
+| Request more documents | `request_documents` | all | `awaiting_documents`; version kept; analysis kept | | bundle reopened via `POST /cases/{id}/files` |
+| Refer for EDD | `refer_edd` | kyc | `closed` | `Case.decision`, lane `edd` | enhanced due diligence is a bank process outside the tool |
+| Escalate to AML investigation | `escalate_aml` | all | `closed` | `Case.escalated_at` | timestamp = "suspicion formed" clock, five business days `[found]`; compliance decides on an STR outside the tool |
+| Reject or escalate | `reject_or_escalate` | loan | `closed` | `Case.decision`, lane `loan` | credit decision stays with the bank |
+
+The outcome lane is a hint (`edd` -> `refer_edd`, `aml` -> `escalate_aml`, `loan` -> `reject_or_escalate`); the verdict is always a person's choice.
+
+## 4 What we do not claim
+
+- No claim of meeting MAS Notice 626, TRM, PDPA, the Outsourcing Guidelines or the AI Risk Management Guidelines.
+- No STR filing: the tool timestamps, compliance decides outside it.
+- No live ACRA, MyInfo Business or IRAS check; the registry is a generator-written mock.
+- No claim that a document is authentic: "not detected" only (plan 4.5 `ai_provenance_hint`).
+- No judgement of signature authenticity.
+- Results are on synthetic data we generated; the tool has not been used on real customer data.
+
+## 5 Sources
+
+Links used, from plan 14: the MAS AI Risk Management Guidelines page and the Baker McKenzie note; the Allen & Gledhill note on the MAS AI model risk management paper; the MAS FEAT / Veritas release; MAS Notice 626; the Ministry of Law STR guidance; the Linklaters outsourcing / customer-information alert. Full URLs are in section 1.
+
+## 6 Open [confirm] items
+
+One bullet per row of sections 1 and 2 that still carries `[confirm]`; `backend/tests/test_compliance_docs.py` checks this list against the tables.
+
+- MAS Guidelines on AI Risk Management for FIs (section 1)
+- MAS Information Paper on AI Model Risk Management (5 Dec 2024) (section 1)
+- FEAT (2018) and Veritas Toolkit 2.0 (section 1)
+- MAS Notice 626 (AML/CFT, banks) (section 1)
+- Suspicious transaction reports (CDSA, STRO SONAR) (section 1)
+- MAS Outsourcing Guidelines and Banking Act customer-information rules (section 1)
+- MAS TRM Guidelines; PDPA/PDPC guidance on NRIC numbers; AI Verify (IMDA) (section 1)
+- O2 (section 2)
+- O4 (section 2)
+- O5 (section 2)
+- O6 (section 2)
+- O7 (section 2)
+- O8 (section 2)
+- O9 (section 2)
+- O10 (section 2)
+- O13 (section 2)
+- O14 (section 2)

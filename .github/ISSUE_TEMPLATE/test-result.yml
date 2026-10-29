@@ -1,0 +1,44 @@
+name: Test result
+description: Tell us what you tried on the hosted demo and what happened. Misses and false alarms are the valuable ones.
+labels: ["test-result"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Fictitious documents only.** Never post or upload real IDs, bank statements, invoices or company records, here or in the demo.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What were you testing?
+      options:
+        - Fooling it (a tamper it missed)
+        - False alarm on a clean document
+        - Scans or photos
+        - Names and matching
+        - Prompt injection
+        - Queue ranking
+        - Clarity of the evidence / usability
+        - Something else
+    validations: { required: true }
+  - type: textarea
+    id: did
+    attributes:
+      label: What did you upload or do?
+      description: Describe the document(s) and exactly what you changed. Attach the fictitious file if you can.
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: happened
+    attributes:
+      label: What did the tool do?
+      description: The score and lane, the flags (or the absence of flags), anything it said it could not read. A screenshot helps.
+    validations: { required: true }
+  - type: input
+    id: where
+    attributes:
+      label: Device and browser
+      description: For example "iPhone 15, Safari" or "Windows, Chrome".

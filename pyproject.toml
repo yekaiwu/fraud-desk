@@ -1,0 +1,66 @@
+[project]
+name = "gldb-fraud"
+version = "0.1.0"
+description = "GLDB document-fraud analysis tool (decision support for KYC, AML and loan document checks)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "anthropic>=2.3.0",
+    "fastapi>=0.162.0",
+    "httpx>=0.28.1",
+    "imagehash>=4.3.2",
+    "jinja2>=3.1.6",
+    "networkx>=3.7",
+    "numpy>=2.5.4",
+    "openai>=3.39.0",
+    "opencv-python-headless>=5.0.0.93",
+    "pikepdf>=10.17.0",
+    "pillow>=13.0.0",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.1",
+    "pymupdf>=2.0",
+    "python-dateutil>=3.0.0",
+    "python-multipart>=0.0.32",
+    "python-stdnum>=2.2",
+    "rapidfuzz>=3.14.6",
+    "reportlab>=5.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.optional-dependencies]
+ocr = [
+    "ocrmac>=1.0 ; sys_platform == 'darwin'",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/app", "backend/scripts"]
+dev-mode-dirs = ["backend"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["backend"]
+extend-exclude = ["frontend", "data", "samples", "docs", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# the formatter wraps code; long docstrings, comments and SQL strings are tolerated
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+addopts = "--timeout=120"
+# PyMuPDF/OpenCV SWIG types emit these on import; they are harmless
+filterwarnings = ["ignore:builtin type .* has no __module__ attribute:DeprecationWarning"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.17.3",
+]

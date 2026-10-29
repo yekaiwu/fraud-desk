@@ -1,0 +1,78 @@
+/* /welcome only. Plain CSS on the existing tokens (globals.css); no new colours. */
+
+/* Scroll reveal: pure CSS, no script. Where scroll-driven animation is not supported, or the visitor prefers
+   reduced motion, nothing is hidden and nothing moves. Only opacity and transform change, so nothing shifts. */
+@keyframes welcome-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: welcome-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 4% entry 38%;
+    }
+    .reveal-late {
+      animation-range: entry 14% entry 48%;
+    }
+  }
+}
+
+/* Smooth anchor scrolling on this page only (the global reduced-motion block turns it off). */
+html:has(.welcome-root) {
+  scroll-behavior: smooth;
+}
+
+/* Sticky bar must not cover anchor targets. */
+.welcome-root [id] {
+  scroll-margin-top: 4.5rem;
+}
+
+/* Ruled headings on the deep-green band: hairline over a thicker brass line. */
+.rule-on-dark {
+  --rule-top: var(--on-brand-muted);
+  --rule-bottom: var(--brass-light);
+}
+
+/* The edited figure on the hero statement: a slow pulse ring, once, like the case page region marker. */
+@keyframes welcome-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sev-high) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 16px transparent;
+  }
+}
+.edit-ring {
+  outline: 2px solid var(--sev-high);
+  outline-offset: 2px;
+  background: color-mix(in srgb, var(--sev-high) 10%, transparent);
+  animation: welcome-ring 1.8s ease-out 1.1s 2;
+}
+
+/* Dotted leader between a label and its figure, as on a printed statement. */
+.leader {
+  flex: 1 1 auto;
+  min-width: 1rem;
+  height: 1px;
+  margin: 0 0.5rem;
+  align-self: end;
+  transform: translateY(-0.3em);
+  background-image: radial-gradient(circle, var(--rule-strong) 0.8px, transparent 1px);
+  background-size: 6px 2px;
+  background-repeat: repeat-x;
+  background-position: 0 100%;
+}
+
+@media print {
+  .welcome-root .reveal {
+    animation: none !important;
+  }
+}

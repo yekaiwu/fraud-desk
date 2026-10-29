@@ -1,0 +1,42 @@
+# runtime data (database, content-addressed files, page renders)
+/data/
+.env
+.env.*
+!.env.example
+
+# generated mock bundles (only the README is committed)
+/samples/*
+!/samples/README.md
+
+# eval outputs: only the baseline and the timed-test sheet are committed
+/docs/eval-results/*
+!/docs/eval-results/baseline.json
+!/docs/eval-results/timed-test.csv
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+backend/tests/_out/
+
+# frontend
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# tooling and OS
+.DS_Store
+.remember/
+.idea/
+.vscode/
+
+# per-agent dev builds and browser captures
+.next-*/
+.playwright-mcp/

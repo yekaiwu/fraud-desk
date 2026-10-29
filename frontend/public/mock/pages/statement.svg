@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 595 842" width="595" height="842" font-family="Helvetica, Arial, sans-serif" font-size="11">
+<rect width="595" height="842" fill="#ffffff"/>
+<text x="40" y="60" font-size="18" font-weight="bold">EXAMPLE BANK (FICTITIOUS)</text>
+<text x="40" y="84">Statement of account - Example Trading Pte. Ltd. - Acct 000-000000-0</text>
+<text x="40" y="104">Period: 01 Sep 2026 to 30 Sep 2026   (fictitious data, for demos only)</text>
+<line x1="40" y1="165" x2="555" y2="165" stroke="#444"/>
+<text x="40" y="180" font-weight="bold" text-anchor="start">Date</text>
+<text x="110" y="180" font-weight="bold" text-anchor="start">Description</text>
+<text x="410" y="180" font-weight="bold" text-anchor="end">Debit</text>
+<text x="480" y="180" font-weight="bold" text-anchor="end">Credit</text>
+<text x="555" y="180" font-weight="bold" text-anchor="end">Balance</text>
+<line x1="40" y1="186" x2="555" y2="186" stroke="#444"/>
+<text x="40" y="200">01 Sep</text><text x="110" y="200">Opening balance</text><text x="555" y="200" text-anchor="end">50,000.00</text>
+<text x="40" y="224">02 Sep</text><text x="110" y="224">Transfer from Alpha Supplies Pte Ltd</text><text x="480" y="224" text-anchor="end">12,000.00</text><text x="555" y="224" text-anchor="end">62,000.00</text>
+<text x="40" y="248">04 Sep</text><text x="110" y="248">Payment to Beta Logistics</text><text x="410" y="248" text-anchor="end">3,500.00</text><text x="555" y="248" text-anchor="end">58,500.00</text>
+<text x="40" y="272">06 Sep</text><text x="110" y="272">Transfer from Gamma Holdings</text><text x="480" y="272" text-anchor="end">20,000.00</text><text x="555" y="272" text-anchor="end">78,500.00</text>
+<text x="40" y="296">09 Sep</text><text x="110" y="296">Payment to Gamma Holdings</text><text x="410" y="296" text-anchor="end">19,500.00</text><text x="555" y="296" text-anchor="end">59,000.00</text>
+<text x="40" y="320">12 Sep</text><text x="110" y="320">Payroll Sep</text><text x="410" y="320" text-anchor="end">8,200.00</text><text x="555" y="320" text-anchor="end">50,800.00</text>
+<text x="40" y="344">15 Sep</text><text x="110" y="344">Transfer from Alpha Supplies Pte Ltd</text><text x="480" y="344" text-anchor="end">15,000.00</text><text x="555" y="344" text-anchor="end">65,800.00</text>
+<text x="40" y="368">18 Sep</text><text x="110" y="368">Utilities</text><text x="410" y="368" text-anchor="end">640.00</text><text x="555" y="368" text-anchor="end">65,160.00</text>
+<text x="40" y="392">22 Sep</text><text x="110" y="392">Transfer from Delta Customer</text><text x="480" y="392" text-anchor="end">9,400.00</text><text x="555" y="392" text-anchor="end">84,560.00</text>
+<text x="40" y="416">30 Sep</text><text x="110" y="416">Closing balance</text><text x="555" y="416" text-anchor="end">84,560.00</text>
+<text x="40" y="800" fill="#666">Page - of - . Fictitious document generated for the GLDB demo.</text>
+</svg>

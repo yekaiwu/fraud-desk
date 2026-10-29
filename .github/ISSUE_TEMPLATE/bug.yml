@@ -1,0 +1,20 @@
+name: Bug report
+description: Something is wrong (not a security issue: for those see SECURITY.md).
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Commands or clicks. Use the generated demo bundles or mock mode where you can. No real personal data.
+    validations: { required: true }
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, browser (for UI bugs), commit hash.

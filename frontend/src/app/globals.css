@@ -1,0 +1,355 @@
+@import "tailwindcss";
+
+/* "Ledger & Seal" design system. Light theme only (frontend.md section 14).
+   Read frontend/DESIGN.md before adding colours. Every text/background pair below was checked with
+   scripts/contrast.mjs (WCAG AA: 4.5:1 text, 3:1 large text and UI parts). Re-run it when you change a value. */
+:root {
+  /* paper and ink */
+  --paper: #f6f3ec; /* page */
+  --paper-2: #eeeae0; /* sunken wells, hover, table header */
+  --surface: #fffdf8; /* raised cards */
+  --ink: #14201b; /* body text, strongest */
+  --ink-2: #3a4a43; /* secondary text */
+  --muted: #5e6d66; /* tertiary text, captions (>= 4.5:1 on paper, paper-2, surface) */
+  --rule: #d9d3c4; /* hairlines, borders */
+  --rule-strong: #857d68; /* control borders (>= 3:1 on paper and surface) */
+
+  /* brand */
+  --brand: #0f3d2e; /* deep institutional green: header band, primary buttons */
+  --brand-2: #1b5e46; /* links, active states, focus ring */
+  --brand-tint: #e3efe8;
+  --brass: #b8893b; /* FILLS ONLY (never text): "needs your attention" accent */
+  --brass-deep: #7a5a1c; /* brass as text */
+  --brass-tint: #f3e8cf;
+  --brass-light: #e3c27f; /* brass on the dark green band, focus ring on dark */
+
+  /* risk (the only places red / amber / green appear) */
+  --sev-high: #a8231b;
+  --sev-high-tint: #f8e4e1;
+  --sev-medium: #9a5b00;
+  --sev-medium-tint: #fbebd0;
+  --sev-low: #2a7050;
+  --sev-low-tint: #e1f0e8;
+  --sev-info: #3d5a80;
+  --sev-info-tint: #e4ebf3;
+
+  /* text on the dark green band */
+  --on-brand: #f6f3ec;
+  --on-brand-muted: #b7cdc1;
+
+  --ring: var(--brand-2);
+
+  /* legacy names, kept so existing components keep working */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --border: var(--rule);
+  --card: var(--surface);
+  --accent: var(--brand);
+
+  /* elevation: soft, ink-tinted, never heavy */
+  --elev-paper: 0 1px 0 rgb(20 32 27 / 0.04), 0 1px 3px rgb(20 32 27 / 0.07);
+  --elev-lift: 0 1px 0 rgb(20 32 27 / 0.04), 0 10px 28px -10px rgb(20 32 27 / 0.2);
+  --elev-sheet: 0 28px 70px -12px rgb(15 61 46 / 0.4);
+}
+
+/* Anything sitting on the dark green band flips the focus ring to light brass. */
+.band-dark {
+  --ring: var(--brass-light);
+  color: var(--on-brand);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-brand-tint: var(--brand-tint);
+  --color-brass: var(--brass);
+  --color-brass-deep: var(--brass-deep);
+  --color-brass-tint: var(--brass-tint);
+  --color-brass-light: var(--brass-light);
+  --color-on-brand: var(--on-brand);
+  --color-on-brand-muted: var(--on-brand-muted);
+  --color-sev-high: var(--sev-high);
+  --color-sev-high-tint: var(--sev-high-tint);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-medium-tint: var(--sev-medium-tint);
+  --color-sev-low: var(--sev-low);
+  --color-sev-low-tint: var(--sev-low-tint);
+  --color-sev-info: var(--sev-info);
+  --color-sev-info-tint: var(--sev-info-tint);
+  /* legacy names */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-accent: var(--accent);
+
+  /* Families come from the @fontsource packages imported in layout.tsx (self-hosted, font-display: swap). */
+  --font-display: "Fraunces Variable", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans: "Hanken Grotesk Variable", "Segoe UI", "Helvetica Neue", Helvetica, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --shadow-sm: var(--elev-paper);
+  --shadow-md: var(--elev-lift);
+  --shadow-paper: var(--elev-paper);
+  --shadow-lift: var(--elev-lift);
+  --shadow-sheet: var(--elev-sheet);
+}
+
+html {
+  background: var(--paper);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  font-feature-settings: "kern", "liga";
+  text-rendering: optimizeLegibility;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  a {
+    text-underline-offset: 0.2em;
+  }
+  ::selection {
+    background: var(--brass-light);
+    color: var(--ink);
+  }
+}
+
+/* Visible 2px focus ring on every interactive element; brand green on paper, light brass on the dark band. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ---- motion: ONE orchestrated entrance (see ui/Stagger and DESIGN.md) ---- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* RiskGauge arc fill: --sweep-from is set to the arc length inline. */
+@keyframes sweep {
+  from {
+    stroke-dashoffset: var(--sweep-from, 100);
+  }
+}
+.rise {
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(min(var(--i, 0), 9) * var(--stagger-step, 50ms));
+}
+/* Children of .stagger rise one after another, 50 ms apart, first 10 only (later ones share the last step). */
+.stagger > * {
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(min(var(--i, 0), 9) * var(--stagger-step, 50ms));
+}
+.stagger > :nth-child(1) { --i: 0; }
+.stagger > :nth-child(2) { --i: 1; }
+.stagger > :nth-child(3) { --i: 2; }
+.stagger > :nth-child(4) { --i: 3; }
+.stagger > :nth-child(5) { --i: 4; }
+.stagger > :nth-child(6) { --i: 5; }
+.stagger > :nth-child(7) { --i: 6; }
+.stagger > :nth-child(8) { --i: 7; }
+.stagger > :nth-child(9) { --i: 8; }
+.stagger > :nth-child(n + 10) { --i: 9; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- bank-statement rules ---- */
+/* Thin hairline over a thicker line. --rule-top / --rule-bottom can be overridden per use. */
+.rule-statement {
+  padding-bottom: 0.7rem;
+  background-image:
+    linear-gradient(var(--rule-top, var(--ink-2)), var(--rule-top, var(--ink-2))),
+    linear-gradient(var(--rule-bottom, var(--brand)), var(--rule-bottom, var(--brand)));
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 100% 2px;
+  background-position: 0 calc(100% - 4px), 0 100%;
+}
+.rule-statement-soft {
+  --rule-top: var(--rule-strong);
+  --rule-bottom: var(--rule);
+}
+
+/* ---- page region overlay (frontend.md section 6) ---- */
+.region-box {
+  position: absolute;
+  background: color-mix(in srgb, var(--region-color) 12%, transparent);
+  outline: 2px solid var(--region-color);
+  outline-offset: 2px;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+/* 7 px tall boxes stay tappable: the invisible hit area extends 10 px each way */
+.region-box::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+.region-box[data-severity="high"] { outline-style: solid; }
+.region-box[data-severity="medium"] { outline-style: dashed; }
+.region-box[data-severity="low"] { outline-style: dotted; outline-width: 3px; }
+.region-box[data-severity="info"] { outline-style: double; outline-width: 4px; }
+.region-box[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px #fff inset;
+  background: color-mix(in srgb, var(--region-color) 22%, transparent);
+  animation: region-pulse 0.9s ease-out 1;
+}
+.region-extra {
+  position: absolute;
+  outline: 1.5px dashed #667085;
+  outline-offset: 1px;
+  background: rgb(102 112 133 / 0.08);
+  pointer-events: none;
+}
+.region-chip {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 0.2rem;
+  background: var(--region-color);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1rem;
+  height: 1rem;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+}
+@keyframes region-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--region-color) 60%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+
+/* ---- skeletons, dialogs, misc ---- */
+.skeleton {
+  background: linear-gradient(90deg, #e6e1d3 25%, #f1eee5 50%, #e6e1d3 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: var(--radius-md);
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+dialog.sheet {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-xl);
+  padding: 0;
+  max-width: min(36rem, calc(100vw - 2rem));
+  width: 100%;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--elev-sheet);
+  /* Tailwind's preflight zeroes a dialog's auto margins, which pins it top-left; centre it again. */
+  margin: auto;
+}
+dialog.sheet::backdrop { background: rgb(10 38 29 / 0.55); }
+@media (max-width: 639px) {
+  dialog.sheet {
+    max-width: 100vw;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+  }
+}
+dialog.sheet:not([open]) { display: none; }
+
+.tabular { font-variant-numeric: tabular-nums; }
+.font-display { font-family: var(--font-display); }
+.label-caps { font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 600; color: var(--muted); }
+/* IDs, UENs, amounts */
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-feature-settings: "zero"; letter-spacing: -0.01em; }
+
+/* ---- print: the case pack prints on white paper, no chrome ---- */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  header,
+  footer,
+  nav,
+  [role="note"],
+  .no-print {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .stagger > * {
+    animation: none !important;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* ---- "How this was analysed": while the sheet is open, print only the sheet ---- */
+@media print {
+  body:has(dialog.trail[open]) > *:not(dialog.trail) {
+    display: none !important;
+  }
+  dialog.trail[open] {
+    position: static !important;
+    display: block;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+}
