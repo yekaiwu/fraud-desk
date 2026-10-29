@@ -86,7 +86,14 @@ def test_ci_workflow_is_valid_yaml_with_the_expected_commands() -> None:
     ):
         assert cmd in runs, cmd
     assert any("gen_check_catalogue.py --check" in r for r in runs)
-    assert "hashFiles('frontend/package.json')" in wf["jobs"]["frontend"]["if"]
+    # no job-level `if: hashFiles(...)`: that function is not allowed there and the whole workflow fails to start
+    assert "if" not in wf["jobs"]["frontend"]
+    node = next(
+        s["with"]["node-version"]
+        for s in wf["jobs"]["frontend"]["steps"]
+        if "setup-node" in s.get("uses", "")
+    )
+    assert int(node) >= 22  # vitest 5 requires Node 22.12 or newer
     steps = " ".join(s.get("run", "") for s in wf["jobs"]["frontend"]["steps"])
     for cmd in ("npm ci", "npm run lint", "npx tsc --noEmit", "npm test", "npm run build"):
         assert cmd in steps

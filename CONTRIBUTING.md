@@ -16,7 +16,7 @@ uv run ruff check . && uv run ruff format --check .
 cd frontend && npm ci && npm run lint && npx tsc --noEmit && npm test
 ```
 
-CI runs the same commands. `uv run python backend/scripts/gen_check_catalogue.py --check` must pass if you add or change a check (it regenerates `docs/check-catalogue.md`; drop `--check` to write it).
+CI runs the same commands (the frontend tests need Node 22.12 or newer). `uv run python backend/scripts/gen_check_catalogue.py --check` must pass if you add or change a check (it regenerates `docs/check-catalogue.md`; drop `--check` to write it).
 
 ## Ground rules for code
 
