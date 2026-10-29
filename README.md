@@ -26,22 +26,18 @@
 
 ---
 
-> [!IMPORTANT]
-> **Testers wanted.** Every number we have comes from data *we* generated and checks *we* wrote, so it says little about the real world. The most useful thing you can do is try to fool it, find what it flags wrongly, and tell us. Jump to [Try it and try to break it](#try-it-and-try-to-break-it).
->
-> **Research prototype, not validated, not compliance advice.** All data in this repository is fictitious. Do not upload real customer documents.
-
 ## Key features
 
-- **A ranked worklist, not a verdict.** An analyst uploads a bundle (bank statements, invoices, financial statements, contracts, company and ownership documents, IDs). The tool reads it, runs the checks and returns cases riskiest-first, with the reason in one plain-English line. **A person decides; nothing is approved, rejected or escalated automatically.**
-- **Evidence you can see.** Every flag points at the exact figure on the exact page, highlighted on the document, with an analysis trail that says what ran, what did not and why.
-- **Silence is not safety.** The score always shows *coverage*: how many checks ran out of those that applied, and which pages **nobody checked**. A failed stage or a hit budget marks the score partial instead of quietly passing.
-- **55 checks across 12 document types.** Bank statement arithmetic, invoice and receipt matching, financial-statement consistency, cross-document reconciliation, ID and company-registry checks, ownership and director analysis, source-of-funds and pass-through patterns, name matching across transliterations.
-- **Forensics on PDFs and images.** Editing-software and modification-date metadata, bytes added after a signature, text-layer anomalies, raster tamper cues, reused signatures. See [docs/forensics.md](docs/forensics.md).
-- **A review workflow with teeth.** Verdicts need a reason, a high-severity dismissal needs a **second approver**, every action lands in an append-only audit log, and a case pack can be exported. The check catalogue is editable, with a change log.
-- **Cost controls built in.** Per-case and per-day dollar caps, a response cache and a cheap-first cascade, so a paid model cannot run away with a budget.
-- **Works on a phone.** The whole review flow is designed for 390 px as well as a desk.
-- **Tested offline.** About 3,600 automated tests, none of which need a network or an API key.
+> [!IMPORTANT]
+> - **A ranked worklist, not a verdict.** An analyst uploads a bundle (bank statements, invoices, financial statements, contracts, company and ownership documents, IDs). The tool reads it, runs the checks and returns cases riskiest-first, with the reason in one plain-English line. **A person decides; nothing is approved, rejected or escalated automatically.**
+> - **Evidence you can see.** Every flag points at the exact figure on the exact page, highlighted on the document, with an analysis trail that says what ran, what did not and why.
+> - **Silence is not safety.** The score always shows *coverage*: how many checks ran out of those that applied, and which pages **nobody checked**. A failed stage or a hit budget marks the score partial instead of quietly passing.
+> - **55 checks across 12 document types.** Bank statement arithmetic, invoice and receipt matching, financial-statement consistency, cross-document reconciliation, ID and company-registry checks, ownership and director analysis, source-of-funds and pass-through patterns, name matching across transliterations.
+> - **Forensics on PDFs and images.** Editing-software and modification-date metadata, bytes added after a signature, text-layer anomalies, raster tamper cues, reused signatures. See [docs/forensics.md](docs/forensics.md).
+> - **A review workflow with teeth.** Verdicts need a reason, a high-severity dismissal needs a **second approver**, every action lands in an append-only audit log, and a case pack can be exported. The check catalogue is editable, with a change log.
+> - **Cost controls built in.** Per-case and per-day dollar caps, a response cache and a cheap-first cascade, so a paid model cannot run away with a budget.
+> - **Works on a phone.** The whole review flow is designed for 390 px as well as a desk.
+> - **Tested offline.** About 3,600 automated tests, none of which need a network or an API key.
 
 ## See it
 
