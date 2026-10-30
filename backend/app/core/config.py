@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     anthropic_workspace_id: str = ""  # sent as the anthropic-workspace-id header when non-empty
     anthropic_timeout_s: float = 120.0
     # local OCR for scans (ingest/ocr.py)
-    ocr_backend: Literal["auto", "vision", "none"] = "auto"
+    ocr_backend: Literal["auto", "vision", "tesseract", "none"] = "auto"
 
     # semantic signals (docs/semantic-signals.md): model-derived, evidence-bound checks; OFF by default.
     # "off" -> the checks are not even registered as applicable, every result is byte-identical.

@@ -272,7 +272,7 @@ Dev (`uv add --dev`): `pytest`, `pytest-timeout` (stop hung PDF/CV tests), `pyte
 
 Local classifier packages (R0 decision): **no `local` extra is declared.** No model weights can be downloaded in the build environment and resolving `torch` for every platform makes `uv lock` slow and fragile. `classify/local.py` lazy-imports `torch`/`transformers` and raises `ClassifierUnavailable` when they are absent, which is the recorded gate outcome (plan 5.3). A human who runs the gate on a laptop (tasks H-13) adds them with `uv add --optional local torch transformers` and `uv sync --extra local`; that is the only sanctioned later change to `pyproject.toml`/`uv.lock`, and it is done by a human, not an agent.
 
-Not used, on purpose: no local OCR binary (Tesseract is not a uv package; scans go to the vision model), no pandas (plain Python plus numpy suffices), no ORM, no Celery/Redis, no Faker (the generator uses its own fictitious name lists so patronymic and Chinese-order cases are controlled).
+Not used, on purpose: no local OCR binary installed by `uv sync` (the optional `GLDB_OCR_BACKEND=tesseract` drives a `tesseract` program you install yourself; by default scans go to the vision model), no pandas (plain Python plus numpy suffices), no ORM, no Celery/Redis, no Faker (the generator uses its own fictitious name lists so patronymic and Chinese-order cases are controlled).
 
 Ruff config (in `pyproject.toml`): `line-length = 100`, `target-version = "py312"`, select `E,F,I,UP,B,SIM`; format with `ruff format`. Pytest: `testpaths = ["backend/tests"]`, `pythonpath = ["backend"]`, default `--timeout=120`.
 

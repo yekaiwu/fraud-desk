@@ -22,7 +22,7 @@ Turn stored files into trustworthy structured data: per-page facts and a text la
 | Any fraud logic, tolerance, severity | checks docs |
 | Pixel forensics on the raw file (forensics reads the file itself via `ctx.file_path`) | forensics.md |
 | Upload endpoint, magic-byte validation at the HTTP edge, storing the file | api.md (ingest re-checks, section 4.2) |
-| Local OCR binary (none; Tesseract is not a uv package) | architecture.md section 7 |
+| Local OCR binary (none installed by `uv sync`; Tesseract is optional, `brew install tesseract`) | architecture.md section 7 |
 
 ## 3. Interfaces
 

@@ -136,11 +136,11 @@ def _local_ocr(ctx: CaseContext, file_id: str, page: int, backend) -> tuple[list
 def ocr_page_ex(ctx: CaseContext, file_id: str, page: int) -> tuple[list[Word], list[str]]:
     """OCR one page; returns (words, warnings).
 
-    Reader choice (``GLDB_LLM_SUPPORTS_VISION`` x ``GLDB_OCR_BACKEND``): ``vision`` always uses the
+    Reader choice (``GLDB_LLM_SUPPORTS_VISION`` x ``GLDB_OCR_BACKEND``): ``vision`` and ``tesseract`` always use the
     local backend; ``auto``/``none`` use the vision model when the model has vision, and otherwise
     (``auto`` only) the local backend. No reader -> :class:`OcrUnavailable`. LLM errors propagate."""
     settings = ctx.settings
-    if settings.ocr_backend == "vision" or not settings.llm_supports_vision:
+    if settings.ocr_backend in ("vision", "tesseract") or not settings.llm_supports_vision:
         backend = select_backend(settings)  # may raise OcrUnavailable
         if backend is None:
             raise OcrUnavailable(describe_unavailable(settings))

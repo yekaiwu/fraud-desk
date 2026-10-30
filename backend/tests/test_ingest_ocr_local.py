@@ -19,7 +19,9 @@ from app.ingest.ocr import OcrUnavailable, ocr_page_ex
 from app.ingest.ocr_backends import (
     MacVisionOcr,
     OcrBox,
+    TesseractOcr,
     select_backend,
+    tesseract_tsv_to_ocr,
     vision_boxes_to_ocr,
     vision_import_problem,
 )
@@ -329,3 +331,100 @@ def test_real_macos_vision_reads_a_rendered_sample_page(tmp_path: Path) -> None:
     title = next(w for w in words if w.text == "Statement")
     assert title.y < 0.25  # the heading is near the top of the page (top-left origin)
     assert max(w.y for w in words) > 0.5  # and text continues down the page
+
+
+# ----------------------------------------------------------------------------- Tesseract
+
+TSV_HEAD = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+
+
+def tsv_word(
+    block: int, line: int, word: int, left: int, top: int, w: int, h: int, conf: float, text: str
+) -> str:
+    return f"5\t1\t{block}\t1\t{line}\t{word}\t{left}\t{top}\t{w}\t{h}\t{conf}\t{text}\n"
+
+
+def test_tesseract_tsv_joins_words_into_lines_with_fractional_boxes() -> None:
+    tsv = (
+        TSV_HEAD
+        + "4\t1\t1\t1\t1\t0\t10\t20\t200\t20\t-1\t\n"  # a line row, not a word
+        + tsv_word(1, 1, 2, 110, 20, 90, 20, 95.0, "World")
+        + tsv_word(1, 1, 1, 10, 20, 80, 20, 96.0, "Hello")
+        + tsv_word(1, 2, 1, 10, 60, 50, 20, 91.0, "1,234.50")
+    )
+    boxes = tesseract_tsv_to_ocr(tsv, 400, 200)
+    assert [b.text for b in boxes] == ["Hello World", "1,234.50"]
+    first = boxes[0]
+    assert (first.x, first.y, first.w, first.h) == pytest.approx(
+        (10 / 400, 20 / 200, 190 / 400, 20 / 200)
+    )
+
+
+def test_tesseract_tsv_drops_empty_words_and_negative_confidence() -> None:
+    tsv = (
+        TSV_HEAD
+        + tsv_word(1, 1, 1, 10, 20, 50, 20, -1.0, "ghost")
+        + tsv_word(1, 1, 2, 70, 20, 50, 20, 90.0, "   ")
+        + tsv_word(1, 1, 3, 130, 20, 50, 20, 90.0, "kept")
+    )
+    assert [b.text for b in tesseract_tsv_to_ocr(tsv, 400, 200)] == ["kept"]
+    assert tesseract_tsv_to_ocr(TSV_HEAD, 0, 0) == []
+
+
+def test_select_tesseract_without_the_program_says_how_to_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ocr_backends, "find_tesseract", lambda: None)
+    with pytest.raises(OcrUnavailable, match="brew install tesseract"):
+        select_backend(settings(ocr_backend="tesseract"))
+
+
+def test_select_tesseract_with_the_program(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ocr_backends, "find_tesseract", lambda: "/fake/tesseract")
+    assert isinstance(select_backend(settings(ocr_backend="tesseract")), TesseractOcr)
+
+
+def test_tesseract_recognise_runs_the_program_and_reads_its_tsv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    from PIL import Image
+
+    seen: dict = {}
+
+    def fake_run(argv, **kw):  # noqa: ANN001, ANN003, ANN202
+        seen["argv"], seen["input"] = argv, kw["input"]
+        out = TSV_HEAD + tsv_word(1, 1, 1, 40, 20, 80, 20, 93.0, "Balance")
+        return subprocess.CompletedProcess(argv, 0, stdout=out.encode(), stderr=b"")
+
+    monkeypatch.setattr(ocr_backends, "find_tesseract", lambda: "/fake/tesseract")
+    monkeypatch.setattr(ocr_backends.subprocess, "run", fake_run)
+    buf = io.BytesIO()
+    Image.new("RGB", (400, 200), "white").save(buf, "PNG")
+    boxes = TesseractOcr().recognise(buf.getvalue())
+    assert (
+        seen["argv"][0] == "/fake/tesseract"
+        and seen["argv"][-1] == "tsv"
+        and seen["input"] == buf.getvalue()
+    )
+    assert [b.text for b in boxes] == ["Balance"] and boxes[0].x == pytest.approx(0.1)
+
+
+def test_tesseract_failure_is_an_unavailable_page_not_a_crash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    from PIL import Image
+
+    monkeypatch.setattr(ocr_backends, "find_tesseract", lambda: "/fake/tesseract")
+    monkeypatch.setattr(
+        ocr_backends.subprocess,
+        "run",
+        lambda argv, **kw: subprocess.CompletedProcess(argv, 1, b"", b"boom"),
+    )
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 20), "white").save(buf, "PNG")
+    with pytest.raises(OcrUnavailable, match="exit 1"):
+        TesseractOcr().recognise(buf.getvalue())

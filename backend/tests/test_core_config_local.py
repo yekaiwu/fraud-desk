@@ -80,8 +80,8 @@ def test_invalid_values_fail_startup_clearly(kw: dict, needle: str) -> None:
         Settings(_env_file=None, **kw).validate_startup()
 
 
-def test_ocr_backend_only_accepts_the_three_values() -> None:
-    for value in ("auto", "vision", "none"):
+def test_ocr_backend_only_accepts_the_four_values() -> None:
+    for value in ("auto", "vision", "tesseract", "none"):
         assert Settings(_env_file=None, ocr_backend=value).ocr_backend == value
     with pytest.raises(ValueError):
-        Settings(_env_file=None, ocr_backend="tesseract")
+        Settings(_env_file=None, ocr_backend="paddle")

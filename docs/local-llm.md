@@ -61,7 +61,7 @@ All defaults are the previous hosted behaviour; nothing changes unless you set t
 | `GLDB_LLM_TIMEOUT_S` | `60` | Per request. Use `300` locally: a long statement page plus generation can take minutes, and a client that gives up does not cancel the server's generation (it finishes first), so a timeout makes the next request wait longer, not shorter. |
 | `GLDB_LLM_RETRY_503_ATTEMPTS` | `2` | Retries of a 503. The local profile uses `8`. |
 | `GLDB_LLM_RETRY_503_BACKOFF_S` / `_MAX_WAIT_S` | `1` / `60` | Wait before retry *n* is `Retry-After` when the server sends it, else `backoff * 3**n` (1, 3, 9 ... with the default, 5, 15, 45 ... in the local profile), never more than `MAX_WAIT_S`. |
-| `GLDB_OCR_BACKEND` | `auto` | `auto`, `vision` or `none`; see section 4. |
+| `GLDB_OCR_BACKEND` | `auto` | `auto`, `vision`, `tesseract` or `none`; see section 4. |
 
 **503 handling.** Two different 503s:
 
@@ -90,6 +90,8 @@ All defaults are the previous hosted behaviour; nothing changes unless you set t
 |---|---|---|
 | `true` | `auto` or `none` | the vision model (the previous behaviour; fakes and the eval oracle unchanged) |
 | `true` | `vision` | macOS Vision (forces local OCR even though the model could do it) |
+| `true` | `tesseract` | the `tesseract` program (forces local OCR; `brew install tesseract`, no Python package; not measured against Haiku or Apple Vision yet) |
+| `false` | `tesseract` | the `tesseract` program; if it is not installed, "OCR unavailable" with the install hint |
 | `false` | `auto` | macOS Vision if `ocrmac` imports on darwin, else **no OCR** |
 | `false` | `vision` | macOS Vision; if it cannot run, "OCR unavailable" with the reason |
 | `false` | `none` | **no OCR** |
