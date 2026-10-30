@@ -906,7 +906,9 @@ class _GroundTruthOracle:
         doc = self._docs.get(row["doc_key"])
         if doc is None or doc.get("doc_type") != doc_type:
             raise LLMNoFixture(f"{req.purpose}: no ground truth document {row['doc_key']}")
-        return self._extract_page(doc, doc_type, page)
+        # `page` is the page inside the file; for one image per page it is always 1, so the page of the
+        # DOCUMENT that file holds (`doc_page`) decides which rows and fields the answer carries.
+        return self._extract_page(doc, doc_type, int(row.get("doc_page", page)))
 
     @staticmethod
     def _raw(cell: Any) -> str | None:

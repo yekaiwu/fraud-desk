@@ -270,6 +270,43 @@ def test_from_ground_truth_oracle(tmp_path: Path) -> None:
     assert len(fake.calls) == 6
 
 
+def test_oracle_follows_doc_page_for_one_image_per_page(tmp_path: Path) -> None:
+    """Each page of a statement uploaded as its own image is page 1 of its file; the answer must still be
+    the content of the document page that file holds."""
+    manifest = build_bundle(tmp_path)
+    labels = json.loads((tmp_path / "labels.json").read_text())
+    shas = [hashlib.sha256(f"jpg-{n}".encode()).hexdigest() for n in (1, 2)]
+    labels["pages"] = [
+        {
+            "file": f"scan/p{n}.jpg",
+            "sha256": shas[n - 1],
+            "page": 1,
+            "doc_page": n,
+            "doc_key": "bank_statement:2025-07",
+            "c1": "bank_statement",
+        }
+        for n in (1, 2)
+    ]
+    (tmp_path / "labels.json").write_text(json.dumps(labels))
+    fake = FakeLLMClient.from_ground_truth(manifest)
+    schema = response_json_schema("bank_statement")
+
+    def read(sha: str) -> dict:
+        return fake.complete_json(
+            req(purpose="extract:bank_statement", cache_extra=f"{sha}:1:text", json_schema=schema)
+        ).data
+
+    first, second = read(shas[0]), read(shas[1])
+    assert [r["balance"] for r in first["tables"]["transactions"]] == ["100.00"]
+    assert [r["balance"] for r in second["tables"]["transactions"]] == ["900.00"]
+    assert (
+        first["fields"]["bank_name"] == "DBS BANK LTD"
+        and first["fields"]["closing_balance"] is None
+    )
+    assert second["fields"]["closing_balance"] == "900.00" and second["fields"]["bank_name"] is None
+    assert first["page_marker"] == "Page 1 of 2" and second["page_marker"] is None
+
+
 # ---------------------------------------------------------------- utilities
 
 
