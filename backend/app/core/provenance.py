@@ -103,7 +103,7 @@ def build_provenance(ctx: CaseContext) -> Provenance:
         classifier += f":{s.local_classifier_model}"
     return Provenance(
         app_version=APP_VERSION,
-        ruleset_version=ruleset_version(all_checks()),
+        ruleset_version=ruleset_version(all_checks(s)),
         models={
             "extract_cheap": "fake" if fake else s.llm_model_cheap,
             "extract_strong": "fake" if fake else s.llm_model_strong,

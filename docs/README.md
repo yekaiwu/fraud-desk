@@ -24,6 +24,7 @@ Specs for the GLDB document-fraud analysis tool. Source plan: the master plan (n
 - [deploy.md](deploy.md): self-hosting the app on an always-on machine: shared-login gate, same-origin `/api` proxy, backend proxy secret and rate limits, launchd install scripts in `deploy/`, security checklist.
 - [limitations.md](limitations.md): what the tool cannot detect and what the evidence does not prove, in plain language: consistent forgeries, AI inpainting, real versus simulated scans, genuine documents with false content, synthetic-only evidence, name matching, public data sets, the live model check, the scan false-alarm story.
 - [anthropic-haiku.md](anthropic-haiku.md): the optional paid Anthropic backend (official SDK, Claude Haiku 5.5 only): setup, workspace id, request settings, pricing tiers, spend caps, privacy, refusals, which stages call the model.
+- [semantic-signals.md](semantic-signals.md): the optional, off-by-default layer of model-derived checks that must quote the extracted data: the six invariants, the claim verifier, severity cap and fast-lane rules, how to turn it on, the two models and what each is for, and the measured local-model latency.
 
 ## Work tracking
 

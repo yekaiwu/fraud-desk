@@ -11,7 +11,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Query, Request
 
-from app.api._common import ApiRoute, DbDep, get_clock
+from app.api._common import ApiRoute, DbDep, SettingsDep, get_clock
 from app.catalogue import (
     CHANGES_DEFAULT_LIMIT,
     CHANGES_MAX_LIMIT,
@@ -27,9 +27,9 @@ router = APIRouter(tags=["rules"], route_class=ApiRoute)
 
 
 @router.get("/rules")
-def list_rules(db: DbDep) -> dict[str, Any]:
+def list_rules(db: DbDep, settings: SettingsDep) -> dict[str, Any]:
     overrides = db.rule_overrides()
-    return {"rules": [rule_item(m, overrides.get(m.rule)) for m in all_checks()]}
+    return {"rules": [rule_item(m, overrides.get(m.rule)) for m in all_checks(settings)]}
 
 
 @router.get("/rules/changes")

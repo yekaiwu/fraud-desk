@@ -40,6 +40,7 @@ from app.names import (
     union_region,
     unverified_note,
 )
+from app.semantic.txn import c5_label_for
 
 # --------------------------------------------------------------------------------------
 # Constants (starting guesses, recalibrated from the eval; plan 4 intro, 9)
@@ -1567,6 +1568,7 @@ class _Obs:
     amount: Decimal
     is_credit: bool
     counterparty: str
+    cue: str | None = None  # set when the label came from the language model, not the C5 classifier
 
 
 @check(
@@ -1603,13 +1605,22 @@ def x_declared_vs_activity(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912
                 continue
             turnover += amount
             ann = row.annotations.get("c5")
-            if ann is None:
+            if ann is not None:
+                annotated += 1
+            label = ann.label if ann is not None else None
+            cue = None
+            if ann is None or ann.probability < min_prob or ann.label == "other":
+                # GLDB_SEMANTIC=on: a verified model label may fill a gap (never replace a label
+                # the classifier is sure of), and only for a risky activity, so it can add an
+                # observation but never remove one. Off: c5_label_for is always None.
+                model = c5_label_for(ctx, row)
+                if model is None:
+                    continue
+                label, cue = model[0], model[1].cue
+            if label is None:
                 continue
-            annotated += 1
-            if ann.probability < min_prob or ann.label == "other":
-                continue
-            by_label[ann.label].append(
-                _Obs(doc, row, amount, credit is not None, counterparty_of(row) or "")
+            by_label[label].append(
+                _Obs(doc, row, amount, credit is not None, counterparty_of(row) or "", cue)
             )
     if annotated == 0:
         raise CheckSkipped("no c5 annotations")
@@ -1621,6 +1632,13 @@ def x_declared_vs_activity(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912
     def build(label: str, obs: list[_Obs], severity: str | None, evidence: str, expl: str) -> Flag:
         first = obs[0]
         docs = sorted({o.doc.id for o in obs}, key=natural_key)
+        by_model = [o for o in obs if o.cue]
+        if by_model:  # GLDB_SEMANTIC=on: say which rows were read by the model, and on what words
+            cues = ", ".join(sorted({safe_text(o.cue or "", 30) for o in by_model})[:3])
+            evidence += (
+                f"; {len(by_model)} of {len(obs)} rows labelled by a language model from the "
+                f"description text (quoted: {cues})"
+            )
 
         def amount_region(o: _Obs) -> Region | None:
             cell = o.row.cells["credit" if o.is_credit else "debit"]

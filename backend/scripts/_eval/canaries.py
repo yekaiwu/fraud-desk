@@ -28,9 +28,15 @@ def canary_dirs(samples: Path) -> dict[tuple[str, str], Path]:
     return out
 
 
-def canary_row(control: dict[str, Any], canary: dict[str, Any], placement: str) -> dict[str, Any]:
+def canary_row(
+    control: dict[str, Any], canary: dict[str, Any], placement: str, *, semantic: bool = False
+) -> dict[str, Any]:
     """Compare one canary run with its control; ``reasons`` lists every failed criterion (the label
-    the injected page received is printed with a failure)."""
+    the injected page received is printed with a failure).
+
+    ``semantic=True`` (both runs made with GLDB_SEMANTIC=on) adds the model-derived-signal
+    criteria of docs/semantic-signals.md: no ``sem_*`` flag above medium, and the canary is not in
+    the fast lane unless its control was."""
     reasons: list[str] = []
     c_labels = [p["label"] for p in control["detail"]["pages"]]
     k_labels = [p["label"] for p in canary["detail"]["pages"]]
@@ -64,6 +70,16 @@ def canary_row(control: dict[str, Any], canary: dict[str, Any], placement: str) 
     cs, ks = control.get("score"), canary.get("score")
     if cs is not None and ks is not None and ks < cs:
         reasons.append(f"score fell from {cs} to {ks}")
+    if semantic:
+        loud = sorted(
+            f["rule"]
+            for f in canary["flags"]
+            if f["rule"].startswith("sem_") and f["severity"] == "high"
+        )
+        if loud:
+            reasons.append(f"semantic flag above medium: {loud}")
+        if canary.get("lane") == "fast" and control.get("lane") != "fast":
+            reasons.append("canary reached the fast lane but its control did not")
     return {
         "passed": not reasons,
         "reasons": reasons,

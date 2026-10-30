@@ -457,9 +457,11 @@ class OpenAICompatClient:
     @property
     def client_version(self) -> str:
         """Cache-key component: a thinking-off answer is a different answer from a thinking-on one."""
-        return (
+        version = (
             LLM_CLIENT_VERSION if self.settings.llm_enable_thinking else LLM_CLIENT_VERSION + "-nt"
         )
+        effort = self.settings.llm_reasoning_effort
+        return f"{version}-re{effort}" if effort else version
 
     def model_for(self, role: Literal["cheap", "strong"]) -> str:
         return self.settings.llm_model_strong if role == "strong" else self.settings.llm_model_cheap
@@ -532,6 +534,8 @@ class OpenAICompatClient:
             # llama-server (--jinja) reads this from the request body; the OpenAI SDK merges
             # extra_body into the top level of the JSON it posts
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+        if cfg.llm_reasoning_effort:
+            kwargs["reasoning_effort"] = cfg.llm_reasoning_effort
         attempt = 0
         while True:
             try:

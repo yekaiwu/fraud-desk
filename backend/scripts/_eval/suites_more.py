@@ -214,6 +214,9 @@ def canary_suite(cfg: Config) -> dict[str, Any]:
         jobs.append(job(cfg, d / "manifest.json", "digital", detail=True))
         keys.append(k)
     res = dict(zip(keys, run_cached(cfg, jobs, label="canaries"), strict=True))
+    from app.core.config import Settings
+
+    semantic_on = Settings().semantic != "off"  # model-derived-signal criteria only when on
     rows = []
     for host in can.HOSTS:
         ctrl = res.get((host, "control"))
@@ -230,7 +233,7 @@ def canary_suite(cfg: Config) -> dict[str, Any]:
                     }
                 )
                 continue
-            row = can.canary_row(ctrl, r, p)
+            row = can.canary_row(ctrl, r, p, semantic=semantic_on)
             rows.append({"host": host, "placement": p, **row})
     passed = sum(1 for r in rows if r["passed"])
     return {"rows": rows, "passed": passed, "total": len(rows), "classifier": cfg.classifier}

@@ -86,7 +86,8 @@ class Config:
 
 def code_fingerprint() -> str:
     """Hash of path, size and mtime of every source file under ``backend/app`` and the runner, so
-    a cached result is never reused after the code changes."""
+    a cached result is never reused after the code changes (and, with ``GLDB_SEMANTIC`` on, of the
+    semantic settings)."""
     root = Path(__file__).resolve().parents[2]
     h = hashlib.sha256()
     for p in sorted((root / "app").rglob("*.py")):
@@ -95,7 +96,26 @@ def code_fingerprint() -> str:
     for name in ("runner.py", "acceptance.py"):
         p = Path(__file__).with_name(name)
         h.update(f"{name}:{p.stat().st_size}:{p.stat().st_mtime_ns}".encode())
+    sem = _semantic_environment()
+    if sem:  # only when on, so every key made with the switch off is unchanged
+        h.update(sem.encode())
     return h.hexdigest()[:16]
+
+
+def _semantic_environment() -> str:
+    """The model-derived-signal settings that change a result: empty with ``GLDB_SEMANTIC`` off.
+    With it on, the switch, the claim cap, the model names, the backend and the endpoint, so an
+    on run never reads an off run's cache (or a run against another model or server)."""
+    from app.core.config import Settings
+    from app.semantic.policy import SEMANTIC_VERSION
+
+    s = Settings(_env_file=None)  # the runner ignores .env files too (runner.make_settings)
+    if s.semantic == "off":
+        return ""
+    settings = dict(
+        s.result_settings(), llm_base_url=s.llm_base_url, semantic_version=SEMANTIC_VERSION
+    )
+    return json.dumps(settings, sort_keys=True)
 
 
 def _job_key(job: dict[str, Any], fp: str) -> str:

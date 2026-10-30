@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterable, Sequence
 from pydantic import ConfigDict, Field
 
 from app.assemble import AssembledStatement
+from app.core.config import Settings
 from app.core.context import CaseContext, natural_key
 from app.core.models import (
     FLAG_STAGE_ORDER,
@@ -30,6 +31,7 @@ from app.core.models import (
     Strict,
     clean_text,
 )
+from app.semantic.policy import cap_severity, is_semantic_rule, semantic_enabled
 
 BUILTIN_MODULES = ("app.core.builtin_checks",)
 SKIP_MODULES = {"registry"}
@@ -130,11 +132,19 @@ def _stage_rank(stage: str) -> int:
     return FLAG_STAGE_ORDER.index(stage)
 
 
-def all_checks() -> list[CheckMeta]:
-    """Every registered check, sorted by (stage order, rule). Runs ``discover()`` first."""
+def all_checks(settings: Settings | None = None) -> list[CheckMeta]:
+    """Every registered check, sorted by (stage order, rule). Runs ``discover()`` first.
+
+    The model-derived (semantic) checks are included only when ``settings`` is given and
+    ``GLDB_SEMANTIC`` is on; without it the list is exactly what it was before they existed."""
     discover()
     with _lock:
-        return sorted(_REGISTRY.values(), key=lambda m: (_stage_rank(m.stage), m.rule))
+        metas = list(_REGISTRY.values())
+    if settings is not None and semantic_enabled(settings):
+        from app.semantic.registry import semantic_checks  # lazy: it imports this module
+
+        metas += semantic_checks(settings)
+    return sorted(metas, key=lambda m: (_stage_rank(m.stage), m.rule))
 
 
 def get_check(rule: str) -> CheckMeta | None:
@@ -145,6 +155,10 @@ def get_check(rule: str) -> CheckMeta | None:
         discover()
         with _lock:
             meta = _REGISTRY.get(rule)
+    if meta is None and is_semantic_rule(rule):
+        from app.semantic.registry import get_semantic_check
+
+        meta = get_semantic_check(rule)
     return meta
 
 
@@ -155,7 +169,9 @@ def applicable(ctx: CaseContext) -> list[CheckMeta]:
     scoped out of a use case whose documents are absent is not counted, so coverage is not
     lowered for documents the bundle never carries."""
     return [
-        m for m in all_checks() if ctx.use_case in m.use_cases or requirement_gap(m, ctx) is None
+        m
+        for m in all_checks(ctx.settings)
+        if ctx.use_case in m.use_cases or requirement_gap(m, ctx) is None
     ]
 
 
@@ -236,9 +252,11 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
             )
             continue
         started = time.perf_counter()
+        semantic = is_semantic_rule(meta.rule)
         try:
             produced = list(meta.func(ctx))
         except CheckSkipped as skip:
+            ctx.semantic_tally.pop(meta.rule, None)
             runs.append(
                 CheckRun(
                     rule=meta.rule,
@@ -250,6 +268,7 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
             )
             continue
         except Exception as exc:  # noqa: BLE001 - one broken check must not stop the others
+            ctx.semantic_tally.pop(meta.rule, None)
             runs.append(
                 CheckRun(
                     rule=meta.rule,
@@ -261,15 +280,23 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
             )
             continue
         seconds = time.perf_counter() - started
+        tally = ctx.semantic_tally.pop(meta.rule, None) if semantic else None
         for flag in produced:
             update: dict[str, object] = {
                 "rule": meta.rule,
                 "stage": meta.stage,
                 "id": _unique_id(flag.id, taken),
             }
-            if override is not None and override.severity and override.severity != flag.severity:
-                update["severity"] = override.severity
-                update["code_severity"] = flag.severity
+            produced_severity = flag.severity
+            if semantic:  # a model-derived flag is never above medium, whatever produced or set it
+                produced_severity = cap_severity(flag.severity)
+                update["severity"] = produced_severity
+            wanted = override.severity if override is not None and override.severity else None
+            if wanted is not None and semantic:
+                wanted = cap_severity(wanted)
+            if wanted is not None and wanted != produced_severity:
+                update["severity"] = wanted
+                update["code_severity"] = produced_severity
             fixed = flag.model_copy(update=update)
             taken.add(fixed.id)
             case.flags.append(fixed)
@@ -280,6 +307,8 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
                 status="ran",
                 flags=len(produced),
                 seconds=seconds,
+                # semantic checks: claims proposed / kept / dropped, so drops are always visible
+                reason=tally.note() if tally is not None else None,
             )
         )
     case.check_runs.extend(runs)

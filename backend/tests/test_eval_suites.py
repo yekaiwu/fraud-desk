@@ -262,3 +262,26 @@ def test_instances_respect_the_compute_budget_and_image_tampers_use_scans_only(
     quick = su.Config(samples=tmp_path, out=tmp_path, n=1, renders=["digital"])
     assert all(rs == ["digital"] for *_x, rs in su._instances(quick, "T01"))
     assert su._instances(quick, "T40a") == []
+
+
+def test_cache_key_separates_semantic_on_from_off_and_leaves_off_unchanged(
+    monkeypatch: Any,
+) -> None:
+    job = {"render": "digital", "today": "2026-01-01"}
+    monkeypatch.delenv("GLDB_SEMANTIC", raising=False)
+    off = su.code_fingerprint()
+    monkeypatch.setenv("GLDB_SEMANTIC", "off")
+    assert su.code_fingerprint() == off  # an explicit off is the same run as unset
+    assert su._semantic_environment() == ""
+    assert su._job_key(job, off) == su._job_key(job, su.code_fingerprint())
+    monkeypatch.setenv("GLDB_SEMANTIC", "on")
+    assert su._job_key(job, su.code_fingerprint()) != su._job_key(job, off)
+    monkeypatch.setenv("GLDB_SEMANTIC", "off")
+    monkeypatch.setenv("GLDB_SEMANTIC", "on")
+    on = su.code_fingerprint()
+    assert on != off
+    monkeypatch.setenv("GLDB_LLM_MODEL_CHEAP", "another-model")
+    assert su.code_fingerprint() != on  # another model build is another run
+    monkeypatch.setenv("GLDB_LLM_MODEL_CHEAP", "")
+    monkeypatch.setenv("GLDB_LLM_BASE_URL", "http://elsewhere.invalid/v1")
+    assert su.code_fingerprint() != on  # so is another endpoint

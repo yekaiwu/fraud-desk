@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from app.core.cache import ResponseCache
 from app.core.config import Settings
@@ -44,6 +45,12 @@ class CaseContext:
     # check catalogue overrides read once when the analysis starts (rule id -> override); empty
     # means every check runs with its code defaults
     overrides: dict[str, RuleOverride] = field(default_factory=dict)
+    # semantic checks (docs/semantic-signals.md): rule id -> claim counts of this run, written by
+    # ``app.semantic.call.run_claims`` and read by the check runner; empty while the feature is off
+    semantic_tally: dict[str, Any] = field(default_factory=dict)
+    # semantic features that hand a result from one stage to a later one (feature name -> state);
+    # per run, never stored with the case, empty while the feature is off
+    semantic_state: dict[str, Any] = field(default_factory=dict)
 
     @property
     def use_case(self) -> UseCase:

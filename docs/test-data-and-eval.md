@@ -596,6 +596,42 @@ The first full run (core recall digital 441 of 465, 0.95; scans reported apart) 
 | Fairness FAIL (wrong-match rate in the Malay and Indian patronymic groups) | finding | **recorded**: same-ID one-letter slips are read as typos of the same person (documented rule, pinned by `test_kyc_names.py`); false-flag rate 0 in all groups | checks-kyc-aml.md section 8 |
 | CR-28 coverage honesty | decision | **no change** to `FAST_LANE_MIN_COVERAGE` | scoring-and-queue.md section 9 |
 
+## 9. Semantic evaluation data (TXN, ENTITY, FIT)
+
+**This set is hand-written by us and is an upper bound.** Every catalogue, price, wording, name pool and label below was written by the project team; no model wrote or labelled any row. A model that does well on it has shown it can read *our* idea of messy text, not a bank's. Numbers measured here say what a feature can do at best; they are not an estimate of production accuracy. Foreign-language wording (Malay, romanised Mandarin) has not been checked by a native speaker, and the salary and price ranges are our own plausible guesses.
+
+Three sets feed the semantic checks of [semantic-signals.md](semantic-signals.md). They are built by code only (no network, no model) from catalogues in `backend/scripts/_gen/sem_*.py`, and are reproducible from the seed: the same seed and `DATA_VERSION` give byte-identical files.
+
+```
+uv run python backend/scripts/make_semantic_data.py --out samples/semantic    # gitignored with the rest of samples/
+```
+
+| Split | Seed | Use |
+|---|---|---|
+| `dev` | 5101 | Write and tune prompts here, and only here. |
+| `held_out` | 7001 | Run once with frozen prompts. Report misses and variance. |
+
+The split is by *tokens*, not by row: a brand word, a vendor, a founder name, an initialism or an industry belongs to exactly one split (a hash of its first four letters, or of the whole name; industries and occupations are assigned by hand, eight and twelve each). A held-out case uses only held-out industries, including the wrong-industry donor. Generic words (Trading, Engineering, Pte Ltd) are shared on purpose; they are what the pairs are about.
+
+**TXN** (`txn.json`, 384 rows per split). The generator's own statement narratives (`world.DESC_IN`, `DESC_OUT` and its fixed lines) are turned into the messy forms of real statements by `sem_txn.perturb`: abbreviations (`PMT`, `TRDG`), truncation at a field width, case changes, reference codes, typos, spacing, and Malay / romanised-Chinese wording (`GAJI`, `SEWA`, `GONGZI`, `FANGZU`). Ground truth (category of 14, direction, c4, c5 of the counterparty, counterparty) is attached to the clean text *before* it is perturbed and is never touched; `perturb` retries until the text still carries a word that identifies the category and, for a counterparty row, its c5 keyword (`evidence_ok`). Level 0 is the generator's own form (control), levels 1 to 3 are increasingly messy. Counterparties are drawn from all eight c5 labels, a handful (9 in dev, 7 in held_out) with no keyword at all (`hard_counterparty`, reported apart). A test proves the 14 categories cover every description the generator prints.
+
+**ENTITY** (`entity.json`, 384 pairs per split, 192 same and 192 different, 24 per class). Pairs of company names drawn from a hand-written pool. Same entity: `legal_suffix`, `abbreviation`, `word_order`, `transliteration` (dialect romanisation to Pinyin, English to Malay), `initialism` (`A.B.C.`, `ABC`, `A B C`), `region_marker`, `typo`, `combined`. Different entity: `shared_generic`, `shared_brand`, `same_prefix`, `same_industry`, `group_member` (holding company against subsidiary), `jurisdiction_form` (the same name in two jurisdictions or legal forms), `initial_conflict`, `given_name_differs`. The label convention is ours: *different* means a different legal entity, so a holding company and its subsidiary are different even though a bank may treat them as related. Tests prove that every same pair is equal and no different pair is equal under a mechanical normaliser, and that no brand, prefix, founder name or initialism crosses the split.
+
+**FIT** (`fit.json`, 192 cases per split). Bundles of extracted documents (company profile, three invoices, a bank statement, and for the income family a source-of-funds declaration) in the `ground_truth.json` shape, so they load without rendering or OCR (`sem_data.case_documents`). The arithmetic is exact and none of the existing rules flags any case (tested on every case with the loan and AML rule sets), so a semantic signal is the only thing that can tell the variants apart. Per family (`goods_fit`: invoice goods from the wrong industry; `income_fit`: occupation against the declared amount; `coherence_fit`: profile, invoices and statement counterparties that do not describe one business): 24 tampered (8 each easy, medium, hard), 24 matched unusual-but-legitimate controls (same base, one legitimate twist: delivery and installation lines, a sideline, a general-trade profile, a high-pay occupation, savings well inside range, a non-salary source, a former high-pay role, a declared second business, one-off fit-out and vehicle payments) and 16 ordinary clean cases. Each tampered case carries the exact evidence a correct claim would cite (document, field or table row and column, quoted value); every locator is checked with the product's own citation verifier. Case ids are opaque and the cases are shuffled; `base_id` links a tampered case to its control.
+
+The answer key sits in the same file as the text. A harness must show a model only what `txn_view`, `entity_view` and `fit_view` return (a test checks they hold no label).
+
+Known limits of this set, on top of "hand-written, upper bound":
+
+1. Sizes are small: 24 per class and split, 24 tampered per FIT family. Intervals are wide; report counts, not only rates, and the variance of repeated runs.
+2. FIT starts from extracted data: it does not test extraction, OCR or scans, and a citation can only point at what was extracted.
+3. Labels are by construction. Where the line between tampered and legitimate is a judgement (an amount 3.5 times the plausible maximum, a hard single wrong invoice line), the tampered case is on the clear side of our own threshold, and the ambiguous middle is not in the set.
+4. One statement month, one currency, Singapore-style names and wording, and a template-level vocabulary per industry: a model that has seen our style of description can look better than it will on real customer text.
+5. `x_sof_support` reads the counterparty from the description when rows carry no annotations; declarants are chosen with names it can match so the bases stay clean.
+6. SSIC codes and the occupation salary ranges are illustrative, not looked up.
+
+Tests: `test_gen_sem_txn.py`, `test_gen_sem_entity.py`, `test_gen_sem_fit.py`, `test_gen_sem_data.py` (fake data only: no network, no model, no key).
+
 ## Contract requests
 
 **W3 closure (T-integration-kyc-08):** every request in this section has a recorded outcome in tasks.md sections 4.2 and 4.2a (accepted, decided at R0, or not built and listed under Known gaps above); none is open.

@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # hosted behaviour unchanged
     llm_enable_thinking: bool = True  # False -> chat_template_kwargs.enable_thinking=false
     llm_supports_vision: bool = True  # False -> the model is text-only: never send image parts
+    # Non-empty -> sent as the OpenAI-style ``reasoning_effort`` field. LM Studio ignores
+    # chat_template_kwargs.enable_thinking, but honours reasoning_effort="none" (thinking off).
+    llm_reasoning_effort: str = ""
     llm_max_concurrency: int = 4  # client-side cap on simultaneous provider calls (all threads)
     llm_max_output_tokens: int = 8000  # raise (16000+) when thinking is on
     llm_retry_503_attempts: int = 2  # retries of a 503 (model loading); the local profile uses 8
@@ -71,6 +74,11 @@ class Settings(BaseSettings):
     anthropic_timeout_s: float = 120.0
     # local OCR for scans (ingest/ocr.py)
     ocr_backend: Literal["auto", "vision", "none"] = "auto"
+
+    # semantic signals (docs/semantic-signals.md): model-derived, evidence-bound checks; OFF by default.
+    # "off" -> the checks are not even registered as applicable, every result is byte-identical.
+    semantic: Literal["off", "on"] = "off"
+    semantic_max_claims: int = 8  # claims kept per model call (more are dropped and counted)
 
     # modes
     extractor_mode: Literal["text_layer", "llm", "cascade"] = "cascade"
@@ -103,6 +111,19 @@ class Settings(BaseSettings):
     pseudonymise_logs: bool = True
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:3000"
+
+    @field_validator("semantic", mode="before")
+    @classmethod
+    def _semantic_switch(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            return "on" if v else "off"
+        if isinstance(v, str):
+            low = v.strip().lower()
+            if low in ("1", "true", "yes", "on"):
+                return "on"
+            if low in ("", "0", "false", "no", "off"):
+                return "off"
+        return v
 
     @field_validator("today", "prices_path", "db_path", mode="before")
     @classmethod
@@ -210,6 +231,8 @@ class Settings(BaseSettings):
             problems.append("GLDB_LLM_MAX_OUTPUT_TOKENS must be > 0")
         if self.llm_retry_503_attempts < 0 or self.llm_retry_503_backoff_s < 0:
             problems.append("GLDB_LLM_RETRY_503_ATTEMPTS and _BACKOFF_S must be >= 0")
+        if self.semantic_max_claims <= 0:
+            problems.append("GLDB_SEMANTIC_MAX_CLAIMS must be > 0")
         if not 0 <= self.classifier_min_prob <= 1:
             problems.append("GLDB_CLASSIFIER_MIN_PROB must be between 0 and 1")
         if problems:
@@ -238,6 +261,11 @@ class Settings(BaseSettings):
         }
         if not self.llm_enable_thinking:
             out["llm_enable_thinking"] = "False"
+        if self.semantic != "off":  # listed only when on: the hash of every other run is unchanged
+            out["semantic"] = self.semantic
+            out["semantic_max_claims"] = str(self.semantic_max_claims)
+        if self.llm_reasoning_effort:
+            out["llm_reasoning_effort"] = self.llm_reasoning_effort
         if not self.llm_supports_vision:
             out["llm_supports_vision"] = "False"
         if self.ocr_backend != "auto":
