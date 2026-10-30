@@ -13,7 +13,8 @@ What a verdict does:
 * ``same_entity``  -> an ``info`` flag (weight 0): "the rules found no match, the model reads these as
   one entity". It never lowers a score or removes a rule's flag, and it is not a match: nothing else
   reads it.
-* ``cannot_tell``  -> a ``low`` flag: needs ID (the names do not settle it). Never treated as a match.
+* ``cannot_tell``  -> an ``info`` flag (weight 0): needs ID (the names do not settle it). Never treated
+  as a match, never moves a score or the lane.
 * ``different_entity`` -> nothing is shown; it is counted.
 
 No document text is in the system prompt. The pair sheet is in the user message between
@@ -33,7 +34,8 @@ from dataclasses import dataclass, field
 from app.core.context import CaseContext
 from app.core.llm import wrap_untrusted
 from app.core.models import Cell, Document, Flag, Row, clean_text
-from app.graph import counterparty_of, uen_in
+from app.extract.annotate import parse_counterparty
+from app.graph import counterparty_of, has_channel_prefix, uen_in
 from app.names import (
     GENERIC_COMPANY_WORDS,
     LEGAL_TOKENS,
@@ -61,7 +63,7 @@ PROMPT_NAME = "entity_adjudication"  # registered as purpose "semantic:entity_ad
 
 SAME, DIFFERENT, UNSURE = "same_entity", "different_entity", "cannot_tell"
 VERDICTS = (SAME, DIFFERENT, UNSURE)
-SEVERITY = {SAME: "info", UNSURE: "low"}  # fixed by code; the model's own severity is ignored
+SEVERITY = {SAME: "info", UNSURE: "info"}  # fixed by code; the model's own severity is ignored
 PREFIX = {SAME: "Possible link, the rules found no match. ", UNSURE: "Needs ID. "}
 
 BATCH = 8  # pairs per model call
@@ -289,6 +291,24 @@ def code_matches(a: Side, b: Side) -> bool:
     return False
 
 
+_STRICT_LEGAL = frozenset(
+    {"pte", "ltd", "limited", "llp", "llc", "inc", "incorporated", "corp", "corporation", "sdn",
+     "bhd", "berhad", "plc", "pty"}
+)  # fmt: skip
+
+
+def company_shaped(text: str) -> bool:
+    """A name that carries a legal-form word (``Pte Ltd``, ``Sdn Bhd`` ...) or a UEN: a company."""
+    words = _WORD.findall(text.casefold())
+    return bool(_uen_of(text)) or any(t in _STRICT_LEGAL for t in words)
+
+
+def kind_clash(a: Side, b: Side) -> bool:
+    """A company-shaped observed name against a declared natural person (a director, the declarant,
+    an individual shareholder). The two cannot be one entity, so the model is not asked."""
+    return b.kind == "person" and company_shaped(a.text) and not company_shaped(b.text)
+
+
 def id_conflict(a: Side, b: Side) -> bool:
     ua, ub = _uen_of(a.uen), _uen_of(b.uen)
     return bool(ua and ub and ua != ub)
@@ -479,6 +499,14 @@ def observed_names(ctx: CaseContext) -> list[Side]:
             if desc is None or not desc.text().strip():
                 continue
             name = counterparty_of(row) or ""
+            parsed = row.annotations.get("counterparty")
+            has_rail = (
+                (parsed is not None and bool(parsed.label and parsed.label.strip()))
+                or parse_counterparty(desc.text()) is not None
+                or has_channel_prefix(desc.text())
+            )
+            if not has_rail and not company_shaped(name):
+                continue  # no payment-rail prefix and no legal form: a rent or salary line, not a name
             haystacks = [norm(t) for t in (desc.value, desc.raw) if t]
             if not name or not any(norm(name) in h for h in haystacks):
                 name = desc.text()  # an annotation label that is not in the cell cannot be quoted
@@ -520,13 +548,22 @@ def build_candidates(ctx: CaseContext) -> Plan:
             continue
         mine = []
         for b in declared:
-            if b.key() == a.key() or id_conflict(a, b):
+            if b.key() == a.key() or id_conflict(a, b) or kind_clash(a, b):
                 continue
             score = overlap(a.text, b.text)
             if score > 0:
                 mine.append(Candidate(a, b, score))
         mine.sort(key=lambda c: (-c.score, c.b.doc.id, c.b.row or 0, c.b.text))
-        scored += mine[:PER_COUNTERPARTY]
+        # one pair per distinct declared name: the same person as director, shareholder and
+        # declarant is one question, not three
+        seen_b: set[str] = set()
+        distinct = []
+        for c in mine:
+            nb = normalise_company(c.b.text)
+            if nb not in seen_b:
+                seen_b.add(nb)
+                distinct.append(c)
+        scored += distinct[:PER_COUNTERPARTY]
     scored.sort(key=lambda c: (-c.score, norm(c.a.text), norm(c.b.text), c.b.role))
     plan.candidates = scored[: BATCH * MAX_BATCHES]
     plan.examined = len(plan.candidates)
@@ -580,6 +617,41 @@ def _cites(claim: VerifiedClaim, side: Side) -> bool:
     return False
 
 
+def _with_field_locators(reply: dict, chunk: Sequence[Candidate]) -> dict:
+    """The answer rules say "field null", which is right for a table cell and wrong for a declared name
+    held in a field (a contract's buyer, a declared customer): a model that follows the rule to the
+    letter cites that side with no locator at all. The locator is ours, printed in the sheet, so a
+    citation that names one of the pair's documents and gives no field and no table gets the
+    field of that side. The quote is still checked against the cell, so this adds no trust."""
+    claims = reply.get("claims") if isinstance(reply, dict) else None
+    if not isinstance(claims, list):
+        return reply
+    fixed = []
+    for claim in claims:
+        m = (
+            re.fullmatch(r"P(\d+)", str(claim.get("pair_id", "")))
+            if isinstance(claim, dict)
+            else None
+        )
+        index = int(m.group(1)) - 1 if m else -1
+        cites = claim.get("citations") if m else None
+        if not (0 <= index < len(chunk)) or not isinstance(cites, list):
+            fixed.append(claim)
+            continue
+        sides = (chunk[index].a, chunk[index].b)
+        new_cites = []
+        for c in cites:
+            if isinstance(c, dict) and not c.get("field") and not c.get("table"):
+                side = next(
+                    (s for s in sides if s.field and s.doc.id == c.get("document_id")), None
+                )
+                if side is not None:
+                    c = {**c, "field": side.field}
+            new_cites.append(c)
+        fixed.append({**claim, "citations": new_cites})
+    return {**reply, "claims": fixed}
+
+
 def verify_pairs(
     reply: dict, chunk: Sequence[Candidate], docs: Sequence[Document]
 ) -> tuple[list[Adjudication], Verification]:
@@ -587,7 +659,11 @@ def verify_pairs(
     name one of the chunk's pairs and cite that pair's two cells; at most one verdict is kept per
     pair, and a pair with two different verdicts keeps none. Drops are counted, never shown."""
     base = verify_claims(
-        reply, docs, kinds=VERDICTS, max_claims=2 * len(chunk), extra_keys=("pair_id",)
+        _with_field_locators(reply, chunk),
+        docs,
+        kinds=VERDICTS,
+        max_claims=2 * len(chunk),
+        extra_keys=("pair_id",),
     )
     dropped = Counter(base.dropped)
     by_pair: dict[int, list[VerifiedClaim]] = {}

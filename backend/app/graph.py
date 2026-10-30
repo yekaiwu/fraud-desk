@@ -77,6 +77,11 @@ class PassThrough(NamedTuple):
     circular: list[str]
 
 
+def has_channel_prefix(description: str | None) -> bool:
+    """The description starts with a payment channel (``FAST``, ``GIRO``, ``PAYNOW`` ...)."""
+    return bool(description and _CHANNEL_PREFIX.match(" ".join(description.split())))
+
+
 def counterparty_of(row: Row) -> str | None:
     """The ``counterparty`` annotation label, else the description minus a leading channel prefix."""
     ann = row.annotations.get("counterparty")

@@ -33,6 +33,7 @@ from app.semantic.entity import (
     overlap,
     pair_schema,
     pair_sheet,
+    verify_pairs,
 )
 from tests.test_semantic_core import settings_on
 
@@ -288,9 +289,12 @@ def test_verdicts_become_fixed_severity_flags_and_different_shows_nothing() -> N
     )
     (run_,) = [r for r in ctx.case.check_runs if r.rule == RULE]
     assert run_.status == "ran" and run_.flags == 2
-    flags = {f.severity: f for f in ctx.case.flags if f.rule == RULE}
-    assert set(flags) == {"info", "low"}  # the model said severity "high"; code ignores it
-    same, unsure = flags["info"], flags["low"]
+    flags = [f for f in ctx.case.flags if f.rule == RULE]
+    assert {f.severity for f in flags} == {
+        "info"
+    }  # the model said severity "high"; code ignores it
+    (same,) = [f for f in flags if "Possible link, the rules found no match." in f.explanation]
+    (unsure,) = [f for f in flags if "Needs ID." in f.explanation]
     assert same.stage == "crossdoc"
     assert same.evidence == (
         'd2 transactions[0] description: "NORTHGATE ENGRG"; d3 buyer_name: "Northgate Engineering Pte Ltd"'
@@ -320,15 +324,16 @@ def test_one_call_per_case_with_the_prompt_registered_and_text_only_in_the_wrapp
     assert req.cache_extra.startswith("sem1:")
 
 
-def test_the_info_flag_never_counts_and_the_low_flag_closes_the_fast_lane() -> None:
+def test_both_verdict_flags_are_info_and_move_neither_the_score_nor_the_lane() -> None:
+    """cannot_tell is a note for the reviewer ("needs ID"), not an alert: after the 10 clean-bundle
+    false alarms it carries weight 0, like same_entity (docs/semantic-signals.md)."""
     ctx = run_check(scripted({"NORTHGATE ENGRG": "same_entity", "TAN KIM HOCK": "cannot_tell"}))
     run_stage(ctx)
-    assert ctx.case.score is not None and ctx.case.score.value == 5  # the low flag only
-    only_info = run_check(scripted({"NORTHGATE ENGRG": "same_entity"}))
-    run_stage(only_info)
-    assert only_info.case.score is not None and only_info.case.score.value == 0
-    assert not [f for f in only_info.case.findings if f.weight > 0]
-    assert fast_lane_eligible(ctx.case) is False  # a model-derived concern closes the fast lane
+    assert ctx.case.score is not None and ctx.case.score.value == 0
+    assert not [f for f in ctx.case.findings if f.weight > 0]
+    only_same = run_check(scripted({"NORTHGATE ENGRG": "same_entity"}))
+    run_stage(only_same)
+    assert fast_lane_eligible(ctx.case) == fast_lane_eligible(only_same.case)
 
 
 def test_no_candidates_means_no_call_and_a_clean_run() -> None:
@@ -396,7 +401,7 @@ def test_a_failure_in_a_later_batch_discards_the_earlier_answers() -> None:
             fields={"company_name": "Acme Trading Pte Ltd"},
             tables={"directors": [{"director_name": n} for n in names]},
         ),
-        statement(*[n.replace("Trading", "Trdg") for n in names]),
+        statement(*["FAST " + n.replace("Trading", "Trdg") for n in names]),
     ]
     calls = []
 
@@ -646,3 +651,83 @@ def test_the_pair_schema_requires_every_locator_key_in_a_citation() -> None:
         "column",
         "quote",
     }
+
+
+# ------------------------------------------------- candidate-generator fixes (dev-only diagnosis)
+
+
+def test_a_company_is_never_paired_with_a_natural_person() -> None:
+    """ "ming" inside "manufacturing" and "ting" inside "trading" made company names candidates for a
+    director; a legal-form company cannot be a natural person, so the model is not asked."""
+    ctx = case(
+        profile(directors=("Tan Wei Ming", "Lee Li Ting")),
+        statement(
+            "FAST PAYMENT FROM UMBER MANUFACTURING PTE LTD",
+            "FAST PAYMENT FROM HARBOUR TRADING PTE LTD",
+        ),
+        contract(),
+    )
+    assert [c for c in build_candidates(ctx).candidates if c.b.kind == "person"] == []
+
+
+def test_a_line_without_a_payment_channel_or_legal_form_is_not_a_name() -> None:
+    ctx = case(
+        profile(directors=("Tan Wei Lin",)),
+        statement("OFFICE RENT JAN TAN WEI", "SALARY JAN TAN WEI LI"),
+        contract(),
+    )
+    assert observed_names(ctx) == []
+
+
+def test_one_person_is_one_question_not_one_per_role() -> None:
+    ctx = case(
+        profile(directors=("Tan Wei Lin",), shareholders=("Tan Wei Lin",)),
+        statement("FAST PAYMENT FROM TAN WEI LIM"),
+        contract(),
+    )
+    sides = [(c.b.text) for c in build_candidates(ctx).candidates if c.a.text == "TAN WEI LIM"]
+    assert sides.count("Tan Wei Lin") == 1
+
+
+def test_a_citation_with_no_locator_gets_the_field_of_a_field_based_side() -> None:
+    """The answer rules say "field null"; a model that obeys cites a declared name held in a field
+    (a contract's buyer) with no locator. The code adds the field it printed itself; the quote is still
+    verified against that cell."""
+    ctx = case(profile(), statement("FAST NORTHGATE ENGRG"), contract())
+    (cand,) = build_candidates(ctx).candidates
+    assert cand.b.field is not None
+
+    def reply(quote_b: str) -> dict:
+        return {
+            "claims": [
+                {
+                    "pair_id": "P1",
+                    "kind": "same_entity",
+                    "statement": "NORTHGATE ENGRG is Northgate Engineering Pte Ltd.",
+                    "severity": "low",
+                    "citations": [
+                        {
+                            "document_id": cand.a.doc.id,
+                            "field": None,
+                            "table": cand.a.table,
+                            "row": cand.a.row,
+                            "column": cand.a.column,
+                            "quote": cand.a.text,
+                        },
+                        {
+                            "document_id": cand.b.doc.id,
+                            "field": None,
+                            "table": None,
+                            "row": None,
+                            "column": None,
+                            "quote": quote_b,
+                        },
+                    ],
+                }
+            ]
+        }
+
+    kept, ver = verify_pairs(reply(cand.b.text), [cand], ctx.docs())
+    assert [k.claim.kind for k in kept] == ["same_entity"] and sum(ver.dropped.values()) == 0
+    kept, ver = verify_pairs(reply("Some Other Company"), [cand], ctx.docs())
+    assert kept == [] and ver.dropped["quote_not_found"] == 1  # the quote check is unchanged

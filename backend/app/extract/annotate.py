@@ -40,7 +40,10 @@ _RAIL = re.compile(
     re.I,
 )
 # a reference marker, or a document number such as ``SI-2026-0109`` / ``INV-2026-0117``
-_REF = re.compile(r"\s(?:REF|INV|PO)\b|\s-\s|/|\s[A-Z]{1,5}-\d{4}-\d{2,}\b", re.I)
+# the slash of the patronymic markers S/O, D/O, A/L and A/P ("RAJESH S/O KUMAR") belongs to the name
+_REF = re.compile(
+    r"\s(?:REF|INV|PO)\b|\s-\s|(?<!\b[SDA])/|/(?![OLP]\b)|\s[A-Z]{1,5}-\d{4}-\d{2,}\b", re.I
+)
 
 
 def parse_counterparty(description: str | None) -> str | None:

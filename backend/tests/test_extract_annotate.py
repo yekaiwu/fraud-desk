@@ -31,6 +31,13 @@ from app.extract.annotate import RowItem, annotate_rows, parse_counterparty
         ("GIRO CREDIT CRESTVIEW EXPORTS PTE LTD SI-2026-0109", "CRESTVIEW EXPORTS PTE LTD"),
         ("GIRO PAYMENT TO ELMSTEAD EXPORTS PTE LTD", "ELMSTEAD EXPORTS PTE LTD"),
         ("FUNDS TRANSFER FROM FALCON EXPORTS PTE LTD INV-2026-0108", "FALCON EXPORTS PTE LTD"),
+        # the slash of S/O, D/O, A/L and A/P belongs to the name; other slashes still end it
+        ("FUNDS TRANSFER FROM RAJESH S/O KUMAR DIRECTOR LOAN", "RAJESH S/O KUMAR DIRECTOR LOAN"),
+        ("FAST PAYMENT FROM LAKSHMI D/O RAMAN", "LAKSHMI D/O RAMAN"),
+        ("PAYNOW TO MUTHU A/L SAMY REF 12", "MUTHU A/L SAMY"),
+        ("PAYNOW TO SITI A/P KUMAR", "SITI A/P KUMAR"),
+        ("GIRO FROM ORCHID BAY PTE LTD/INV-9", "ORCHID BAY PTE LTD"),
+        ("GIRO FROM ORCHID BAY PTE LTD/OLD", "ORCHID BAY PTE LTD"),
         ("", None),
         (None, None),
     ],
