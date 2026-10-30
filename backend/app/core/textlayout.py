@@ -58,6 +58,36 @@ def layout_text(words: Sequence[Word]) -> str:
     return "\n\n".join(p for p in out_pages if p)
 
 
+ALIGNED_COLUMNS = 160  # character cells across the page width in :func:`aligned_text`
+
+
+def aligned_text(words: Sequence[Word], columns: int = ALIGNED_COLUMNS) -> str:
+    """Reading-order text that keeps the horizontal position of table columns: words close together
+    are joined with one space (a phrase stays a phrase), and a wide gap pads the line out to the
+    character cell the next word starts in (at least three spaces), so the amounts of one column
+    line up from row to row and under the header. Used for text read by OCR, where a model has no
+    image to tell a debit column from a credit column. Pages are separated by a blank line."""
+    pages: dict[int, list[Word]] = {}
+    for w in words:
+        pages.setdefault(w.page, []).append(w)
+    out_pages: list[str] = []
+    for page in sorted(pages):
+        out_lines: list[str] = []
+        for line in _line_groups(pages[page]):
+            line.sort(key=lambda w: w.x)
+            height = median(w.h for w in line) or 0.01
+            text = " " * round(line[0].x * columns) + line[0].text.strip()
+            for prev, cur in zip(line, line[1:], strict=False):
+                if cur.x - (prev.x + prev.w) > WIDE_GAP_FACTOR * height:
+                    text += " " * max(3, round(cur.x * columns) - len(text))
+                else:
+                    text += " "
+                text += cur.text.strip()
+            out_lines.append(text)
+        out_pages.append("\n".join(out_lines))
+    return "\n\n".join(p for p in out_pages if p)
+
+
 _OF = re.compile(r"\bpage\s+(\d{1,3})\s*(?:of|/)\s*(\d{1,3})\b")
 _THIS_IS = re.compile(r"\b(\d{1,3})\s+pages?\b[^\n]{0,20}?\bthis is page\s+(\d{1,3})\b")
 _BARE = re.compile(r"^\s*(\d{1,3})\s*/\s*(\d{1,3})\s*$")

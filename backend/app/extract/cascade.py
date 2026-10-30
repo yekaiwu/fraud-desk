@@ -137,6 +137,14 @@ class _Run:
             and s.llm_model_cheap == s.llm_model_strong
         )
 
+    def vision_fallback(self) -> bool:
+        """True when a local OCR feeds the model text and a failing scanned page may be re-read
+        from its image (``GLDB_LLM_VISION_FALLBACK``)."""
+        return self.settings.llm_vision_fallback
+
+    def _wants_strong_pass(self) -> bool:
+        return self.vision_fallback() or not self.strong_skipped_same_model()
+
     def run_pages(
         self, pages: list[int], fn: Callable[[int], Any], calls_per_page: int = 2
     ) -> dict[int, Any]:
@@ -323,7 +331,7 @@ class _Run:
             self.sources[p] = "llm_cheap"
         if any(not r.has_reader for r in readings.values()):
             self.warnings.append("unverified_no_reader")
-        if self.mode == "cascade" and readings and not self.strong_skipped_same_model():
+        if self.mode == "cascade" and readings and self._wants_strong_pass():
             self._strong_pass(readings)
         result = assemble(self.doc, readings)
         self.warnings += result.warnings
@@ -334,10 +342,23 @@ class _Run:
         llm = self.llm
         failing = self.validate(assemble(self.doc, readings)).failing
         pages = sorted(p for p in failing if p in readings)
+        # With one model for both roles the second reading only helps when it sees the image: the
+        # vision fallback re-reads the failing pages that are scans, from their pixels.
+        image_pass = self.vision_fallback()
+        if image_pass:
+            pages = [p for p in pages if self.states[p].is_scan]
         if not pages:
             return
         got = self.run_pages(
-            pages, lambda p: llm.read_page(self.doc, self.ctx, p, role="strong", render=self.render)
+            pages,
+            lambda p: llm.read_page(
+                self.doc,
+                self.ctx,
+                p,
+                role="strong",
+                render=self.render,
+                allow_images=image_pass,
+            ),
         )
         replaced: dict[int, str] = {}
         for p in pages:
@@ -346,7 +367,9 @@ class _Run:
                 self.warnings.append(f"escalation_failed: page {p}: {s.kind}")
                 continue
             self.use("llm_strong", s.model)
-            merged, tag, changed, total = merge_cheap_strong(readings[p], s)
+            merged, tag, changed, total = merge_cheap_strong(
+                readings[p], s, prefer_strong=image_pass
+            )
             readings[p] = merged
             self.sources[p] = "llm_strong"
             replaced[p] = tag
@@ -414,14 +437,16 @@ class _Run:
 
 
 def merge_cheap_strong(
-    cheap: PageReading, strong: PageReading
+    cheap: PageReading, strong: PageReading, *, prefer_strong: bool = False
 ) -> tuple[PageReading, str, int, int]:
     """Compare two model readings of one page.
 
     Returns ``(merged, tag, changed_cells, total_cells)``. Row counts differ in any table: the strong
     page is taken whole (``row_count_changed``, no per-cell ``alt_raw``). Otherwise per cell: same
     raw keeps the strong cell; different raw picks the verified one (else the strong one) and stores
-    the other raw in ``alt_raw`` with a ``reread`` note."""
+    the other raw in ``alt_raw`` with a ``reread`` note. ``prefer_strong``: the strong reading looked
+    at the image while the cheap one read OCR text, so on a difference the strong cell wins even
+    though the OCR words cannot verify it (the cheap value is kept in ``alt_raw``)."""
     if any(
         len(cheap.rows.get(t, [])) != len(strong.rows.get(t, []))
         for t in {*cheap.rows, *strong.rows}
@@ -449,7 +474,7 @@ def merge_cheap_strong(
         total += 1
         if _same(c, s):
             return s, False
-        pick_cheap = c.verified is True and s.verified is not True
+        pick_cheap = not prefer_strong and c.verified is True and s.verified is not True
         chosen, other = (c, s) if pick_cheap else (s, c)
         return chosen.model_copy(update={"alt_raw": other.raw}), True
 

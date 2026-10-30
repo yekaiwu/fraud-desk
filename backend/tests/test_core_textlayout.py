@@ -64,3 +64,24 @@ def test_page_marker_last_match_wins() -> None:
     assert page_marker("Page 1 of 3\nbody\nPage 2 of 3") == (2, 3)
     # bare n/m only counts in the last three non-empty lines
     assert page_marker("1/3\nl2\nl3\nl4\nl5") is None
+
+
+def test_aligned_text_keeps_columns_lined_up_across_rows() -> None:
+    from app.core.textlayout import aligned_text
+
+    words = [
+        w("RENT", 0.1, 0.10),
+        w("6,100.00", 0.6, 0.10),
+        w("RETAINER FEE", 0.1, 0.20),
+        w("6,000.00", 0.75, 0.20),
+    ]
+    lines = aligned_text(words).splitlines()
+    assert lines[0].index("6,100.00") == round(0.6 * 160)
+    assert lines[1].index("6,000.00") == round(0.75 * 160)
+    assert aligned_text([]) == ""
+    phrase = [
+        w("Balance", 0.1, 0.1, 0.05),
+        w("Brought", 0.16, 0.1, 0.05),
+        w("Forward", 0.22, 0.1, 0.05),
+    ]
+    assert aligned_text(phrase).strip() == "Balance Brought Forward"

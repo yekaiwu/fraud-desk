@@ -477,3 +477,83 @@ def _baseline(tmp_path: Path, spec: StatementSpec) -> str:
         settings=S(tmp_path, "llm", max_page_workers=1),
     )
     return extract_document(doc, ctx, render=RENDER)[0].model_dump_json()
+
+
+def test_vision_fallback_rereads_a_failing_scan_page_from_its_image(tmp_path: Path) -> None:
+    spec = scan_spec()
+    misread = {4: {"balance": "11,225.51"}}  # what OCR text led the model to
+    llm = FakeLLMClient(
+        {
+            "extract:bank_statement:cheap": per_page(spec, misread),
+            "extract:bank_statement:strong": per_page(spec),
+        }
+    )
+    settings = S(
+        tmp_path,
+        llm_backend="openai",
+        llm_api_key="k",
+        llm_model_cheap="m",
+        llm_model_strong="m",
+        llm_supports_vision=False,
+        llm_vision_fallback=True,
+    )
+    ctx, doc, _ = make_case(
+        render_statement(spec), "bank_statement", llm=llm, is_scan=True, settings=settings
+    )
+    result, meta = extract_document(doc, ctx, render=RENDER)
+    assert [c.model_role for c in llm.calls] == ["cheap", "strong"]
+    assert (
+        llm.calls[0].images == [] and len(llm.calls[1].images) == 1
+    )  # only the re-read sees pixels
+    fixed = cell(result, 4, "balance")
+    assert fixed.value == statement_truth(spec)[4]["balance"]
+    assert (
+        fixed.source == "llm_strong" and fixed.alt_raw == "11,225.51"
+    )  # the OCR-text reading is kept
+    assert "escalated: page=1 reason=balance_chain result=resolved" in result.warnings
+    assert meta.sources_by_page == {1: "llm_strong"}
+
+
+def test_vision_fallback_wins_even_when_the_ocr_words_cannot_verify_it(tmp_path: Path) -> None:
+    from app.extract.cascade import merge_cheap_strong
+
+    spec = scan_spec()
+    llm = FakeLLMClient({"extract:bank_statement": per_page(spec)})
+    ctx, doc, _ = make_case(
+        render_statement(spec), "bank_statement", llm=llm, is_scan=True, settings=S(tmp_path)
+    )
+    from app.extract.llm_extractor import LLMExtractor
+
+    cheap = LLMExtractor().read_page(doc, ctx, 1, role="cheap")
+    strong = LLMExtractor().read_page(doc, ctx, 1, role="strong")
+    row = strong.rows["transactions"][4]
+    row.cells["balance"] = row.cells["balance"].model_copy(
+        update={"raw": "99,999.99", "value": "99999.99", "verified": False}
+    )
+    default, _, _, _ = merge_cheap_strong(cheap, strong)
+    forced, _, _, _ = merge_cheap_strong(cheap, strong, prefer_strong=True)
+    assert (
+        default.rows["transactions"][4].cells["balance"].raw != "99,999.99"
+    )  # verified cheap wins
+    assert (
+        forced.rows["transactions"][4].cells["balance"].raw == "99,999.99"
+    )  # the image reading wins
+
+
+def test_without_the_fallback_a_same_model_scan_is_not_reread(tmp_path: Path) -> None:
+    spec = scan_spec()
+    llm = FakeLLMClient({"extract:bank_statement": per_page(spec, {4: {"balance": "11,225.51"}})})
+    settings = S(
+        tmp_path,
+        llm_backend="openai",
+        llm_api_key="k",
+        llm_model_cheap="m",
+        llm_model_strong="m",
+        llm_supports_vision=False,
+        llm_vision_fallback=False,
+    )
+    ctx, doc, _ = make_case(
+        render_statement(spec), "bank_statement", llm=llm, is_scan=True, settings=settings
+    )
+    extract_document(doc, ctx, render=RENDER)
+    assert [c.model_role for c in llm.calls] == ["cheap"]

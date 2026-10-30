@@ -40,7 +40,7 @@ from app.core.schemas import (
     response_json_schema,
     response_model_for,
 )
-from app.core.textlayout import layout_text, page_marker
+from app.core.textlayout import aligned_text, layout_text, page_marker
 from app.extract.base import ExtractionResult
 from app.extract.normalise import format_warning, make_cell
 from app.extract.prompts.common import build_system_prompt
@@ -404,13 +404,16 @@ class LLMExtractor:
         *,
         role: Role = "cheap",
         render: RenderFn | None = None,
+        allow_images: bool = False,
     ) -> PageReading:
         state = page_state(doc, ctx, page)
         if state.error and not state.error.startswith("ocr_"):
             raise PageReadError("page_error", state.error.split(":", 1)[0])
         # A text-only model (GLDB_LLM_SUPPORTS_VISION=false) never gets an image: a scan is read
         # from its OCR words (ingest/ocr.py), and a scan with no OCR words is unreadable.
-        text_only_model = not ctx.settings.llm_supports_vision
+        # ``allow_images`` is the vision fallback: a model that reads OCR text may look at the image
+        # of one page that failed its arithmetic (settings.llm_vision_fallback, cascade.py)
+        text_only_model = not (ctx.settings.llm_supports_vision or allow_images)
         vision = (state.is_scan or not state.words) and not (text_only_model and state.words)
         notes: list[str] = []
         images: list[bytes] = []
@@ -429,7 +432,9 @@ class LLMExtractor:
             body = "(the page is in the attached image)"
         else:
             mode = "ocr_text" if state.is_scan else "text"
-            text = layout_text(state.words)
+            # OCR text keeps column positions: a model with no image cannot otherwise tell a debit
+            # column from a credit column
+            text = aligned_text(state.words) if state.is_scan else layout_text(state.words)
             if len(text) > UNTRUSTED_MAX_CHARS:
                 notes.append(f"text_truncated: page {page}")
             body = text

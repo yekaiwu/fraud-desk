@@ -200,6 +200,22 @@ def test_anthropic_backend_resolves_both_roles_to_haiku_with_vision() -> None:
     s.validate_startup()
 
 
+def test_a_local_ocr_choice_makes_the_anthropic_model_text_only() -> None:
+    for choice in ("vision", "tesseract", "rapidocr"):
+        assert make_settings(ocr_backend=choice).llm_supports_vision is False
+    for choice in ("auto", "none"):
+        assert make_settings(ocr_backend=choice).llm_supports_vision is True
+
+
+def test_the_vision_fallback_is_on_only_for_a_local_ocr_under_anthropic() -> None:
+    assert make_settings(ocr_backend="tesseract").llm_vision_fallback is True
+    assert (
+        make_settings(ocr_backend="tesseract", llm_vision_fallback=False).llm_vision_fallback
+        is False
+    )
+    assert make_settings(ocr_backend="auto").llm_vision_fallback is False
+
+
 def test_startup_needs_the_key() -> None:
     with pytest.raises(SettingsError, match="GLDB_ANTHROPIC_API_KEY"):
         make_settings(anthropic_api_key="").validate_startup()

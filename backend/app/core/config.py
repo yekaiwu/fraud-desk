@@ -28,6 +28,9 @@ class SettingsError(ValueError):
     """Fatal start-up misconfiguration (clear message, no secrets)."""
 
 
+LOCAL_OCR_BACKENDS = ("vision", "tesseract", "rapidocr")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="GLDB_",
@@ -74,7 +77,11 @@ class Settings(BaseSettings):
     anthropic_workspace_id: str = ""  # sent as the anthropic-workspace-id header when non-empty
     anthropic_timeout_s: float = 120.0
     # local OCR for scans (ingest/ocr.py)
-    ocr_backend: Literal["auto", "vision", "tesseract", "none"] = "auto"
+    ocr_backend: Literal["auto", "vision", "tesseract", "rapidocr", "none"] = "auto"
+    # With a local OCR chosen under the anthropic backend the model reads OCR text only. True also
+    # lets a scanned page whose arithmetic does not add up be re-read once from its image (the one
+    # place the model sees pixels). Empty = on in that setup and off elsewhere; false turns it off.
+    llm_vision_fallback: bool | None = None
 
     # semantic signals (docs/semantic-signals.md): model-derived, evidence-bound checks; OFF by default.
     # "off" -> the checks are not even registered as applicable, every result is byte-identical.
@@ -126,7 +133,7 @@ class Settings(BaseSettings):
                 return "off"
         return v
 
-    @field_validator("today", "prices_path", "db_path", mode="before")
+    @field_validator("today", "prices_path", "db_path", "llm_vision_fallback", mode="before")
     @classmethod
     def _empty_is_none(cls, v: Any) -> Any:
         if isinstance(v, str) and not v.strip():
@@ -136,11 +143,17 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _resolve_anthropic(self) -> Settings:
         """Under the anthropic backend both model roles are the one allowed model and the model has
-        vision, whatever a leftover openai profile in the same .env says."""
+        vision, whatever a leftover openai profile in the same .env says. When a local OCR is
+        chosen on purpose (``vision``, ``tesseract``, ``rapidocr``) the model is used as a text-only
+        one instead: scans are read by that OCR and no page image is sent (the cost lever)."""
         if self.effective_llm_backend() == "anthropic":
             self.llm_model_cheap = self.anthropic_model
             self.llm_model_strong = self.anthropic_model
-            self.llm_supports_vision = True
+            self.llm_supports_vision = self.ocr_backend not in LOCAL_OCR_BACKENDS
+            if self.llm_vision_fallback is None:
+                self.llm_vision_fallback = not self.llm_supports_vision
+        elif self.llm_vision_fallback is None:
+            self.llm_vision_fallback = False
         return self
 
     # ----------------------------------------------------------------------------------

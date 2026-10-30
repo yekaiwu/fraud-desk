@@ -29,6 +29,7 @@ dependencies = [
 [project.optional-dependencies]
 ocr = [
     "ocrmac>=1.0 ; sys_platform == 'darwin'",
+    "rapidocr-onnxruntime>=1.4",
 ]
 
 [build-system]

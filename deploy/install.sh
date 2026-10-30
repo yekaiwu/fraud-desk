@@ -100,8 +100,8 @@ for port in 8000 3000; do
 done
 
 # ---------------------------------------------------------------- build
-say "Backend dependencies (uv sync)"
-( cd "$ROOT" && uv sync )
+say "Backend dependencies (uv sync --extra ocr: the local OCR readers)"
+( cd "$ROOT" && uv sync --extra ocr )
 
 say "Frontend dependencies and production build"
 (

@@ -19,7 +19,10 @@ from app.ingest.ocr import OcrUnavailable, ocr_page_ex
 from app.ingest.ocr_backends import (
     MacVisionOcr,
     OcrBox,
+    RapidOcr,
     TesseractOcr,
+    clean_tesseract_token,
+    rapidocr_results_to_ocr,
     select_backend,
     tesseract_tsv_to_ocr,
     vision_boxes_to_ocr,
@@ -395,7 +398,7 @@ def test_tesseract_recognise_runs_the_program_and_reads_its_tsv(
 
     def fake_run(argv, **kw):  # noqa: ANN001, ANN003, ANN202
         seen["argv"], seen["input"] = argv, kw["input"]
-        out = TSV_HEAD + tsv_word(1, 1, 1, 40, 20, 80, 20, 93.0, "Balance")
+        out = TSV_HEAD + tsv_word(1, 1, 1, 80, 20, 160, 40, 93.0, "Balance")
         return subprocess.CompletedProcess(argv, 0, stdout=out.encode(), stderr=b"")
 
     monkeypatch.setattr(ocr_backends, "find_tesseract", lambda: "/fake/tesseract")
@@ -406,7 +409,7 @@ def test_tesseract_recognise_runs_the_program_and_reads_its_tsv(
     assert (
         seen["argv"][0] == "/fake/tesseract"
         and seen["argv"][-1] == "tsv"
-        and seen["input"] == buf.getvalue()
+        and seen["input"]  # the page is sent on stdin (upscaled)
     )
     assert [b.text for b in boxes] == ["Balance"] and boxes[0].x == pytest.approx(0.1)
 
@@ -428,3 +431,109 @@ def test_tesseract_failure_is_an_unavailable_page_not_a_crash(
     Image.new("RGB", (40, 20), "white").save(buf, "PNG")
     with pytest.raises(OcrUnavailable, match="exit 1"):
         TesseractOcr().recognise(buf.getvalue())
+
+
+# ----------------------------------------------------------------------------- RapidOCR
+
+
+def test_rapidocr_results_become_fractional_top_left_boxes() -> None:
+    results = [
+        [[[40, 100], [240, 100], [240, 120], [40, 120]], "Closing balance", 0.98],
+        [[[40, 20], [140, 20], [140, 40], [40, 40]], "Statement", 0.99],
+        [[[0, 0], [10, 0], [10, 10], [0, 10]], "   ", 0.9],  # blank text is dropped
+        "not a result",  # malformed items are skipped
+    ]
+    boxes = rapidocr_results_to_ocr(results, 400, 200)
+    assert [b.text for b in boxes] == ["Statement", "Closing balance"]  # reading order
+    assert (boxes[1].x, boxes[1].y, boxes[1].w, boxes[1].h) == pytest.approx((0.1, 0.5, 0.5, 0.1))
+    assert (
+        rapidocr_results_to_ocr(None, 400, 200) == []
+        and rapidocr_results_to_ocr(results, 0, 0) == []
+    )
+
+
+def test_select_rapidocr_without_the_package_says_how_to_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing() -> object:
+        raise ImportError("no rapidocr")
+
+    monkeypatch.setattr(ocr_backends, "_import_rapidocr", missing)
+    with pytest.raises(OcrUnavailable, match="uv sync --extra ocr"):
+        select_backend(settings(ocr_backend="rapidocr"))
+
+
+def test_rapidocr_recognise_passes_a_bgr_array_and_reads_the_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from PIL import Image
+
+    seen: dict = {}
+
+    class FakeEngine:
+        def __call__(self, array):  # noqa: ANN001, ANN204
+            seen["shape"], seen["red_in_blue_channel"] = array.shape, int(array[0, 0, 0])
+            return [[[[10, 10], [110, 10], [110, 30], [10, 30]], "Hello", 0.9]], 0.01
+
+    class FakeModule:
+        RapidOCR = FakeEngine
+
+    monkeypatch.setattr(ocr_backends, "_import_rapidocr", lambda: FakeModule)
+    buf = io.BytesIO()
+    Image.new("RGB", (200, 100), (255, 0, 0)).save(buf, "PNG")
+    boxes = select_backend(settings(ocr_backend="rapidocr")).recognise(buf.getvalue())
+    assert isinstance(select_backend(settings(ocr_backend="rapidocr")), RapidOcr)
+    assert (
+        seen["shape"] == (100, 200, 3) and seen["red_in_blue_channel"] == 0
+    )  # red pixel is BGR (0, 0, 255)
+    assert [b.text for b in boxes] == ["Hello"] and boxes[0].w == pytest.approx(0.5)
+
+
+def test_tesseract_tsv_splits_a_table_row_at_wide_gaps() -> None:
+    row = (
+        tsv_word(1, 1, 1, 10, 20, 100, 20, 95.0, "01-Apr-2026")
+        + tsv_word(1, 1, 2, 120, 20, 60, 20, 95.0, "RENT")
+        + tsv_word(1, 1, 3, 190, 20, 60, 20, 95.0, "PAYMENT")
+        + tsv_word(1, 1, 4, 500, 20, 90, 20, 95.0, "6,100.00")
+        + tsv_word(1, 1, 5, 700, 20, 90, 20, 95.0, "83,421.88")
+    )
+    boxes = tesseract_tsv_to_ocr(TSV_HEAD + row, 1000, 200)
+    assert [b.text for b in boxes] == ["01-Apr-2026 RENT PAYMENT", "6,100.00", "83,421.88"]
+    assert boxes[1].x == pytest.approx(0.5) and boxes[2].x == pytest.approx(0.7)
+
+
+def test_tesseract_token_cleanup_only_touches_specks_and_glued_marks() -> None:
+    assert clean_tesseract_token("207,282.43,") == "207,282.43"
+    assert clean_tesseract_token("5.39CR") == "5.39 CR"
+    assert clean_tesseract_token("6,100.00DR") == "6,100.00 DR"
+    assert clean_tesseract_token("1,175.12") == "1,175.12"
+    assert clean_tesseract_token("$****854E") == "S****854E"
+    assert clean_tesseract_token("$1234567A") == "S1234567A"
+    assert (
+        clean_tesseract_token("§****037B") == "S****037B"
+        and clean_tesseract_token("§1102037B") == "S1102037B"
+    )
+    assert clean_tesseract_token("$5.00") == "$5.00" and clean_tesseract_token("$100") == "$100"
+    assert clean_tesseract_token("No.") == "No." and clean_tesseract_token("12,") == "12,"
+
+
+def test_tesseract_upscales_a_small_page_before_reading(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    from PIL import Image
+
+    seen: dict = {}
+
+    def fake_run(argv, **kw):  # noqa: ANN001, ANN003, ANN202
+        with Image.open(io.BytesIO(kw["input"])) as sent:
+            seen["size"] = sent.size
+        out = TSV_HEAD + tsv_word(1, 1, 1, 1000, 500, 400, 100, 90.0, "Total")
+        return subprocess.CompletedProcess(argv, 0, stdout=out.encode(), stderr=b"")
+
+    monkeypatch.setattr(ocr_backends, "find_tesseract", lambda: "/fake/tesseract")
+    monkeypatch.setattr(ocr_backends.subprocess, "run", fake_run)
+    buf = io.BytesIO()
+    Image.new("L", (1240, 1754), 255).save(buf, "PNG")
+    boxes = TesseractOcr().recognise(buf.getvalue())
+    assert seen["size"] == (round(1240 * 2600 / 1754), 2600)  # scaled to the target long side
+    assert boxes[0].x == pytest.approx(1000 / seen["size"][0])  # fractions use the scaled size

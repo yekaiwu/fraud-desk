@@ -126,7 +126,10 @@ class AnthropicLLMClient:
     # -------------------------------------------------------------------- request
 
     def _content(self, req: LLMRequest, feedback: str | None) -> list[dict]:
-        if req.images and not self.settings.llm_supports_vision:
+        # the vision fallback (cascade.py) is the one case where a text-only setup sends a page image
+        if req.images and not (
+            self.settings.llm_supports_vision or self.settings.llm_vision_fallback
+        ):
             raise LLMVisionUnsupported(
                 f"{req.purpose}: request has {len(req.images)} image(s) but "
                 "GLDB_LLM_SUPPORTS_VISION=false"
