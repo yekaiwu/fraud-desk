@@ -93,7 +93,7 @@ def sem_activity_fit(ctx: CaseContext) -> list[Flag]:
 
 * **Score.** Flags only add. A semantic flag is a finding of its own (default grouping key `rule:<rule>:<documents>`), weight 15 for medium and 5 for low, so it cannot merge into, or cancel, another finding. The score without the semantic checks is a lower bound on the score with them.
 * **Hard stops and routing.** `sem_*` rules are in neither `HARD_STOP_RULES` nor `AML_ROUTING_RULES`, so a model-derived flag is never a hard stop and never changes the lane family by itself.
-* **Fast lane.** In `queue.fast_lane_eligible`: a finding with weight above 0 made only of semantic rules closes the fast lane (a case with a model-derived concern is looked at now, not last); and the coverage bar is computed over the non-semantic check runs only, so a semantic check that ran cannot lift a case over the 0.80 bar. A semantic check that errored makes the case partial, and a partial case is never fast. The displayed coverage ratio still counts the semantic runs, so a model failure is visible there.
+* **Fast lane.** In `queue.fast_lane_eligible`: a finding with weight above 0 made only of semantic rules closes the fast lane (a case with a model-derived concern is looked at now, not last); and the coverage bar is computed over the non-semantic check runs only, so a semantic check that ran cannot lift a case over the 0.80 bar. A semantic check that errored makes the case partial, and a partial case is never fast. The displayed coverage ratio counts a semantic check only when it failed (`counts_in_coverage` in `semantic/policy.py`), so a model failure is visible there while a normal run or skip leaves coverage exactly as it is with the feature off. Before this rule a skipped fit check counted as applicable-but-not-run and lowered the displayed ratio of 22 of 33 clean bundles; the measured coverage figures further down were taken before that change.
 * **Override.** A catalogue override can switch a semantic check off (recorded as skipped, `switched_off`) or lower its severity; it cannot raise it above medium (`run_stage_checks` caps it).
 
 ## 7. Reading the counts
@@ -220,7 +220,7 @@ Each question is one model call per case, with a small ordinal answer instead of
 | `sem_income_fit` | Is the declared amount plausible for the job the source-of-funds text names? | declaration `declared_amount` | declaration field `origin_description` | a declaration with a description and an amount |
 | `sem_coherence_fit` | Do the counterparties on the statement fit the declared principal activity? | profile `principal_activity` | a statement `transactions` row, column `description` | a company profile with an activity, and at least 3 statement lines with a description from an account that is not known to be someone else's |
 
-All three are registered at stage `crossdoc`, severity `medium` (the cap), and only when `GLDB_SEMANTIC=on`. A case without the needed fields gets `CheckSkipped` (a normal skip, coverage unchanged); a failed, timed-out or malformed call is `SemanticNotRun` (an errored check: coverage down, the case partial).
+All three are registered at stage `crossdoc`, severity `medium` (the cap), and only when `GLDB_SEMANTIC=on`. A case without the needed fields gets `CheckSkipped` (a normal skip; it does not enter the coverage ratio); a failed, timed-out or malformed call is `SemanticNotRun` (an errored check: coverage down, the case partial).
 
 ### The answer and what becomes a flag
 

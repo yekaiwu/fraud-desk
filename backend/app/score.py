@@ -22,6 +22,7 @@ from app.core.models import (
 )
 from app.findings import group_flags
 from app.queue import DEFAULT_MIN_PROB, lane_for, page_counts, top_finding_line, unchecked_pages
+from app.semantic.policy import counts_in_coverage
 
 MAX_PARTIAL_REASONS = 20
 MAX_UNKNOWN_DOC_WARNINGS = 10
@@ -37,7 +38,8 @@ def band_for(value: int) -> Band:
 
 def compute_coverage(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> Coverage:
     """``ran / applicable`` over the check runs (4.6) plus page-level silence counts."""
-    runs = case.check_runs
+    # model-derived checks enter only when they failed (docs/semantic-signals.md section 6)
+    runs = [r for r in case.check_runs if counts_in_coverage(r.rule, r.status)]
     applicable = len(runs)
     ran = sum(1 for r in runs if r.status == "ran")
     # a partial case with no runs must never read as full coverage

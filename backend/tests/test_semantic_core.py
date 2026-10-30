@@ -562,6 +562,34 @@ def test_a_semantic_check_that_ran_cannot_lift_coverage_over_the_fast_lane_bar()
     assert not fast_lane_eligible(case) and lane_for(case) != "fast"
 
 
+def _coverage_of(runs: list[tuple[str, str]]) -> Coverage:
+    from app.score import compute_coverage
+
+    case = fast_case(runs)
+    return compute_coverage(case)
+
+
+def test_a_semantic_run_or_skip_leaves_the_displayed_coverage_as_it_is_with_the_feature_off() -> (
+    None
+):
+    base = [("a", "ran"), ("b", "ran"), ("c", "skipped")]
+    off = _coverage_of(base)
+    on = _coverage_of(base + [("sem_x", "ran"), ("sem_y", "skipped"), ("sem_z", "ran")])
+    assert (on.applicable, on.ran, on.ratio, on.skipped) == (
+        off.applicable,
+        off.ran,
+        off.ratio,
+        off.skipped,
+    )
+
+
+def test_a_failed_semantic_check_still_lowers_the_displayed_coverage() -> None:
+    base = [("a", "ran"), ("b", "ran")]
+    failed = _coverage_of(base + [("sem_x", "error")])
+    assert failed.ratio < _coverage_of(base).ratio
+    assert [d["rule"] for d in failed.skipped] == ["sem_x"]
+
+
 def test_semantic_runs_do_not_hold_back_a_case_that_would_be_fast_anyway() -> None:
     runs = [("a", "ran"), ("b", "ran"), ("c", "ran"), ("d", "ran"), ("sem_x", "skipped")]
     assert fast_lane_eligible(fast_case(runs))

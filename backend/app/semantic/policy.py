@@ -24,6 +24,13 @@ def is_semantic_rule(rule: str) -> bool:
     return rule.startswith(SEMANTIC_RULE_PREFIX)
 
 
+def counts_in_coverage(rule: str, status: str) -> bool:
+    """Whether a check run enters the coverage ratio. A model-derived check counts only when it
+    failed (``error``): a failure must lower coverage, but a normal skip (the case has nothing for
+    it to read) or a run must leave coverage exactly as it is with the feature off."""
+    return status == "error" or not is_semantic_rule(rule)
+
+
 def semantic_enabled(settings: _HasSemantic) -> bool:
     """``GLDB_SEMANTIC`` is anything but ``off``."""
     return settings.semantic != "off"
