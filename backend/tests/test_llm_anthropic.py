@@ -171,11 +171,23 @@ def test_defaults_and_allow_list() -> None:
     assert {"claude-haiku-5-5"} == ALLOWED_ANTHROPIC_MODELS
 
 
-def test_auto_never_selects_anthropic() -> None:
+def test_auto_prefers_anthropic_when_its_key_is_set() -> None:
     s = Settings(_env_file=None, llm_backend="auto", anthropic_api_key=KEY)
-    assert s.effective_llm_backend() == "fake"
+    assert s.effective_llm_backend() == "anthropic"
     both = Settings(_env_file=None, llm_backend="auto", anthropic_api_key=KEY, llm_api_key="sk-x")
-    assert both.effective_llm_backend() == "openai"  # the openai rule is unchanged
+    assert both.effective_llm_backend() == "anthropic"  # Haiku is the default when both are set
+    assert Settings(_env_file=None, llm_api_key="sk-x").effective_llm_backend() == "openai"
+    assert Settings(_env_file=None, anthropic_api_key="   ").effective_llm_backend() == "fake"
+
+
+def test_explicit_backend_overrides_the_anthropic_default() -> None:
+    """The local Qwen is one line away: GLDB_LLM_BACKEND=openai wins over a configured Anthropic key."""
+    s = Settings(_env_file=None, llm_backend="openai", anthropic_api_key=KEY, llm_api_key="sk-x")
+    assert s.effective_llm_backend() == "openai"
+    assert (
+        Settings(_env_file=None, llm_backend="fake", anthropic_api_key=KEY).effective_llm_backend()
+        == "fake"
+    )
 
 
 def test_anthropic_backend_resolves_both_roles_to_haiku_with_vision() -> None:

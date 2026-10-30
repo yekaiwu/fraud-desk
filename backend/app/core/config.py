@@ -44,7 +44,8 @@ class Settings(BaseSettings):
     today: date | None = None
 
     # LLM
-    # "auto" never selects anthropic: the owner opts in with GLDB_LLM_BACKEND=anthropic
+    # "auto": Claude Haiku when GLDB_ANTHROPIC_API_KEY is set, else the OpenAI-compatible server (e.g. the local
+    # Qwen) when GLDB_LLM_API_KEY is set, else the fake. GLDB_LLM_BACKEND=openai|anthropic|fake forces one.
     llm_backend: Literal["auto", "fake", "openai", "anthropic"] = "auto"
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_api_key: SecretStr = SecretStr("")
@@ -177,6 +178,8 @@ class Settings(BaseSettings):
 
     def effective_llm_backend(self) -> Literal["fake", "openai", "anthropic"]:
         if self.llm_backend == "auto":
+            if self.anthropic_api_key_value.strip():
+                return "anthropic"
             return "openai" if self.api_key_value else "fake"
         return self.llm_backend
 

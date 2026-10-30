@@ -8,7 +8,7 @@ Status, stated plainly: the backend was built and tested **offline** (the real S
 
 | Item | Value |
 |---|---|
-| Backend switch | `GLDB_LLM_BACKEND=anthropic` (explicit opt-in; `auto` never selects it) |
+| Backend switch | the default: `auto` picks this backend whenever `GLDB_ANTHROPIC_API_KEY` is set (it wins over `GLDB_LLM_API_KEY`); `GLDB_LLM_BACKEND=anthropic` forces it; `GLDB_LLM_BACKEND=openai` selects the local Qwen or another OpenAI-compatible server instead |
 | Code | `backend/app/core/llm_anthropic.py` (`AnthropicLLMClient`), created by `get_llm_client` |
 | SDK | the official `anthropic` package (2.x, built on `httpx2`), not the OpenAI-compatibility shim |
 | Model | `claude-haiku-5-5`, nothing else (section 3) |
@@ -25,7 +25,7 @@ Status, stated plainly: the backend was built and tested **offline** (the real S
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `GLDB_LLM_BACKEND` | `auto` | `anthropic` selects this backend |
+| `GLDB_LLM_BACKEND` | `auto` | `auto` selects this backend when the key is set; `anthropic` forces it; `openai` or `fake` override it |
 | `GLDB_ANTHROPIC_API_KEY` | empty | secret; required for the backend |
 | `GLDB_ANTHROPIC_MODEL` | `claude-haiku-5-5` | anything else stops the application at start-up |
 | `GLDB_ANTHROPIC_WORKSPACE_ID` | empty | sent as the `anthropic-workspace-id` header when non-empty |

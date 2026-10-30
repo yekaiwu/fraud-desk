@@ -300,7 +300,8 @@ def test_from_settings_applies_only_to_paid_backends(tmp_path: Path, mem_db: Dat
     )
     assert openai is not None
     assert build(llm_backend="fake") is None  # the fake backend is unaffected
-    assert build(llm_backend="auto") is None  # auto without a key is the fake
+    assert build(llm_backend="auto", anthropic_api_key="") is None  # auto without a key is the fake
+    assert build(llm_backend="auto") is not None  # auto with the Anthropic key is Haiku: capped
     assert build(max_usd_per_day=Decimal("0")) is None  # 0 disables
     local = build(
         llm_backend="openai",

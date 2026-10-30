@@ -974,8 +974,8 @@ class _GroundTruthOracle:
 def get_llm_client(settings: Settings, *, cache: ResponseCache | None = None) -> LLMClient:
     """``GLDB_LLM_BACKEND``: ``fake`` -> FakeLLMClient (no cache); ``openai`` -> OpenAICompatClient
     (clear startup error if key or model names are empty); ``anthropic`` -> AnthropicLLMClient
-    (official SDK, Claude Haiku 5.5 only; opt-in, never chosen by ``auto``); ``auto`` -> openai when
-    a key is set, else the Fake (the default in this project: no key)."""
+    (official SDK, Claude Haiku 5.5 only); ``auto`` -> anthropic when its key is set, else openai
+    when ``GLDB_LLM_API_KEY`` is set, else the Fake (the default in this project: no key)."""
     backend = settings.effective_llm_backend()
     if backend == "fake":
         return FakeLLMClient()
