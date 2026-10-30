@@ -71,9 +71,30 @@ Retries on the network are the SDK's own (`max_retries=2` for 408, 409, 429, 5xx
 
 ## 5. Vision
 
-Haiku 5.5 accepts images, so `GLDB_LLM_SUPPORTS_VISION` is true for this backend and scans are read by the model (`ocr:page`, and vision extraction), unless `GLDB_OCR_BACKEND=vision` forces on-device OCR. An image is sent as `{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": ...}}`, grayscale at `GLDB_VISION_DPI`, before the text block. Sending images costs input tokens (about 3,600 per page at the default grayscale render in the live check, section 11).
+Haiku 5.5 accepts images, so `GLDB_LLM_SUPPORTS_VISION` is true for this backend and scans are read by the model (`ocr:page`, and vision extraction), unless `GLDB_OCR_BACKEND` names an on-device OCR (`tesseract`, `rapidocr` or `vision`, section 5a). An image is sent as `{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": ...}}`, grayscale at `GLDB_VISION_DPI`, before the text block. Sending images costs input tokens (about 3,600 per page at the default grayscale render in the live check, section 11).
 
-**The page image is sent for extraction whenever the model has vision, even when local OCR words exist.** For a scan, `extract/llm_extractor.py` builds the extraction request from the image unless the model is text-only (`GLDB_LLM_SUPPORTS_VISION=false`); the local OCR words are then used only to verify the model's values. Under this backend vision is forced on, so `GLDB_OCR_BACKEND=vision` (macOS only, `uv sync --extra ocr`) removes the separate `ocr:page` transcription call (the cost lever, section 11) but does **not** keep the image on the machine: the extraction call still carries it. There is no setting under this backend that makes only text leave the machine.
+**The page image is sent for extraction whenever the model has vision, even when local OCR words exist.** For a scan, `extract/llm_extractor.py` builds the extraction request from the image unless the model is text-only (`GLDB_LLM_SUPPORTS_VISION=false`); the local OCR words are then used only to verify the model's values. With the default `GLDB_OCR_BACKEND=auto`, vision is forced on under this backend. Naming an on-device OCR changes that, see section 5a.
+
+### 5a. On-device OCR, Haiku on text
+
+Set `GLDB_OCR_BACKEND=tesseract` (needs `brew install tesseract`; nothing to add to `uv sync`), `rapidocr` or `vision` (Apple Vision, `uv sync --extra ocr`) and the page is read on the machine. Haiku then receives the OCR text with the table columns kept in place (`core/textlayout.py:aligned_text`) and no image, which costs a fraction of the vision path (section 5b). One exception, `GLDB_LLM_VISION_FALLBACK` (on by default in this setup): a scanned page whose arithmetic does not add up (a running balance or a total) is read a second time from its image, and on a difference that image reading wins and the OCR-text reading is kept in `alt_raw`. Set it to `false` to keep every image on the machine; pages the OCR misread then stay flagged for a person.
+
+### 5b. Measured
+
+Same 13 scanned cases for each reader (clean AML and KYC bundles plus 11 tampered ones, 8 tamper types, `scan_hq`, one pass, `backend/scripts/ext_eval/real_ocr_eval.py` with the OCR job swapped for the real pipeline). Spend is read from the case costs.
+
+| Seed | Reader | Tamper recall | Clean bundles flagged (medium or above) | Statement rows read exactly | Spend, 13 cases | Seconds a case |
+|---|---|---|---|---|---|---|
+| held-out 9001 | Tesseract, Haiku on the text | 11 of 11 | 1 of 2 (`bs_holder`, `x_entity`, `x_ownership_vs_registry`) | 1.000 | $0.337 | 115 |
+| held-out 9001 | Haiku on the page image | 11 of 11 | 1 of 2 (`passport_mrz`) | 1.000 | $0.872 | 170 |
+| dev 4002 | Tesseract, Haiku on the text | 11 of 11 | 0 of 2 | 1.000 | $0.368 | 127 |
+| dev 4002 | Haiku on the page image | 10 of 11 | 1 of 2 (`passport_mrz`) | 0.99 (598 of 604, 3 bundles) | $0.875 | 100 to 225 |
+| dev 4002 | Apple Vision, Haiku on the text (no cell split, no column alignment) | 3 of 11 | 2 of 2 | 0.72 | $0.261 | 99 |
+| dev 4002 | RapidOCR, Haiku on the text | 0 of 11 | 2 of 2 | 0.01 | $0.031 | 32 |
+
+How to read it. The Tesseract settings and its three text repairs (a stray comma after an amount, CR/DR glued to the amount, `S` read as `$` or `§` in an ID number) were tuned on the dev-seed bundles, so the dev rows flatter it; the held-out rows were run once after the code was fixed and nothing was changed afterwards. The held-out Tesseract false alarm is a name-matching one on a clean bundle, from words read wrongly out of the text, and it is left as it is. Samples are 11 tampered cases and 2 clean bundles per row, so every figure has a wide interval (11 of 11 is 0.74 to 1.00). Recall counts a new flag against the same scan of the clean bundle. The loan scenario was not run. Apple Vision and RapidOCR failed for causes that were fixed in the Tesseract path but not re-run for them: Apple Vision's lines were not split into cells and its text had no alignment; RapidOCR drops the spaces between words.
+
+What made Tesseract work, in order of effect: one box per table cell instead of per line (the pipeline spreads a box's words evenly, which erased the debit and credit columns), keeping column positions in the text sent to Haiku, reading the page at about 1.7 times the scan resolution, and the vision fallback for the pages whose arithmetic still failed.
 
 ## 6. Pricing
 
