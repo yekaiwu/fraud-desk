@@ -17,6 +17,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
+from app.assemble import logical_docs
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
 from app.core.models import Cell, Document, Flag, Region, Row
@@ -25,6 +26,7 @@ from app.graph import counterparty_of
 from app.names import (
     cell_region,
     entity_key,
+    identity_status,
     ids_conflict_or_equal,
     labelled,
     looks_like_nric,
@@ -54,6 +56,14 @@ DVA_MIN_SHARE = Decimal("0.05")
 DVA_DOMINANT_SHARE = Decimal("0.50")
 RISKY_LABELS = ("crypto_virtual_assets", "gambling", "money_services")
 USABLE = ("ok", "partial")
+# said on a "name differs" flag when the names are one letter apart and the ID number is the same
+# (identity_status().needs == "dob_or_document"). The flag and its severity are unchanged: a typo
+# and a deliberate substitution are the same string, so nothing is decided and nothing is waved
+# through; the note only says what would tell them apart.
+SLIP_NEEDS_NOTE = (  # kept short: an explanation is capped at EXPLANATION_MAX characters
+    " One letter apart on the same ID: a typo and a different person look alike, so check the "
+    "date of birth or the ID document."
+)
 MAX_EXTRA_REGIONS = 6
 MAX_MRZ_FLAGS = 8
 
@@ -77,7 +87,9 @@ SHORT_LABELS = {
 
 
 def _docs(ctx: CaseContext, *types: str) -> list[Document]:
-    return [d for d in ctx.docs(*types) if d.status in USABLE]
+    # bank statements that arrived page by page are read as one statement; pieces that could not
+    # be assembled are left out (the statement counts as not provided, and is reported as such)
+    return [d for d in logical_docs(ctx, *types, whole_only=True) if d.status in USABLE]
 
 
 def _cell(doc: Document, name: str) -> Cell:
@@ -1227,6 +1239,12 @@ def _compare_holders(  # noqa: PLR0912
                     explanation=(
                         f"The ID {safe_text(mask_id(r.ident))} belongs to {safe_text(r.name)} in the "
                         f"registry but is shown with a different name on the {label}."
+                    )
+                    + (
+                        SLIP_NEEDS_NOTE
+                        if identity_status(h.name, h.ident, r.name, r.ident, kind=r.kind).needs
+                        == "dob_or_document"
+                        else ""
                     ),
                     discriminator=entity_key(r.name, r.kind) or None,
                 )
@@ -1446,7 +1464,8 @@ def x_directors(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912, PLR0915
                             explanation=(
                                 f"The ID number given for {safe_text(p.name)} belongs to someone "
                                 "with a different name."
-                            ),
+                            )
+                            + (SLIP_NEEDS_NOTE if name_match.typo else ""),
                             discriminator=entity_key(p.name, "person") or None,
                         )
                     )

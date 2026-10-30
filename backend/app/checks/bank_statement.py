@@ -21,6 +21,7 @@ from fractions import Fraction
 
 from rapidfuzz import fuzz
 
+from app.assemble import AssembledStatement, logical_docs
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
 from app.core.models import Cell, Document, Flag, Region, Row, Table, truncate
@@ -38,6 +39,12 @@ RN_MIN_ROUND = 3
 RN_MIN_SHARE = 0.50
 RN_MIN_UPLIFT = 0.30
 RN_MIN_BASELINE_CREDITS = 10
+# Count test (second trigger): the number of round credits is far above what the other statements
+# of the account lead one to expect. Poisson tail, set before looking at any tampered data; the
+# share uplift guards against a statement that is simply busier than the others.
+RN_COUNT_ALPHA = 0.005
+RN_COUNT_MIN_UPLIFT = 0.15
+RN_COUNT_LAMBDA_FLOOR = 0.5
 BENFORD_MIN_N = 100
 BENFORD_MAD_MIN = 0.015
 BENFORD_CHI2_CRIT = 20.09
@@ -77,8 +84,19 @@ def _clean(text: str | None, limit: int = TEXT_LIMIT) -> str:
 
 
 def _statements(ctx: CaseContext) -> list[Document]:
-    """Bank statements that were actually read, in document-id order."""
-    return [d for d in ctx.docs("bank_statement") if d.status in ("ok", "partial")]
+    """Bank statements that were actually read, in document-id order. Pages of one statement that
+    arrived as separate images and were put back together (``app.assemble``) appear as one
+    statement; pages that could not be assembled appear as they are, so the rules that only need a
+    page (running balance, dates, duplicates, holder) still look at them."""
+    return [d for d in logical_docs(ctx, "bank_statement") if d.status in ("ok", "partial")]
+
+
+def _whole_statements(ctx: CaseContext) -> list[Document]:
+    """As ``_statements`` without the pieces that could not be assembled. Use it for every rule
+    that compares a statement with its own totals, page numbers or neighbours: a piece compared
+    with a whole is a false alarm, and those pages are reported as not reviewed instead."""
+    docs = logical_docs(ctx, "bank_statement", whole_only=True)
+    return [d for d in docs if d.status in ("ok", "partial")]
 
 
 def _field(doc: Document, name: str) -> Cell | None:
@@ -315,7 +333,7 @@ def bs_totals(ctx: CaseContext) -> list[Flag]:
     tol = _tol(ctx)
     flags: list[Flag] = []
     evaluated = 0
-    for doc in _statements(ctx):
+    for doc in _whole_statements(ctx):
         table = doc.tables.get("transactions")
         opening = _fmoney(doc, "opening_balance")
         closing = _fmoney(doc, "closing_balance")
@@ -400,6 +418,50 @@ def bs_totals(ctx: CaseContext) -> list[Flag]:
 # ---------------------------------------------------------------------------------------------
 
 
+def _unassembled_pieces(ctx: CaseContext) -> list[tuple[str, date | None, date | None]]:
+    """``(account, period start, period end)`` of every page of a split statement that could not be
+    assembled. A month that is uploaded but not reviewed must not read as a month that is absent."""
+    out: list[tuple[str, date | None, date | None]] = []
+    for doc in _statements(ctx):
+        if doc.statement is None or doc.statement.state == "assembled":
+            continue
+        acct = _acct_key(doc)
+        if not acct:
+            chain = doc.tables.get("page_chain")
+            for row in chain.rows if chain is not None else []:
+                cell = row.cells.get("account_number")
+                if cell is not None and cell.value:
+                    acct = "".join(cell.text().replace("-", "").split()).upper()
+                    break
+        out.append((acct, _fdate(doc, "period_start"), _fdate(doc, "period_end")))
+    return out
+
+
+def _gap_explained(
+    pieces: Sequence[tuple[str, date | None, date | None]], acct: str, a_end: date, b_start: date
+) -> bool:
+    """True when the unassembled pages of this account (or of an unknown account) carry periods
+    that together cover every day between the two statements. A page without a period, or one
+    that covers only part of the gap, explains nothing: one stray page must not hide a month
+    that is absent."""
+    first, last = a_end + timedelta(days=1), b_start - timedelta(days=1)
+    spans = sorted(
+        (max(start, first), min(end, last))
+        for piece_acct, start, end in pieces
+        if (not piece_acct or piece_acct == acct)
+        and start is not None
+        and end is not None
+        and start <= last
+        and end >= first
+    )
+    reached = first - timedelta(days=1)  # last day covered so far
+    for start, end in spans:
+        if start > reached + timedelta(days=1):
+            return False
+        reached = max(reached, end)
+    return reached >= last
+
+
 @check(
     rule="bs_period_continuity",
     applies_to={"bank_statement"},
@@ -416,13 +478,14 @@ def bs_totals(ctx: CaseContext) -> list[Flag]:
 def bs_period_continuity(ctx: CaseContext) -> list[Flag]:
     tol = _tol(ctx)
     groups: dict[tuple[str, str], list[tuple[date, date, Document]]] = defaultdict(list)
-    for doc in _statements(ctx):
+    for doc in _whole_statements(ctx):
         start, end = _fdate(doc, "period_start"), _fdate(doc, "period_end")
         acct = _acct_key(doc)
         if not acct or start is None or end is None:
             continue
         groups[(acct, _currency(doc))].append((start, end, doc))
 
+    unassembled = _unassembled_pieces(ctx)
     flags: list[Flag] = []
     pairs = 0
     for key in sorted(groups):
@@ -431,6 +494,8 @@ def bs_period_continuity(ctx: CaseContext) -> list[Flag]:
             pairs += 1
             gap_days = (b_start - a_end).days
             if gap_days > 1:
+                if _gap_explained(unassembled, key[0], a_end, b_start):
+                    continue  # the missing month is on file but could not be assembled
                 flags.append(_pc_flag(a, b, "gap", gap_days - 1, a_start, a_end, b_start, b_end))
             elif gap_days < 0:
                 flags.append(_pc_flag(a, b, "overlap", 0, a_start, a_end, b_start, b_end))
@@ -803,9 +868,11 @@ def bs_page_chain(ctx: CaseContext) -> list[Flag]:
         for f in ctx.case.files
         if any(p.error and p.error.startswith("not_processed") for p in f.pages)
     }
-    for doc in _statements(ctx):
+    for doc in _whole_statements(ctx):
         if doc.file_id in unprocessed:
             continue  # a budget cut removed pages: a "missing page" would be our gap, not theirs
+        if isinstance(doc, AssembledStatement) and not doc.all_marked:
+            continue  # joined without markers on every page: there is no chain to compare
         table = doc.tables.get("page_chain")
         if table is None:
             continue
@@ -1058,19 +1125,28 @@ def _is_round(amount: Decimal) -> bool:
     return amount >= RN_ROUND_MODULUS and amount % RN_ROUND_MODULUS == 0
 
 
+def _poisson_tail(k: int, lam: float) -> float:
+    """P(X >= k) for X ~ Poisson(lam)."""
+    term, below = math.exp(-lam), 0.0
+    for i in range(k):
+        below += term
+        term *= lam / (i + 1)
+    return max(0.0, 1.0 - below)
+
+
 @check(
     rule="bs_round_numbers",
     applies_to={"bank_statement"},
     severity="low",
     description=(
-        "A statement has a much higher share of round-sum credits than the other statements of "
-        "the same account (a hint)."
+        "A statement has a much higher share of round-sum credits, or far more of them than the "
+        "other statements of the same account lead one to expect (a hint)."
     ),
     tamper="Invented credits.",
 )
 def bs_round_numbers(ctx: CaseContext) -> list[Flag]:
     groups: dict[tuple[str, str], list[Document]] = defaultdict(list)
-    for doc in _statements(ctx):
+    for doc in _whole_statements(ctx):
         acct = _acct_key(doc)
         if acct:
             groups[(acct, _currency(doc))].append(doc)
@@ -1097,8 +1173,20 @@ def bs_round_numbers(ctx: CaseContext) -> list[Flag]:
             evaluated += 1
             share = Fraction(len(rounds), len(credits))
             baseline = Fraction(base_r, base_n)
-            if share < min_share or share - baseline < min_uplift or len(rounds) < RN_MIN_ROUND:
+            if len(rounds) < RN_MIN_ROUND:
                 continue
+            by_share = share >= min_share and share - baseline >= min_uplift
+            per_month = max(RN_COUNT_LAMBDA_FLOOR, base_r / (len(docs) - 1))
+            tail = _poisson_tail(len(rounds), per_month)
+            by_count = tail < RN_COUNT_ALPHA and share - baseline >= _frac(RN_COUNT_MIN_UPLIFT)
+            if not (by_share or by_count):
+                continue
+            count_note = (
+                f"; {len(rounds)} round credits against about {per_month:.1f} a month in the "
+                f"other statements (chance {tail:.4f})"
+                if by_count and not by_share
+                else ""
+            )
             table = doc.tables["transactions"]
             first = rounds[0][0]
             cell = table.rows[first].cells["credit"]
@@ -1115,7 +1203,7 @@ def bs_round_numbers(ctx: CaseContext) -> list[Flag]:
                         f"{len(rounds)} of {len(credits)} credits are round multiples of "
                         f"{RN_ROUND_MODULUS} ({_pct(share)}%); other statements of this account: "
                         f"{base_r} of {base_n} ({_pct(baseline)}%); uplift "
-                        f"{_pct(share - baseline)} points"
+                        f"{_pct(share - baseline)} points" + count_note
                     ),
                     explanation=(
                         "Unusually many round-sum deposits compared with the other months of "
@@ -1145,8 +1233,9 @@ def _first_digit(amount: Decimal) -> int | None:
     applies_to={"bank_statement"},
     severity="info",
     description=(
-        "The first-digit distribution of at least 100 amounts of one account departs from "
-        "Benford's law (a hint with no effect on the score)."
+        "The first-digit distribution of at least 100 different amounts of one account departs "
+        "from Benford's law (a hint with no effect on the score). Recurring identical amounts "
+        "count once."
     ),
     tamper="Fabricated activity.",
 )
@@ -1161,12 +1250,16 @@ def bs_benford(ctx: CaseContext) -> list[Flag]:
     for key in sorted(pools):
         docs = pools[key]
         counts = [0] * 10
+        seen: set[Decimal] = set()  # recurring identical amounts (rent, payroll) count once
         for doc in docs:
             table = doc.tables.get("transactions")
             for row in table.rows if table is not None else []:
                 for column in ("debit", "credit"):
                     amount = _row_money(row, column)
-                    if amount is not None and amount > 0 and (d := _first_digit(amount)):
+                    if amount is None or amount <= 0 or amount in seen:
+                        continue
+                    seen.add(amount)
+                    if d := _first_digit(amount):
                         counts[d] += 1
         n = sum(counts)
         if n < BENFORD_MIN_N:

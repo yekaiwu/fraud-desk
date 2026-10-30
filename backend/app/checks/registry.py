@@ -16,6 +16,7 @@ from collections.abc import Callable, Iterable, Sequence
 
 from pydantic import ConfigDict, Field
 
+from app.assemble import AssembledStatement
 from app.core.context import CaseContext, natural_key
 from app.core.models import (
     FLAG_STAGE_ORDER,
@@ -294,6 +295,45 @@ def _doc_id(doc: Document | str) -> str:
     return doc if isinstance(doc, str) else doc.id
 
 
+def _resolve_pieces(
+    docs: Sequence[Document | str],
+    table: str | None,
+    row: int | None,
+    field: str | None,
+    row_doc: Document | str | None = None,
+) -> tuple[list[str], int | None]:
+    """Document ids for a flag and the row they refer to. A statement that was put back together
+    from page images (``AssembledStatement``) is a run-time view: a flag must name the stored page
+    document the evidence is on, with that page's own row index, or the reviewer cannot find it.
+    Where the evidence is the whole statement, every member page is named. ``row_doc`` is the
+    document ``row`` indexes into; without it the row is taken to index the only assembled view."""
+    assembled = [d for d in docs if isinstance(d, AssembledStatement)]
+    if not assembled:
+        return [_doc_id(d) for d in docs], row
+    owner: AssembledStatement | None = None
+    if row_doc is None:
+        owner = assembled[0] if len(assembled) == 1 else None
+    else:
+        owner = next((d for d in assembled if d.id == _doc_id(row_doc)), None)
+    pick: str | None = None
+    if owner is not None:
+        if (
+            table in owner.origin_rows
+            and row is not None
+            and 0 <= row < len(owner.origin_rows[table])
+        ):
+            pick, row = owner.origin_rows[table][row]
+        elif len(docs) == 1 and field is not None:
+            pick = owner.origin_fields.get(field)
+    ids: list[str] = []
+    for d in docs:
+        if isinstance(d, AssembledStatement):
+            ids += [pick] if pick is not None and d is owner else d.member_ids
+        else:
+            ids.append(_doc_id(d))
+    return ids, row
+
+
 def make_flag(
     rule: str,
     *,
@@ -303,6 +343,7 @@ def make_flag(
     table: str | None = None,
     field: str | None = None,
     row: int | None = None,
+    row_doc: Document | str | None = None,
     region: Region | None = None,
     extra_regions: Sequence[Region] = (),
     severity: Severity | None = None,
@@ -313,7 +354,8 @@ def make_flag(
     Id is ``"<rule>.<doc ids sorted, joined by '+'>.<locator>"`` where locator is ``field``, or
     ``"<table>:<row>"`` (row 0-based), or ``"-"``; ``~<discriminator>`` is appended when given.
     ``stage`` and default ``severity`` come from the registered check (``severity`` is then
-    optional); an unregistered rule needs an explicit ``severity``.
+    optional); an unregistered rule needs an explicit ``severity``. Pass ``row_doc`` (the document
+    ``row`` belongs to) when ``docs`` mixes a re-assembled statement with other documents.
     """
     meta = get_check(rule)
     if severity is None:
@@ -321,7 +363,8 @@ def make_flag(
             raise ValueError(f"rule {rule!r} is not registered: pass severity explicitly")
         severity = meta.severity
     stage: FlagStage = meta.stage if meta is not None else "rules"
-    doc_ids = sorted({_doc_id(d) for d in docs}, key=natural_key)
+    resolved, row = _resolve_pieces(docs, table, row, field, row_doc)
+    doc_ids = sorted(set(resolved), key=natural_key)
     if field:
         locator = field
     elif table is not None and row is not None:

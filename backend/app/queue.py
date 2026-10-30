@@ -39,8 +39,9 @@ def _cap(text: str, limit: int) -> str:
 def unchecked_pages(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> list[UncheckedPage]:
     """Every page no check looked at, with the first reason that applies (section 4.6). A page is
     unchecked when it lies in a document that was received but not checked or failed, could not be
-    read, has a low page classification probability, is labelled boilerplate or other, or belongs
-    to no document."""
+    read, belongs to a statement whose pages could not be put together (``app.assemble``), has a
+    low page classification probability, is labelled boilerplate or other, or belongs to no
+    document."""
     docs_by_file: dict[str, list[Document]] = {}
     for doc in case.documents:
         docs_by_file.setdefault(doc.file_id, []).append(doc)
@@ -62,6 +63,8 @@ def unchecked_pages(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> list[U
                 reason = "no_document"
             elif page.error is not None:
                 reason = "unreadable"
+            elif doc.statement is not None and doc.statement.state != "assembled":
+                reason = "statement_incomplete"
             elif doc.status in _UNCHECKED_DOC_STATUS:
                 reason = "not_checked" if doc.status == "received_not_checked" else "failed"
             elif doc.doc_type in _UNCHECKED_LABELS or (

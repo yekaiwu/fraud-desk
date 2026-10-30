@@ -43,21 +43,26 @@ def test_same_person_surface_forms_never_raise_a_name_flag(fairness) -> None:  #
     ]
 
 
-def test_near_spelled_different_people_are_still_flagged_where_the_matcher_sees_them(
+def test_near_spelled_different_people_are_flagged_in_every_group(
     fairness,  # noqa: ANN001
 ) -> None:
     root, pairs = fairness
     diff = [p for p in pairs if not p.same_person]
-    flagged = {p.pair_id for p in diff if _name_flags(root, p.pair_id)}
-    assert flagged, "no near-spelled negative was flagged at all"
-    # at least one negative is caught in more than one group (not a single-group accident)
-    assert len({pid.rsplit("-", 1)[0] for pid in flagged}) >= 3
-    # honest limit (checks-kyc-aml.md Known gaps): a one-letter slip with the same ID number on
-    # both sides is read as a typo of the same person, and that is the only kind that slips through
-    for p in diff:
-        if p.pair_id not in flagged:
-            assert p.form_b == "near_spelling_1", (p.pair_id, p.name_a, p.name_b)
-            assert match_person(p.name_a, p.name_b).verdict in {"same", "probable"}
+    assert {p.group for p in diff} == set(GROUPS)
+    # The generator's near_spell can draw a true alias (Muhammad to Mohammad): the matcher calls
+    # that pair "same" and so it is a same-person pair mislabelled. It is not flagged, rightly.
+    aliases = {p.pair_id for p in diff if match_person(p.name_a, p.name_b).verdict == "same"}
+    missed = [
+        (p.pair_id, p.name_a, p.name_b)
+        for p in diff
+        if p.pair_id not in aliases and not _name_flags(root, p.pair_id)
+    ]
+    # A one-letter slip with the same ID on both sides is a typo or a substitution, and the name
+    # cannot tell which: it is flagged (x_ownership_vs_registry "name differs"), not passed. This
+    # used to miss 3 of 15 Malay and 6 of 15 Indian pairs because a slip inside a name with a
+    # bin/binte/s/o/d/o marker was read as the same person.
+    assert missed == []
+    assert len(aliases) <= 1
 
 
 @pytest.mark.parametrize(

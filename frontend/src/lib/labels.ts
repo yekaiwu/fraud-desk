@@ -129,6 +129,7 @@ export const UNCHECKED_REASON_TEXT: Record<string, string> = {
   failed: "Its document could not be processed.",
   unrecognised_type: "It was not recognised as a document type we check.",
   low_confidence: "We were not confident what kind of page this is.",
+  statement_incomplete: "It is part of a scanned statement we could not put back together, so it was not checked.",
 };
 
 /** Rule ids are secondary text only: "Check: bs_running_balance". */

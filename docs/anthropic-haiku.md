@@ -2,7 +2,7 @@
 
 How to run the tool against Anthropic's API with the official `anthropic` Python SDK, what the one allowed model is, what a request looks like and why, what it costs, and how the spend is capped. This is the second real LLM backend; the OpenAI-compatible client (OpenRouter, a local server, see [local-llm.md](local-llm.md)) is unchanged. Companion to [cost-efficiency.md](cost-efficiency.md) (budget guard) and [ai-inventory.md](ai-inventory.md) (third-party register). All data in this repo is fictitious.
 
-Status, stated plainly: everything here was built and tested **offline** (the real SDK over an `httpx2.MockTransport`; no network call, no live key). **No live call has been made.** Section 10 is the checklist that turns "built" into "verified".
+Status, stated plainly: the backend was built and tested **offline** (the real SDK over an `httpx2.MockTransport`; no network call), and has since had **one small live sanity check**: 9 billed calls on 3 fictitious pages, about $0.0079 in all (section 11). That check is not an evaluation: three clean generated pages, no tampered documents, so the accuracy of this backend on real layouts and its effect on fraud detection remain unmeasured. Section 11 has the numbers and their limits.
 
 ## 1. What it is
 
@@ -21,7 +21,7 @@ Status, stated plainly: everything here was built and tested **offline** (the re
 2. **Workspace id.** The owner's key is user-scoped, and for such keys the API requires the header `anthropic-workspace-id`. Find the id in the Anthropic Console, in the settings of the workspace the key belongs to (it starts with `wrkspc_` `[confirm]`), and put it in `.env` as `GLDB_ANTHROPIC_WORKSPACE_ID`. The client then sends it on every request as a default header. If it is missing and the API wants it, the call fails with an error that names `GLDB_ANTHROPIC_WORKSPACE_ID` (and `anthropic_smoke.py` exits 2).
 3. Keep `GLDB_ANTHROPIC_MODEL=claude-haiku-5-5` (it is also the default).
 4. Switch the backend on: `GLDB_LLM_BACKEND=anthropic`. Until then the key does nothing (the backend stays `fake`).
-5. Verify with the smoke script (section 10), then use **fictitious documents only** (section 8).
+5. Verify with the smoke script (section 11), then use **fictitious documents only** (section 8).
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -71,7 +71,9 @@ Retries on the network are the SDK's own (`max_retries=2` for 408, 409, 429, 5xx
 
 ## 5. Vision
 
-Haiku 5.5 accepts images, so `GLDB_LLM_SUPPORTS_VISION` is true for this backend and scans are read by the model (`ocr:page`, and vision extraction), unless `GLDB_OCR_BACKEND=vision` forces on-device OCR. An image is sent as `{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": ...}}`, grayscale at `GLDB_VISION_DPI`, before the text block. Sending images costs input tokens; if cost matters more than model-quality OCR, set `GLDB_OCR_BACKEND=vision` (macOS only, `uv sync --extra ocr`) so only text leaves the machine.
+Haiku 5.5 accepts images, so `GLDB_LLM_SUPPORTS_VISION` is true for this backend and scans are read by the model (`ocr:page`, and vision extraction), unless `GLDB_OCR_BACKEND=vision` forces on-device OCR. An image is sent as `{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": ...}}`, grayscale at `GLDB_VISION_DPI`, before the text block. Sending images costs input tokens (about 3,600 per page at the default grayscale render in the live check, section 11).
+
+**The page image is sent for extraction whenever the model has vision, even when local OCR words exist.** For a scan, `extract/llm_extractor.py` builds the extraction request from the image unless the model is text-only (`GLDB_LLM_SUPPORTS_VISION=false`); the local OCR words are then used only to verify the model's values. Under this backend vision is forced on, so `GLDB_OCR_BACKEND=vision` (macOS only, `uv sync --extra ocr`) removes the separate `ocr:page` transcription call (the cost lever, section 11) but does **not** keep the image on the machine: the extraction call still carries it. There is no setting under this backend that makes only text leave the machine.
 
 ## 6. Pricing
 
@@ -97,7 +99,7 @@ The per-case guard `GLDB_MAX_USD_PER_CASE` counts these real dollars. A model th
 
 ## 8. Privacy
 
-Page text, and for scans the page image, are sent to Anthropic, a third party outside the bank's control (location, retention and training terms `[confirm]`). **Use fictitious documents only. Never upload real customer data** while this backend is on. Pseudonymisation of outbound text is not implemented (one page at a time, no other document, no tools is the only minimisation), see [ai-inventory.md](ai-inventory.md) section 2. The key stays in `.env` / `deploy/.env.production`; error messages, logs and reprs contain ids, counts and dollars, never the key (a test formats the settings, the client and a raised API error and asserts the key text is absent, even when the server echoes it back).
+Page text, and for scans the page image (also when local OCR is on, section 5), are sent to Anthropic, a third party outside the bank's control (location, retention and training terms `[confirm]`). **Use fictitious documents only. Never upload real customer data** while this backend is on. Pseudonymisation of outbound text is not implemented (one page at a time, no other document, no tools is the only minimisation), see [ai-inventory.md](ai-inventory.md) section 2. The key stays in `.env` / `deploy/.env.production`; error messages, logs and reprs contain ids, counts and dollars, never the key (a test formats the settings, the client and a raised API error and asserts the key text is absent, even when the server echoes it back).
 
 ## 9. Failures
 
@@ -124,7 +126,7 @@ Every message carries the `request-id` when the API sent one, for support reques
 | Classification C1-C5 | only when `GLDB_CLASSIFIER_MODE` is `llm` or `cascade` (default `rules`, no model) | no (minimised text) |
 | Extraction, digital pages with a known layout | no (text-layer parser) | no |
 | Extraction, digital pages the parser rejects or whose arithmetic fails | yes (`extract:<doc_type>`) | no |
-| Extraction, scans and photos | yes | yes, one page |
+| Extraction, scans and photos | yes | yes, one page, also when `GLDB_OCR_BACKEND=vision` supplies OCR words (section 5) |
 | Row annotation (counterparty, C4, C5) | only in `llm` / `cascade` classifier modes | no |
 | Cascade "strong" re-read | skipped: both roles are the same model | |
 | Checks, scoring, queue, review, case pack, image forensics | no | no |
@@ -140,11 +142,29 @@ The smoke script prints the model, input and output tokens, the dollars from the
 
 Then set `GLDB_LLM_BACKEND=anthropic`, generate fictitious bundles (`backend/scripts/make_bundle.py`), upload one, and read `cost_summary` on the case (calls, dollars, `usd_by_stage`). Compare a digital bundle (few or no calls) with a scanned one.
 
-`backend/scripts/llm_eval.py` is built around the local text-only server (it pre-flights `/health` and `/v1/models` and forces `supports_vision=false`), so it was **not** retargeted at this backend; a Haiku evaluation would need that script generalised and the owner's sign-off on its spend. Until then the accuracy of this backend on real layouts is unmeasured.
+`backend/scripts/llm_eval.py` is built around the local text-only server (it pre-flights `/health` and `/v1/models` and forces `supports_vision=false`), so it was **not** retargeted at this backend; a Haiku evaluation would need that script generalised and the owner's sign-off on its spend. The only measurement of this backend so far is the sanity check below.
+
+### 11.1 Live sanity check (measured)
+
+One billed run through the real pipeline (`scripts.run_case.analyse_files`, the same path as `POST /cases`), response cache off so every call was billed and measured, per-case cap $0.20 and daily cap $0.45 on a temporary database. The run script was a one-off and is not in the repo; the write-up is local (`docs/eval-results/` is gitignored). Fictitious data from our own generator: bundle `loan-clean`, the `photo` render (one JPEG per page with perspective, shadow and noise), three single-page documents (company profile, invoice, national ID), each read in two modes, so 6 page-reads.
+
+| Mode | OCR | Model calls per page | Tokens in / out (3 pages) | Dollars (3 pages) | Dollars per page |
+|---|---|---|---|---|---|
+| Haiku OCR | `GLDB_OCR_BACKEND=auto`: Haiku transcribes (`ocr:page`), then extracts | 2 | 26,057 / 6,119 | 0.005666 | about $0.0019 |
+| Apple Vision OCR | `GLDB_OCR_BACKEND=vision`: local OCR words, Haiku extracts | 1 | 15,227 / 1,290 | 0.002168 | about $0.0007 |
+
+* **Calls and spend:** 9 live calls in the two modes plus one smoke call (451 in, 75 out, $0.000083); total about **$0.0079**. Dollars are computed from the repo price table (section 6), not from an Anthropic invoice; the Console was not checked.
+* **Field accuracy** against the generator's ground truth, using the repo's own field scorer: **33 of 35 fields (94.3%)** in both modes (company profile 10/11, invoice 17/17, national ID 6/7; Wilson 95% interval about 81% to 98%). All 3 pages were classified correctly and none was unreadable. Table rows were all recalled (directors 2/2, shareholders 2/2, invoice lines 3/3).
+* **The two misses are scoring artefacts, not misreads:** the company profile prints "S$" but no currency code, so the model returned null where the truth is `SGD`; the ID card prints `SINGAPORE CITIZEN` where the truth is `Singaporean`. The scoring was not loosened after seeing this (it would read 35/35).
+* **Per call:** mean 4,587 tokens in and 823 out, about $0.00087; about 4 s per call and 9 s per page in the two-call mode. Output tokens are uneven (transcription 820 to 2,181, extraction 203 to 548), so a dense page, such as a statement page with many rows, will cost more than these three; none was measured.
+* **Finding:** the extraction requests were identical in both modes (same token counts), because the image is sent whenever the model has vision (section 5). Local OCR therefore saved the transcription call (about 62% of per-page cost here) and not the image, with the same accuracy on this sample.
+
+Limits, stated plainly: n = 3 pages and 35 fields, one run per mode (no run-to-run variance), clean generator output with a mild photo render. No bank statements, multi-page documents, heavy degradation, handwriting, stamps or **tampered documents** were sent, so nothing was learned about accuracy on real scans or about tamper detection (a model that reads an altered page faithfully passes the alteration on to the checks and adds no forensic power of its own). This is a sanity check that the live path works and a first measurement of cost, **not an evaluation**. Suggested follow-ups, each needing the owner's sign-off on spend: a 30 to 60 page run across statements, invoices and IDs on the simulated scan renders; one dense statement page and a two-page PDF; and measuring the accuracy cost of not sending the image when good local OCR exists.
 
 ## 12. Honest limits
 
-* Not run live: request fields were taken from Anthropic's documentation for Haiku 5.5 and tested against a mock transport, not against the API.
+* Live evidence is thin: the request fields were taken from Anthropic's documentation and tested against a mock transport, and the only live run is the 9-call sanity check in section 11.1 (3 clean fictitious pages). Accuracy on real scans, on long statements and on tampered documents is unmeasured, and the dollar figures come from the repo price table, not an invoice.
 * Cache prices and the exact workspace-id location in the Console are unconfirmed `[confirm]`.
+* The image is always sent for extraction under this backend (section 5), so local OCR is a cost lever only, not a privacy lever.
 * The daily cap is soft (section 7) and counts only what this application records; the Anthropic Console limit is the hard stop.
 * Refusals are false positives for benign documents sometimes; the tool shows the page as unread rather than guessing.

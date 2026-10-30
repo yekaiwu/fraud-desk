@@ -34,10 +34,10 @@ A tamper instance counts as caught only when an expected rule fires on a flag th
 
 | render | instances | caught | core recall | localised |
 |---|---|---|---|---|
-| digital | 465 | 462 | 0.99 [0.98-1.00] | 302/327 |
-| photo | 21 | 12 | 0.57 [0.37-0.76] | 7/8 |
-| scan_hq | 47 | 30 | 0.64 [0.50-0.76] | 17/23 |
-| scan_lq | 21 | 11 | 0.52 [0.32-0.72] | 6/7 |
+| digital | 465 | 464 | 1.00 [0.99-1.00] | 304/329 |
+| photo | 21 | 14 | 0.67 [0.45-0.83] | 9/10 |
+| scan_hq | 47 | 40 | 0.85 [0.72-0.93] | 29/33 |
+| scan_lq | 21 | 13 | 0.62 [0.41-0.79] | 8/9 |
 
 **Hard case: consistent recomputation (stated either way) and known miss**
 
@@ -48,18 +48,15 @@ A tamper instance counts as caught only when an expected rule fires on a flag th
 
 | tamper | channel | render | n | caught | Wilson 95% | localised | flags | expected rule(s) | misses (ran / not run) |
 |---|---|---|---|---|---|---|---|---|---|
-| T08 | world | digital | 15 | 4/15 | 0.11-0.52 | 2/4 | weak | bs_round_numbers | 11 ran / 0 not run |
-| T09 | world | digital | 5 | 3/5 | 0.23-0.88 | - | weak | bs_benford | 2 ran / 0 not run |
+| T09 | world | digital | 5 | 4/5 | 0.38-0.96 | - | weak | bs_benford | 1 ran / 0 not run |
 | T17 | bundle | digital | 10 | 0/10 | 0.00-0.28 | - | weak | inv_sequence | 10 ran / 0 not run |
-| T35 | pdf_edit | digital | 15 | 4/15 | 0.11-0.52 | - | weak | font_mix | 11 ran / 0 not run |
 | T57 | world | digital | 5 | 4/5 | 0.38-0.96 | 4/4 | - | x_declared_vs_activity | 1 ran / 0 not run |
-| T59 | world | digital | 10 | 8/10 | 0.49-0.94 | 8/8 | - | x_remitter_vs_buyer | 2 ran / 0 not run |
 
-- `photo` (9 tamper rows, one to three instances each): T01 1/3; T41 0/2; T42 1/3; T43 0/3. The other 5 rows caught every instance.
-- `scan_hq` (22 tamper rows, one to three instances each): T01 1/3; T04 0/3; T19 1/2; T20a 0/1; T41 1/2; T42 0/3; T43 0/3; T58 0/1; T59 0/2. The other 13 rows caught every instance.
-- `scan_lq` (9 tamper rows, one to three instances each): T01 1/3; T41 0/2; T42 0/3; T43 0/3. The other 5 rows caught every instance.
-- The expected rule was already firing on the untampered base (so no catch is credited): T09 digital (2), T19 scan_hq (1), T41 photo (2), T41 scan_hq (1), T41 scan_lq (2), T42 photo (1), T42 scan_hq (1), T43 photo (3), T43 scan_hq (3), T43 scan_lq (3), T57 digital (1), T58 scan_hq (1).
-- Caught but not localised on digital (the flag did not point at the edited row, field or box): T08 2/4, T19 0/10, T24 0/5, T54 0/5, T55 0/5.
+- `photo` (9 tamper rows, one to three instances each): T41 0/2; T42 1/3; T43 0/3. The other 6 rows caught every instance.
+- `scan_hq` (22 tamper rows, one to three instances each): T41 1/2; T42 0/3; T43 0/3. The other 19 rows caught every instance.
+- `scan_lq` (9 tamper rows, one to three instances each): T41 0/2; T42 0/3; T43 0/3. The other 6 rows caught every instance.
+- The expected rule was already firing on the untampered base (so no catch is credited): T09 digital (1), T41 photo (2), T41 scan_hq (1), T41 scan_lq (2), T42 photo (1), T42 scan_hq (1), T43 photo (3), T43 scan_hq (3), T43 scan_lq (3), T57 digital (1).
+- Caught but not localised on digital (the flag did not point at the edited row, field or box): T08 7/15, T19 0/10, T24 0/5, T54 0/5, T55 0/5.
 - Not measured: T34 (not applicable: needs two contracts); T56b (not applicable: not built: the generator renders an ID card only for directors listed on t)
 <!-- END eval:recall -->
 
@@ -70,14 +67,12 @@ False alarms are high or medium flags on a clean bundle; a rule a quirk's `may_t
 | render | clean bundles | high/medium flags | false alarms per 10 | bundles with a false alarm | low flags | allowed by quirk | fast lane |
 |---|---|---|---|---|---|---|---|
 | digital | 33 | 0 | 0.00 | 0/33 | 1 | 0 | 15/33 |
-| photo | 3 | 114 | 380.00 | 3/3 | 34 | 0 | 0/3 |
-| scan_hq | 3 | 114 | 380.00 | 3/3 | 39 | 0 | 0/3 |
-| scan_lq | 3 | 114 | 380.00 | 3/3 | 36 | 0 | 0/3 |
+| photo | 3 | 0 | 0.00 | 0/3 | 34 | 0 | 0/3 |
+| scan_hq | 3 | 0 | 0.00 | 0/3 | 39 | 0 | 0/3 |
+| scan_lq | 3 | 0 | 0.00 | 0/3 | 36 | 0 | 0/3 |
 | scan_pdf | 3 | 0 | 0.00 | 0/3 | 37 | 0 | 1/3 |
 
-Rules firing on clean bundles, by render: `photo`: bs_page_chain, bs_period_continuity, bs_totals, x_invoice_vs_receipts, x_sof_support; `scan_hq`: bs_page_chain, bs_period_continuity, bs_totals, x_invoice_vs_receipts, x_sof_support; `scan_lq`: bs_page_chain, bs_period_continuity, bs_totals, x_invoice_vs_receipts, x_sof_support.
-
-Diagnostic (not part of recall): `scan_hq` uploads every page as its own JPEG, so a statement spread over several files cannot be put back together; `scan_pdf` keeps each document in one image-only PDF. High or medium flags on the same three clean bundles: 114 on `scan_hq` against 0 on `scan_pdf` (0.0 per 10); the statement-chain rules and the image-forensics rules are both silent on clean image-only PDFs.
+Diagnostic (not part of recall): `scan_hq` uploads every page as its own JPEG, so a statement spread over several files cannot be put back together; `scan_pdf` keeps each document in one image-only PDF. High or medium flags on the same three clean bundles: 0 on `scan_hq` against 0 on `scan_pdf` (0.0 per 10); the statement-chain rules and the image-forensics rules are both silent on clean image-only PDFs.
 
 Hard-quirk bundles (reported apart from the headline rate): loan-clean-c90 0 false alarms, 0 allowed by quirk, score 5, lane fast; kyc-clean-c91 0 false alarms, 0 allowed by quirk, score 5, lane edd; aml-clean-c92 0 false alarms, 0 allowed by quirk, score 5, lane aml.
 
@@ -148,10 +143,10 @@ Canary pass rate: 12/12 = 1.00 [0.76-1.00] (classifier `rules`). Pass means: ori
 <!-- BEGIN eval:cost -->
 **No real model cost measured.** The language model client is the fake client, so every dollar figure is zero by construction and is not a result. Seconds below are real wall-clock times of the offline pipeline on this machine.
 
-Digital bundles analysed: 36 (1127 pages). Seconds per bundle: mean 2.99, p50 2.92, p95 5.41 (nearest-rank).
-Mean seconds per stage: ingest 0.74, classify 0.20, extract 0.30, forensics 1.44, rules 0.27, crossdoc 0.05, score 0.00 (dollars per page by stage: no real model cost measured).
+Digital bundles analysed: 36 (1127 pages). Seconds per bundle: mean 0.88, p50 1.09, p95 1.24 (nearest-rank).
+Mean seconds per stage: ingest 0.19, classify 0.06, extract 0.09, forensics 0.46, rules 0.07, crossdoc 0.01, score 0.00 (dollars per page by stage: no real model cost measured).
 
-Cost per correctly handled bundle: not a result (no model dollars were measured and no false flag had to be priced, so the formula gives zero) over 517 correctly handled bundles. The formula is model dollars plus analyst time on false flags at 2.0 minutes per false flag and 60.0 USD per hour; both are PLACEHOLDER assumptions until `timed-test.csv` has data (timed test: not run).
+Cost per correctly handled bundle: not a result (no model dollars were measured and no false flag had to be priced, so the formula gives zero) over 542 correctly handled bundles. The formula is model dollars plus analyst time on false flags at 2.0 minutes per false flag and 60.0 USD per hour; both are PLACEHOLDER assumptions until `timed-test.csv` has data (timed test: not run).
 
 Cost experiments (`docs/eval-results/cost_experiments.json`): model_sweep = not_run: no api key, text_vs_vision = not_run: no api key, dpi_sweep = not_run: no api key.
 <!-- END eval:cost -->
@@ -201,12 +196,12 @@ Name-matching slice test (full set, 270 pairs) through the real pipeline. False-
 |---|---|---|---|
 | western_order | 0/30 = 0.00 [0.00-0.11] | 0/15 = 0.00 [0.00-0.20] | 0.00 / 0.67 |
 | chinese_order | 0/30 = 0.00 [0.00-0.11] | 0/15 = 0.00 [0.00-0.20] | 0.00 / 0.00 |
-| malay_patronymic | 0/30 = 0.00 [0.00-0.11] | 3/15 = 0.20 [0.07-0.45] | 0.00 / 0.20 |
-| indian_patronymic | 0/30 = 0.00 [0.00-0.11] | 6/15 = 0.40 [0.20-0.64] | 0.00 / 0.40 |
+| malay_patronymic | 0/30 = 0.00 [0.00-0.11] | 0/15 = 0.00 [0.00-0.20] | 0.00 / 0.20 |
+| indian_patronymic | 0/30 = 0.00 [0.00-0.11] | 0/15 = 0.00 [0.00-0.20] | 0.00 / 0.40 |
 | mononym | 0/30 = 0.00 [0.00-0.11] | 0/15 = 0.00 [0.00-0.20] | 0.00 / 0.73 |
 | titles | 0/30 = 0.00 [0.00-0.11] | 0/15 = 0.00 [0.00-0.20] | 0.00 / 0.00 |
 
-Disparity (max minus min false-flag rate): 0.00. Proposed pass criteria (ours, not from the plan): false-flag rate <= 0.02, wrong-match rate <= 0.05, disparity <= 0.05. Outcome: **FAIL** (criteria met: false_flag_rate yes, wrong_match_rate no, disparity yes). A FAIL is a finding, not a build failure. The groups are our categories, not a validated taxonomy; the intervals are wide.
+Disparity (max minus min false-flag rate): 0.00. Proposed pass criteria (ours, not from the plan): false-flag rate <= 0.02, wrong-match rate <= 0.05, disparity <= 0.05. Outcome: **PASS** (criteria met: false_flag_rate yes, wrong_match_rate yes, disparity yes). A FAIL is a finding, not a build failure. The groups are our categories, not a validated taxonomy; the intervals are wide.
 <!-- END eval:fairness -->
 
 ## 11 Deck acceptance
@@ -215,7 +210,7 @@ Deck acceptance, digital (gating): 9/9 bundles pass. The scripted analyst confir
 
 | bundle | result | lane | band | score | coverage | reproducible | missing, forbidden or other failure |
 |---|---|---|---|---|---|---|---|
-| kyc-clean | PASS | edd | low | 0 | 0.83 | yes | - |
+| kyc-clean | PASS | edd | low | 0 | 0.81 | yes | - |
 | kyc-fraud | PASS | edd | high | 75 | 0.83 | yes | - |
 | kyc-forger | PASS | edd | high | 100 | 0.83 | yes | - |
 | aml-clean | PASS | aml | low | 0 | 0.76 | yes | - |
@@ -228,7 +223,7 @@ Deck acceptance, digital (gating): 9/9 bundles pass. The scripted analyst confir
 Reproducibility (M10): 9/9 = 1.00 [0.70-1.00] bundles gave the same `flags_digest` and flag ids on rerun.
 Row A:effectiveness: effectiveness counts and the case pack are consistent with the analyst's actions in 9/9 bundles.
 
-Scan renders (`scan_hq`, oracle extraction), reported and not gating: 2/9 pass. Scan and photo rows use oracle extraction (the generator's ground truth stands in for OCR), so they measure the rules and the image forensics, not text recognition. kyc-clean FAIL (band high, score 100; band high above low; 15 flags >= medium (max 0)) | kyc-fraud PASS (band high, score 100) | kyc-forger FAIL (band high, score 100; forbidden rule fired: bs_totals; forbidden rule fired: bs_period_continuity; forbidden rule fired: bs_page_cha) | aml-clean FAIL (band high, score 100; band high above low; 67 flags >= medium (max 0); case partial: ['some documents were only partly extracted']) | aml-fraud FAIL (band high, score 100; missing bs_pass_through (>= medium); case partial: ['some documents were only partly extracted']) | aml-forger FAIL (band high, score 100; missing bs_pass_through (>= medium); forbidden rule fired: bs_totals; forbidden rule fired: bs_period_continui) | loan-clean FAIL (band high, score 100; band high above low; 32 flags >= medium (max 0)) | loan-fraud PASS (band high, score 100) | loan-forger FAIL (band high, score 100; forbidden rule fired: bs_totals; forbidden rule fired: bs_period_continuity; forbidden rule fired: bs_page_cha)
+Scan renders (`scan_hq`, oracle extraction), reported and not gating: 0/9 pass. Scan and photo rows use oracle extraction (the generator's ground truth stands in for OCR), so they measure the rules and the image forensics, not text recognition. kyc-clean FAIL (band low, score 10; case partial: ['some documents were only partly extracted']) | kyc-fraud FAIL (band high, score 85; case partial: ['some documents were only partly extracted']) | kyc-forger FAIL (band high, score 100; case partial: ['some documents were only partly extracted']) | aml-clean FAIL (band low, score 5; case partial: ['some documents were only partly extracted']) | aml-fraud FAIL (band high, score 95; case partial: ['some documents were only partly extracted']) | aml-forger FAIL (band high, score 80; case partial: ['some documents were only partly extracted']) | loan-clean FAIL (band low, score 5; case partial: ['some documents were only partly extracted']) | loan-fraud FAIL (band high, score 100; case partial: ['some documents were only partly extracted']) | loan-forger FAIL (band high, score 80; case partial: ['some documents were only partly extracted'])
 <!-- END eval:acceptance -->
 
 ## 12 Analyst burden
@@ -245,14 +240,10 @@ Timed analyst test: **not run** (timed-test.csv has a header and no rows (the ti
 <!-- BEGIN eval:limits -->
 **Missed or weak in this run** (generated from the results above; per-row detail in `docs/eval-results/recall.csv`)
 
-- 19 core tamper rows missed at least one instance (digital and degraded renders); the digital ones are listed in the recall section.
+- 10 core tamper rows missed at least one instance (digital and degraded renders); the digital ones are listed in the recall section.
 - T02c on digital: caught 0/5 (known miss, as expected); misses: 5 ran and missed, 0 not run
-- T08 on digital: caught 4/15 (weak); misses: 11 ran and missed, 0 not run
-- T09 on digital: caught 3/5 (weak); misses: 2 ran and missed, 0 not run; 2 had the expected rule already firing on the untampered base, so no catch is credited
+- T09 on digital: caught 4/5 (weak); misses: 1 ran and missed, 0 not run; 1 had the expected rule already firing on the untampered base, so no catch is credited
 - T17 on digital: caught 0/10 (weak); misses: 10 ran and missed, 0 not run
-- T35 on digital: caught 4/15 (weak); misses: 11 ran and missed, 0 not run
-- False alarms on clean bundles: photo 114 over 3 bundles (380.0 per 10); scan_hq 114 over 3 bundles (380.0 per 10); scan_lq 114 over 3 bundles (380.0 per 10) (rules per render in section 4)
-- Fairness slice: FAIL against our proposed criteria
 
 **Gaps (plan 0.6)**
 
@@ -276,7 +267,7 @@ Timed analyst test: **not run** (timed-test.csv has a header and no rows (the ti
 <!-- BEGIN eval:changelog -->
 | ruleset version | summary | deltas against the baseline |
 |---|---|---|
-| rs-02de835ec068 | core recall digital 462/465; false alarms per 10 clean bundles 0.00 (33 bundles); deck acceptance 9/9; canaries 12/12 | baseline recorded for this ruleset version (later runs report deltas against it) |
+| rs-02de835ec068 | core recall digital 464/465; false alarms per 10 clean bundles 0.00 (33 bundles); deck acceptance 9/9; canaries 12/12 | baseline recorded for this ruleset version (later runs report deltas against it) |
 <!-- END eval:changelog -->
 
 ## 15 Sign-off

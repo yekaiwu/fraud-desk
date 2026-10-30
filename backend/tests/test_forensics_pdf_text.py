@@ -515,6 +515,57 @@ class TestFontMix:
         assert run(statement_pdf(extra_lines=lines), fp.font_mix) == []
 
 
+class TestFontMixSiblings:
+    """A family that only one file of a (document type, producer) group shows is a hint of pasted
+    text even when the page stays within the usual number of families."""
+
+    @staticmethod
+    def statements(n: int, *, pasted: str | None = None) -> list[tuple[str, bytes]]:
+        out = []
+        for i in range(n):
+            lines = ()
+            if pasted and i == 0:
+                lines = tuple(
+                    (1, 300, 100 + 7 * k, f"Ref {1000 + k} ok", pasted, 6.5) for k in range(2)
+                )
+            out.append((f"f{i + 1}", statement_pdf(pages=1 + i, extra_lines=lines)))
+        return out
+
+    def test_a_new_family_on_one_of_four_statements_flags_low(self):
+        files = self.statements(4, pasted="Courier")
+        flags = fp.font_mix(ctx_for(files))
+        assert [f.document_ids for f in flags] == [["d1"]]
+        flag = flags[0]
+        assert flag.severity == "low" and flag.id == "font_mix.d1.-~f1p1r1"
+        assert "Courier" in flag.evidence and "none of the 3 other bank_statement" in flag.evidence
+        assert flag.explanation.startswith("Page 1 has text in a font that no other")
+        assert flag.region is not None and flag.region.label.startswith("fonts: Courier")
+
+    def test_clean_statements_stay_silent(self):
+        assert fp.font_mix(ctx_for(self.statements(4))) == []
+
+    def test_two_files_are_not_a_baseline(self):
+        assert fp.font_mix(ctx_for(self.statements(2, pasted="Courier"))) == []
+
+    def test_a_family_that_is_below_the_word_count_does_not_count(self):
+        lines = ((1, 300, 100, "Ref 1", "Courier", 6.5),)
+        files = [("f1", statement_pdf(extra_lines=lines))] + self.statements(4)[1:]
+        assert fp.font_mix(ctx_for(files)) == []
+
+    def test_other_producers_do_not_form_a_baseline(self):
+        files = self.statements(4, pasted="Courier")
+        files[1:] = [
+            (fid, statement_pdf(pages=2, producer=f"Mock Other {i}"))
+            for i, (fid, _) in enumerate(files[1:])
+        ]
+        assert fp.font_mix(ctx_for(files)) == []
+
+    def test_a_family_shared_with_the_other_files_is_fine(self):
+        lines = tuple((1, 300, 100 + 7 * k, f"Ref {1000 + k} ok", "Courier", 6.5) for k in range(2))
+        files = [(f"f{i + 1}", statement_pdf(extra_lines=lines)) for i in range(4)]
+        assert fp.font_mix(ctx_for(files)) == []
+
+
 def _spans_traces(data: bytes):
     page = pymupdf.open(stream=data, filetype="pdf")[0]
     return fp._collect_spans(page), fp._collect_traces(page)

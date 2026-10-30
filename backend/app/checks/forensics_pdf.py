@@ -89,6 +89,9 @@ FONT_MIX_MAX: dict[str, int] = {
 }
 FONT_MIX_DEFAULT = 4
 FONT_MIX_MIN_WORDS = 3  # a family needs this many words on the page to count
+FONT_SIBLING_MIN_FILES = (
+    2  # other files of the same document type and producer needed as a baseline
+)
 
 MOD_GAP_SECONDS = 300
 OVERLAP_MIN = 0.5  # must equal findings.REGION_OVERLAP_MIN
@@ -886,6 +889,7 @@ class _FontPage:
     page: int
     families: tuple[tuple[str, int], ...]  # (display name, words), most used first
     keys: tuple[str, ...]  # lower-case family keys in the same order
+    seen: frozenset[str] = frozenset()  # every family with at least one word on the page
 
 
 @dataclass(frozen=True)
@@ -1284,7 +1288,12 @@ def _page_fonts(words: list[_Word], pno: int) -> _FontPage:
         ((k, n) for k, n in counts.items() if n >= FONT_MIX_MIN_WORDS),
         key=lambda kn: (-kn[1], kn[0]),
     )
-    return _FontPage(pno, tuple((display[k], n) for k, n in ranked), tuple(k for k, _ in ranked))
+    return _FontPage(
+        pno,
+        tuple((display[k], n) for k, n in ranked),
+        tuple(k for k, _ in ranked),
+        frozenset(counts),
+    )
 
 
 def _analyse_page(
@@ -1519,33 +1528,100 @@ def _doc_type_for_page(ctx: CaseContext, file_id: str, page: int) -> str | None:
 )
 def font_mix(ctx: CaseContext) -> list[Flag]:
     results, notices = _analyses(ctx, "font_mix")
+    siblings = _sibling_families(ctx, results)
     flags: list[Flag] = []
     for f, analysis in results:
         file_flags: list[Flag] = []
         for fp in analysis.fonts:
             doc_type = _doc_type_for_page(ctx, f.id, fp.page)
             limit = FONT_MIX_MAX.get(doc_type or "", FONT_MIX_DEFAULT)
-            if len(fp.families) <= limit:
+            group = siblings.get(_sibling_key(f, doc_type), ())
+            odd = _sibling_outliers(fp, group, f.id)
+            if len(fp.families) <= limit and not odd:
                 continue
             listing = ", ".join(f"{_safe(name, 30)}({n})" for name, n in fp.families[:6])
             if len(fp.families) > 6:
                 listing += ", ..."
-            region = _font_mix_region(ctx, f, fp, limit)
+            if len(fp.families) > limit:
+                evidence = f"page {fp.page} uses {len(fp.families)} font families: {listing}"
+                explanation = (
+                    f"Page {fp.page} uses {len(fp.families)} font families where {limit} or "
+                    "fewer are usual for this document type, which can mean pasted text."
+                )
+                region = _font_mix_region(ctx, f, fp, limit)
+            else:
+                names = ", ".join(_safe(name, 30) for name in odd[:4])
+                evidence = (
+                    f"page {fp.page} uses {names}, which none of the {len(group) - 1} other "
+                    f"{doc_type} files from the same producer use; families here: {listing}"
+                )
+                explanation = (
+                    f"Page {fp.page} has text in a font that no other {doc_type} from the same "
+                    "producer in this case uses, which can mean pasted text. A document "
+                    "template does not usually change font from one file to the next."
+                )
+                region = _sibling_region(ctx, f, fp, odd)
             file_flags.append(
                 make_flag(
                     "font_mix",
                     docs=_docs_for_page(ctx, f.id, fp.page),
-                    evidence=f"page {fp.page} uses {len(fp.families)} font families: {listing}",
-                    explanation=(
-                        f"Page {fp.page} uses {len(fp.families)} font families where {limit} or "
-                        "fewer are usual for this document type, which can mean pasted text."
-                    ),
+                    evidence=evidence,
+                    explanation=explanation,
                     region=region,
                     discriminator=f"{f.id}p{fp.page}r1",
                 )
             )
         flags.extend(_cap_flags(file_flags, 0))
     return flags + notices
+
+
+def _sibling_key(f: FileRef, doc_type: str | None) -> tuple[str | None, str]:
+    return (doc_type, str(f.pdf_meta.get("Producer") or "").strip().lower())
+
+
+def _sibling_families(
+    ctx: CaseContext, results: Sequence[tuple[FileRef, _TextAnalysis]]
+) -> dict[tuple[str | None, str], tuple[tuple[str, frozenset[str]], ...]]:
+    """For every (document type, producer): ``(file id, families seen on any of its pages)`` per
+    file. A template does not change font from one month's statement to the next, so a family that
+    only one file of a group shows is a hint of pasted text even when the page stays within the
+    usual number of families. Needs ``FONT_SIBLING_MIN_FILES`` other files to be a baseline."""
+    groups: dict[tuple[str | None, str], dict[str, set[str]]] = {}
+    for f, analysis in results:
+        for fp in analysis.fonts:
+            key = _sibling_key(f, _doc_type_for_page(ctx, f.id, fp.page))
+            groups.setdefault(key, {}).setdefault(f.id, set()).update(fp.seen)
+    return {
+        key: tuple((fid, frozenset(seen)) for fid, seen in sorted(files.items()))
+        for key, files in groups.items()
+        if key[0] is not None and key[1]
+    }
+
+
+def _sibling_outliers(
+    fp: _FontPage, group: Sequence[tuple[str, frozenset[str]]], file_id: str
+) -> tuple[str, ...]:
+    """Display names of the families (at least ``FONT_MIX_MIN_WORDS`` words) on this page that no
+    other file of the group uses at all."""
+    others = [seen for fid, seen in group if fid != file_id]
+    if len(others) < FONT_SIBLING_MIN_FILES:
+        return ()
+    known = frozenset().union(*others)
+    return tuple(name for name, _n in fp.families if _fkey(name) not in known)
+
+
+def _sibling_region(
+    ctx: CaseContext, f: FileRef, fp: _FontPage, odd: Sequence[str]
+) -> Region | None:
+    try:
+        region = _family_boxes(
+            f.sha256, str(ctx.file_path(f.id)), f.id, fp.page, tuple(_fkey(n) for n in odd)
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    if region is None or _region_area(region) > REGION_MAX_AREA:
+        return None
+    return region.model_copy(update={"label": "fonts: " + ", ".join(_safe(n, 20) for n in odd[:3])})
 
 
 @functools.lru_cache(maxsize=64)

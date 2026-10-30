@@ -22,6 +22,7 @@ Specs for the GLDB document-fraud analysis tool. Source plan: the master plan (n
 - [test-data-and-eval.md](test-data-and-eval.md): bundle generator, three demo bundles, tamper catalogue, metrics, ranking and fairness tests (plan 9, 0.5).
 - [compliance.md](compliance.md): Singapore regulatory alignment, obligation to feature to evidence map, scope of the three compliance documents (plan 7).
 - [deploy.md](deploy.md): self-hosting the app on an always-on machine: shared-login gate, same-origin `/api` proxy, backend proxy secret and rate limits, launchd install scripts in `deploy/`, security checklist.
+- [limitations.md](limitations.md): what the tool cannot detect and what the evidence does not prove, in plain language: consistent forgeries, AI inpainting, real versus simulated scans, genuine documents with false content, synthetic-only evidence, name matching, public data sets, the live model check, the scan false-alarm story.
 - [anthropic-haiku.md](anthropic-haiku.md): the optional paid Anthropic backend (official SDK, Claude Haiku 5.5 only): setup, workspace id, request settings, pricing tiers, spend caps, privacy, refusals, which stages call the model.
 
 ## Work tracking

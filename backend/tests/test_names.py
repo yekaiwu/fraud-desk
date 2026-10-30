@@ -11,6 +11,7 @@ from app.names import (
     PersonName,
     cell_region,
     entity_key,
+    identity_status,
     is_truncation,
     mask_id,
     match_company,
@@ -23,6 +24,7 @@ from app.names import (
     safe_text,
     same_identity,
     slice_pairs,
+    slip_kind,
     sorted_rows,
     union_region,
 )
@@ -108,6 +110,12 @@ def test_scripts_and_empty() -> None:
         ("Suryadi", "Mr Suryadi", "same"),
         ("Suryadi", "Suryadi Wibowo", "probable"),
         ("Suryadi", "Suryanto", "different"),
+        ("H.L. Gokhale", "Hemant Laxman Gokhale", "probable"),  # several initials
+        ("P. U. Chinnappa", "Pudukkottai Ulaganathan Pillai Chinnappa", "probable"),
+        ("A. B.", "Alan Bob", "different"),  # initials need a shared name to anchor them
+        ("J. K. Wong", "Jessica Lim Wong", "different"),  # K is not the first letter of Lim
+        ("Ab Rahman Ali", "Abdul Rahman Ali", "probable"),  # "AB" may be initials: not "same"
+        ("Mhd Faris", "Mohd Faris", "same"),
         ("José García", "Jose Garcia", "same"),
         ("J. Wong", "Jessica Wong", "probable"),
         ("J. Wong", "K. Wong", "different"),
@@ -399,3 +407,123 @@ def test_father_and_son_pairs_are_in_the_fairness_slice() -> None:
     ]
     assert len(swapped) >= 4
     assert all(verdict(p.a, p.b) == "different" for p in swapped)
+
+
+# ------------------------------------------------------------------ slips inside marked names
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "kind"),
+    [
+        ("Muhammad Hafiz bin Abdullah", "Muhammad Hafiz bin Abdulrah", "other"),
+        ("Mohamed Zulkifli bin Abdullah", "Mohamed Zulkifli bin Abdulleh", "vowel"),
+        ("Nur Aisyah binte Osman", "Nur Aysyah binte Osman", "vowel"),
+        ("Suresh s/o Raman", "Sulesh s/o Raman", "other"),
+        ("Murali s/o Subramaniam", "Murali s/o Supramaniam", "other"),
+        ("Kavitha d/o Krishnan", "Kavitha d/o Krishnen", "vowel"),
+        ("Kamarudin bin Ali", "Kamaruddin bin Ali", "double_letter"),
+    ],
+)
+def test_a_slip_inside_a_marked_name_is_a_typo_like_any_other(a: str, b: str, kind: str) -> None:
+    """Both names carry bin/binte/s/o/d/o: the slip used to be swallowed by the marked comparison
+    (``given names probable, patronym same``), so the pair was accepted as the same person."""
+    m = match_person(a, b)
+    assert m.verdict == "probable" and m.typo and m.slip and m.slip_kind == kind, m
+    assert "one letter differs" in m.reason
+    assert match_person(b, a).typo  # symmetric
+    assert same_identity(a, "S1234567D", b, "S1234567D") == "match_name_conflict"
+    assert same_identity(a, None, b, None) == "mismatch"
+    assert same_identity(a, "S1234567D", b, "S8222222G") == "mismatch"
+
+
+def test_marked_names_that_are_not_slips_are_still_accepted() -> None:
+    for a, b in [
+        ("Muhammad Hafiz bin Abdullah", "Mohd Hafiz bin Abdullah"),  # alias, same tokens
+        ("Muhammad Hafiz bin Abdullah", "Hafiz bin Abdullah"),  # prefix dropped: probable, no slip
+        ("Rajesh s/o Kumar", "R. s/o Kumar"),
+    ]:
+        m = match_person(a, b)
+        assert not m.typo, m
+        assert same_identity(a, "S1234567D", b, "S1234567D") == "match", (a, b)
+
+
+def test_two_slips_in_different_parts_are_still_a_slip() -> None:
+    m = match_person("Hafiz bin Abdullah", "Hafis bin Abdulrah")
+    assert m.verdict in {"probable", "different"}
+    if m.verdict == "probable":
+        assert m.typo
+
+
+def test_slip_kind_classifies_the_one_letter_difference() -> None:
+    assert slip_kind("kamarudin", "kamaruddin") == "double_letter"
+    assert slip_kind("kamaruddin", "kamarudin") == "double_letter"
+    assert slip_kind("hussain", "hussein") == "vowel"
+    assert slip_kind("fernandez", "fernandes") == "other"
+    assert slip_kind("rajesh", "rajesn") == "other"
+    assert slip_kind("susheela", "susheel") == "vowel"  # a dropped vowel
+    assert match_person("Faris Abdullah", "Faris Abdullah").slip_kind == ""
+
+
+# ------------------------------------------------------------------ identity status
+
+
+def test_identity_status_says_what_would_settle_the_name() -> None:
+    # equal ids, one-letter slip: typo and substitution look the same, another factor is needed
+    s = identity_status("Suresh s/o Raman", "S1234567D", "Sulesh s/o Raman", "S1234567D")
+    assert (s.match, s.needs) == ("match_name_conflict", "dob_or_document")
+    # no id, slip: not accepted; the id would settle it
+    s = identity_status("Suresh s/o Raman", None, "Sulesh s/o Raman", None)
+    assert (s.match, s.needs) == ("mismatch", "id")
+    # masked id with the same last four characters and a slip: a name conflict, not a silent skip
+    s = identity_status("Suresh s/o Raman", "S****567D", "Sulesh s/o Raman", "S1234567D")
+    assert (s.match, s.needs) == ("match_name_conflict", "dob_or_document")
+    # a probable name that is not a slip is accepted but rests on the name alone
+    s = identity_status("J. Wong", None, "Jessica Wong", None)
+    assert (s.match, s.needs) == ("match", "id")
+    s = identity_status("J. Wong", "S1234567D", "Jessica Wong", "S1234567D")
+    assert (s.match, s.needs) == ("match", "")
+    # an exact match needs nothing, a different id is a mismatch whatever the name
+    assert identity_status("Tan Wei Ming", None, "Wei Ming Tan", None).needs == ""
+    assert identity_status("Suresh s/o Raman", "S1234567D", "Sulesh s/o Raman", "S8222222G")[0] == (
+        "mismatch"
+    )
+    # same_identity is the first field
+    assert same_identity("Suresh s/o Raman", None, "Sulesh s/o Raman", None) == "mismatch"
+
+
+def test_masked_id_with_a_different_name_stays_unknown() -> None:
+    assert same_identity("Lee Ah Kow", "S****567D", "Tan Wei Ming", "S1234567D") == "unknown"
+
+
+def test_ab_is_a_short_form_of_abdul_but_never_the_same_name_as_initials() -> None:
+    for a, b in (
+        ("AB Kumar", "Abdul Kumar"),
+        ("AB Tan", "Abdul Tan"),
+        ("Tan Ab Kow", "Tan Abdul Kow"),
+    ):
+        m = match_person(a, b)
+        assert m.verdict == "probable" and not m.typo, (a, b)  # never a plain "same"
+    assert match_person("Ab Rahman", "Abdul Rahman").verdict == "probable"
+    assert identity_status("AB Kumar", None, "Abdul Kumar", None).needs == "id"
+    assert match_person("Abd Rahman", "Abdul Rahman").verdict == "same"  # a real alias stays one
+
+
+def test_a_bracketed_exact_spelling_beats_a_slip_variant() -> None:
+    for a, b in (
+        ("Mohd Hafiz Sulaiman", "Mohd Hafiz Sulaimen (Sulaiman)"),
+        ("Mohd Hafiz Sulaimen (Sulaiman)", "Mohd Hafiz Sulaiman"),
+    ):
+        m = match_person(a, b)
+        assert m.verdict in ("same", "probable") and not m.slip, (a, b, m.reason)
+    # without the bracket the slip is still a slip
+    assert match_person("Mohd Hafiz Sulaiman", "Mohd Hafiz Sulaimen").typo
+
+
+def test_one_initial_matches_a_longer_name_on_the_name_alone_and_asks_for_the_id() -> None:
+    # the known exposure of initials expansion: a stranger with the same surname and a given name
+    # of that first letter is accepted on the name alone, so the status must say an ID is needed
+    for a, b in (("J. Wong", "James Peter Wong"), ("S. Kumar", "Suresh Ravi Kumar")):
+        assert match_person(a, b).verdict == "probable"
+        st = identity_status(a, None, b, None)
+        assert st.match == "match" and st.needs == "id"
+    assert match_person("J. Wong", "Peter Wong").verdict == "different"

@@ -772,6 +772,30 @@ def test_round_numbers_boundary_exactly_at_thresholds() -> None:
     assert bs.bs_round_numbers(ctx_of(*base, below)) == []
 
 
+def test_round_numbers_count_test_catches_a_diluted_month() -> None:
+    # 6 round credits among 16 (38%) are under the 50% share, but the other months hold one a month
+    base = [credit_doc(f"d{k}", odd(10, 1), k) for k in (1, 2, 3)]
+    diluted = credit_doc("d4", odd(16, 6), 4)
+    (flag,) = bs.bs_round_numbers(ctx_of(*base, diluted))
+    assert flag.document_ids == ["d4"] and flag.severity == "low"
+    assert "6 of 16 credits are round multiples of 1000 (38%)" in flag.evidence
+    assert "6 round credits against about 1.0 a month in the other statements" in flag.evidence
+
+
+def test_round_numbers_count_test_ignores_a_busier_month_of_the_same_mix() -> None:
+    # twice the credits and twice the round ones: the share has not moved, so no flag
+    base = [credit_doc(f"d{k}", odd(10, 1), k) for k in (1, 2, 3)]
+    busy = credit_doc("d4", odd(20, 2), 4)
+    assert bs.bs_round_numbers(ctx_of(*base, busy)) == []
+
+
+def test_round_numbers_count_test_needs_a_real_surplus() -> None:
+    base = [credit_doc(f"d{k}", odd(10, 1), k) for k in (1, 2, 3)]
+    assert bs.bs_round_numbers(ctx_of(*base, credit_doc("d4", odd(16, 3), 4))) == []
+    assert bs.bs_round_numbers(ctx_of(*base, credit_doc("d4", odd(16, 4), 4))) == []
+    assert len(bs.bs_round_numbers(ctx_of(*base, credit_doc("d4", odd(16, 5), 4)))) == 1
+
+
 def test_round_numbers_needs_enough_credits_and_baseline() -> None:
     with pytest.raises(CheckSkipped):
         bs.bs_round_numbers(ctx_of(credit_doc("d1", ROUND_8, 1)))  # single statement
@@ -796,41 +820,51 @@ def benford_doc(amounts: list[str], id: str = "d1") -> Document:  # noqa: A002
 
 def test_benford_clean_synthetic_amounts() -> None:
     rng = random.Random(4002)
-    amounts = [f"{int(10 ** rng.uniform(0, 5))}.00" for _ in range(120)]
+    amounts = [f"{int(10 ** rng.uniform(0, 5))}.{rng.randrange(100):02d}" for _ in range(160)]
     assert bs.bs_benford(ctx_of(benford_doc(amounts))) == []
 
 
+def leading_five(n: int, start: int = 0) -> list[str]:
+    return [f"{5000 + start + i}.00" for i in range(n)]
+
+
 def test_benford_all_leading_five_flags_as_info() -> None:
-    amounts = [("5.00", "50.00", "5000.00", "55.55")[i % 4] for i in range(120)]
-    (flag,) = bs.bs_benford(ctx_of(benford_doc(amounts)))
+    (flag,) = bs.bs_benford(ctx_of(benford_doc(leading_five(120))))
     assert flag.severity == "info" and flag.row is None and flag.region is None
     assert flag.evidence.startswith("n 120; first-digit % 1:0 2:0 3:0 4:0 5:100 6:0 7:0 8:0 9:0;")
     assert "(critical 20.09)" in flag.evidence
     assert flag.explanation.startswith("The leading digits of the amounts depart")
 
 
-def test_benford_needs_100_amounts() -> None:
+def test_benford_needs_100_different_amounts() -> None:
     with pytest.raises(CheckSkipped):
-        bs.bs_benford(ctx_of(benford_doc(["5.00"] * 99)))
-    assert len(bs.bs_benford(ctx_of(benford_doc(["5.00"] * 100)))) == 1  # exactly 100 runs
+        bs.bs_benford(ctx_of(benford_doc(leading_five(99))))
+    assert len(bs.bs_benford(ctx_of(benford_doc(leading_five(100))))) == 1  # exactly 100 runs
 
 
-def test_benford_honest_false_positive_fixed_salaries_is_info_only() -> None:
-    amounts = ["2500.00"] * 90 + ["12.50"] * 30
-    (flag,) = bs.bs_benford(ctx_of(benford_doc(amounts)))
-    assert flag.severity == "info"
+def test_benford_recurring_amounts_count_once() -> None:
+    # fixed salaries and rent repeat every month: they are not independent amounts. 90 repeats of
+    # 2500.00 do not skew the digits (they used to raise a flag) and do not count towards the 100
+    repeated = ["2500.00"] * 90 + ["12.50"] * 30
+    with pytest.raises(CheckSkipped):
+        bs.bs_benford(ctx_of(benford_doc(repeated)))
+    rng = random.Random(7)
+    varied = [f"{int(10 ** rng.uniform(0, 5))}.{rng.randrange(100):02d}" for _ in range(160)]
+    assert bs.bs_benford(ctx_of(benford_doc(["2500.00"] * 90 + varied))) == []
 
 
 def test_benford_pools_statements_of_one_account_only() -> None:
-    a = benford_doc(["5.00"] * 60, id="d1")
-    b = benford_doc(["5.00"] * 60, id="d2")
+    a = benford_doc(leading_five(60), id="d1")
+    b = benford_doc(leading_five(60, start=60), id="d2")
     (flag,) = bs.bs_benford(ctx_of(a, b))
     assert flag.document_ids == ["d1", "d2"]
     other = statement(
-        [tx("2026-03-02", "X", credit="5.00")] * 60, id="d3", account_number="0098765432"
+        [tx("2026-03-02", "X", credit=f"{5000 + i}.00") for i in range(60)],
+        id="d3",
+        account_number="0098765432",
     )
     with pytest.raises(CheckSkipped):
-        bs.bs_benford(ctx_of(benford_doc(["5.00"] * 60, id="d1"), other))
+        bs.bs_benford(ctx_of(benford_doc(leading_five(60), id="d1"), other))
 
 
 def test_benford_first_digit_helper() -> None:

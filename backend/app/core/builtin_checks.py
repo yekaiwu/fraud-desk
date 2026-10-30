@@ -1,6 +1,7 @@
 """Info checks emitted from pipeline warnings (docs/architecture.md section 4).
 
-``doc_unreadable``: a page or document could not be read (plan 8.5).
+``doc_unreadable``: a page or document could not be read (plan 8.5), or the pages of a bank
+statement that arrived as separate images could not be put together (``app.assemble``).
 ``doc_unclassified``: a document is ``other``/``boilerplate`` or has a low classifier probability
 (plan 5.3 guardrail). Both carry weight 0; their job is to make silence visible and to reduce
 coverage (pages count as unchecked in ``score.py``).
@@ -8,6 +9,7 @@ coverage (pages count as unchecked in ``score.py``).
 
 from __future__ import annotations
 
+from app.assemble import unresolved_groups
 from app.checks.registry import check, make_flag
 from app.core.context import CaseContext
 from app.core.models import Document, Flag, Region
@@ -67,6 +69,27 @@ def doc_unreadable(ctx: CaseContext) -> list[Flag]:
                 evidence="; ".join(dict.fromkeys(notes)),
                 explanation="Part of this document could not be read, so checks on it are incomplete.",
                 region=_whole_page(doc.file_id, doc.page_start, "unreadable"),
+            )
+        )
+    for link, pieces in unresolved_groups(ctx):
+        # pages of one statement that arrived as separate images and could not be put together:
+        # the rules that need the whole statement skipped them, so say so (info, weight 0)
+        where = ", ".join(f"{d.file_id} p{d.page_start}" for d in pieces[:8])
+        flags.append(
+            make_flag(
+                "doc_unreadable",
+                docs=pieces,
+                evidence=(
+                    f"bank statement pages not reviewed ({link.state}): {link.reason} "
+                    f"({len(pieces)} page document(s): {where})"
+                ),
+                explanation=(
+                    "This bank statement arrived in pieces that could not be put back together, "
+                    "so the checks that need the whole statement did not run. These pages are "
+                    "not reviewed, not cleared."
+                ),
+                region=_whole_page(pieces[0].file_id, pieces[0].page_start, "not reviewed"),
+                discriminator=f"statement_{link.group}",
             )
         )
     for file_id, page, error in orphan_pages:

@@ -29,6 +29,8 @@ describe("flags helpers", () => {
   it("humanises partial reasons and leaves unknown ones alone", () => {
     expect(humanisePartialReason("stage_failed:rules")).toBe("The rules stage failed");
     expect(humanisePartialReason("check_error:bs_totals")).toBe("Check bs_totals errored");
+    expect(humanisePartialReason("statement_incomplete:1")).toBe("1 scanned statement could not be put back together");
+    expect(humanisePartialReason("statement_incomplete:3")).toBe("3 scanned statements could not be put back together");
     expect(humanisePartialReason("document_failed:d4")).toBe("Document d4 could not be read");
     expect(humanisePartialReason("budget_exceeded: 0.50 USD")).toBe("budget_exceeded: 0.50 USD");
   });

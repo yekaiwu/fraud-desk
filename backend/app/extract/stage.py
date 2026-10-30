@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
+from app.assemble import assemble_statements
 from app.core.context import CaseContext, natural_key
 from app.core.models import Cell, Document, StageOutcome, Table
 from app.core.schemas import DOC_SCHEMAS, EXTRACTABLE_TYPES
@@ -117,6 +118,16 @@ def run_stage(
         log.warning("annotation pass failed: %s", type(exc).__name__)
         warnings.append("extract: annotation pass failed")
         partial = True
+
+    try:
+        pieces = assemble_statements(ctx)
+    except Exception as exc:  # best effort: without it the pieces are judged one by one
+        log.warning("statement assembly failed: %s", type(exc).__name__)
+        warnings.append("extract: statement assembly failed")
+        partial = True
+        pieces = {}
+    for key, count in pieces.items():  # only present for split scans: digital detail is unchanged
+        detail[f"statements_{key}" if key != "pages" else "statement_pages_unreviewed"] = count
 
     detail["cache_hits"] = sum(
         1 for c in ctx.costs.costs()[start_costs:] if c.cache_hit and c.stage == "extract"

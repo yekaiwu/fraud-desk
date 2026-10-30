@@ -21,13 +21,13 @@ Status legend (plan 0.6). Planned status comes from plan 0.4; measured status is
 
 | item | planned | measured | evidence | limits or reason |
 |---|---|---|---|---|
-| Edited bank statement balances | ● | ● | digital caught 45/45; scans 9/15 | scan misses (9/15 caught on degraded renders). Hard case T02b (consistent recomputation) is reported apart. |
-| Manipulated revenue figures | ◐ | ◐ | digital caught 25/25; scans 1/2 | scan misses (1/2 caught on degraded renders). |
-| Fake invoices | ● | ● | digital caught 110/110; scans 11/12 | scan misses (11/12 caught on degraded renders). T17 (sequence gap) is weak and listed apart. |
+| Edited bank statement balances | ● | ● | digital caught 45/45; scans 15/15 | -. Hard case T02b (consistent recomputation) is reported apart. |
+| Manipulated revenue figures | ◐ | ◐ | digital caught 25/25; scans 2/2 | -. |
+| Fake invoices | ● | ● | digital caught 110/110; scans 12/12 | -. T17 (sequence gap) is weak and listed apart. |
 | Forged contracts | ◐ | ◐ | digital caught 50/50 | -. No judgement about who signed. |
 | Altered shareholder records | ◐ | ◐ | digital caught 15/15; scans 3/3 | -. |
 | Modified passports and IDs | ◐ | ◐ | digital caught 50/50; scans 22/27 | scan misses (22/27 caught on degraded renders). T56b (an ID for a non-director) is not built: the generator renders an ID card only for profile directors. |
-| False source-of-funds evidence | ◐ | ◐ | digital caught 13/15; scans 0/3 | scan misses (0/3 caught on degraded renders). |
+| False source-of-funds evidence | ◐ | ◐ | digital caught 15/15; scans 3/3 | -. |
 
 ## Detection techniques
 
@@ -47,11 +47,11 @@ Status legend (plan 0.6). Planned status comes from plan 0.4; measured status is
 | item | planned | measured | evidence | limits or reason |
 |---|---|---|---|---|
 | Invoice and contract amount | ◐ | ◐ | digital caught 15/15 | -. |
-| Invoice and bank payment | ● | ● | digital caught 10/10; scans 1/2 | scan misses (1/2 caught on degraded renders). |
+| Invoice and bank payment | ● | ● | digital caught 10/10; scans 2/2 | -. |
 | Revenue and bank credits | ● | ● | digital caught 5/5; scans 1/1 | -. Hard case T02b is reported apart. |
 | Ownership chart and registry | ◐ | ◐ | digital caught 5/5; scans 3/3 | -. |
 | Industry profile and financial performance | ◐ | ◐ | digital caught 4/5; scans 1/1 | -. Ratio benchmarking against peers is not built. |
-| Source of funds and transaction evidence | ◐ | ◐ | digital caught 5/5; scans 0/1 | scan misses (0/1 caught on degraded renders). |
+| Source of funds and transaction evidence | ◐ | ◐ | digital caught 5/5; scans 1/1 | -. |
 
 ## Family A: KYC
 
@@ -70,11 +70,11 @@ Status legend (plan 0.6). Planned status comes from plan 0.4; measured status is
 
 | item | planned | measured | evidence | limits or reason |
 |---|---|---|---|---|
-| Bank statements | ● | ● | digital caught 105/105; scans 12/21 | scan misses (12/21 caught on degraded renders). |
+| Bank statements | ● | ● | digital caught 105/105; scans 21/21 | -. |
 | Invoices | ● | ● | digital caught 100/100; scans 10/10 | -. |
 | Contracts | ◐ | ◐ | digital caught 15/15 | -. |
 | Tax returns | ○ | ○ | O4: passed | Corporate returns not built; classified as other and listed as received, not checked. |
-| Financial statements | ◐ | ◐ | digital caught 25/25; scans 0/1 | scan misses (0/1 caught on degraded renders). |
+| Financial statements | ◐ | ◐ | digital caught 25/25; scans 1/1 | -. |
 | Sale / purchase agreements | ◐ | ◐ | digital caught 15/15 | -. |
 | Wealth evidence | ○ | ○ | O5: passed | Classified as other and listed as received, not checked. |
 | RFI supporting documents | ○ | ○ | O6: passed | Classified as other and listed as received, not checked. |
@@ -83,9 +83,9 @@ Status legend (plan 0.6). Planned status comes from plan 0.4; measured status is
 
 | item | planned | measured | evidence | limits or reason |
 |---|---|---|---|---|
-| Financial statements | ◐ | ◐ | digital caught 20/20; scans 0/1 | scan misses (0/1 caught on degraded renders). |
+| Financial statements | ◐ | ◐ | digital caught 20/20; scans 1/1 | -. |
 | Management accounts | ◐ | ◐ | acceptance rows passing: 1/1 | no tamper row; measured through the acceptance bundles only. Same parser, marked unaudited (generator quirk Q14); measured as silence on the odd-index clean bundles. |
-| Bank statements | ● | ● | digital caught 45/45; scans 9/15 | scan misses (9/15 caught on degraded renders). |
+| Bank statements | ● | ● | digital caught 45/45; scans 15/15 | -. |
 | Contracts | ◐ | ◐ | digital caught 15/15 | -. |
 | Invoices | ● | ● | digital caught 40/40; scans 10/10 | -. |
 | Purchase orders | ◐ | ◐ | digital caught 5/5 | -. PO to invoice amount. |

@@ -75,6 +75,13 @@ def collect_partial_reasons(case: Case) -> list[str]:
     unreadable = sum(1 for f in case.files for p in f.pages if p.error)
     if unreadable:
         reasons.append(f"pages_unreadable:{unreadable}")
+    pieces = {
+        d.statement.group
+        for d in case.documents
+        if d.statement is not None and d.statement.state != "assembled"
+    }
+    if pieces:  # pages of a split statement that could not be completed: coverage, not a flag
+        reasons.append(f"statement_incomplete:{len(pieces)}")
     unique = list(dict.fromkeys(reasons))[:MAX_PARTIAL_REASONS]
     if case.partial and not unique:
         unique = ["partial: reason not recorded"]

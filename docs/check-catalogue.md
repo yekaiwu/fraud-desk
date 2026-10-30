@@ -34,14 +34,14 @@ Ruleset version: `rs-02de835ec068` | Checks registered: 55 | Planned in the plan
 
 | Rule | Default severity | Applies to | Requires | Use cases | What it checks | Tamper caught | Version |
 |---|---|---|---|---|---|---|---|
-| `bs_benford` | info | bank_statement | - | aml, kyc, loan | The first-digit distribution of at least 100 amounts of one account departs from Benford's law (a hint with no effect on the score). | Fabricated activity. | 1 |
+| `bs_benford` | info | bank_statement | - | aml, kyc, loan | The first-digit distribution of at least 100 different amounts of one account departs from Benford's law (a hint with no effect on the score). Recurring identical amounts count once. | Fabricated activity. | 1 |
 | `bs_dates` | medium | bank_statement | - | aml, kyc, loan | Transaction dates are real calendar dates, in order, inside the statement period and not in the future. | Inserted or moved rows; statement dated in the future. | 1 |
 | `bs_duplicates` | low | bank_statement | - | aml, kyc, loan | Rows with the same date, description and amount of at least 20.00 appear more than once in a statement (a hint). | Copy-pasted rows. | 1 |
 | `bs_holder` | high | bank_statement | - | aml, kyc, loan | The statement's account holder (or UEN) is the applicant company. | Someone else's statement. | 1 |
 | `bs_page_chain` | medium | bank_statement | - | aml, kyc, loan | The "page x of y" markers are complete and in order, match the page span, and carry one account number. | Spliced pages. | 1 |
 | `bs_pass_through` | medium | bank_statement | - | aml, loan | Credits forwarded to other entities within days | funds routed through multiple companies | 1 |
 | `bs_period_continuity` | high | bank_statement | - | aml, kyc, loan | Consecutive statements of one account leave no gap or overlap and the earlier closing balance equals the next opening balance. | Swapped or removed month; a month edited with recomputed balances while its neighbours are untouched. | 1 |
-| `bs_round_numbers` | low | bank_statement | - | aml, kyc, loan | A statement has a much higher share of round-sum credits than the other statements of the same account (a hint). | Invented credits. | 1 |
+| `bs_round_numbers` | low | bank_statement | - | aml, kyc, loan | A statement has a much higher share of round-sum credits, or far more of them than the other statements of the same account lead one to expect (a hint). | Invented credits. | 1 |
 | `bs_running_balance` | high | bank_statement | - | aml, kyc, loan | Each row's printed balance equals the previous balance plus that row's credit or debit. | A single edited transaction amount or an edited balance. | 1 |
 | `bs_totals` | high | bank_statement | - | aml, kyc, loan | Opening balance plus credits minus debits equals the closing balance, and printed totals equal the sums of the listed rows. | Edited amount or balance; removed or inserted rows. | 1 |
 | `date_valid` | high | national_id, passport | - | aml, kyc, loan | Dates are real, not future, plausible age | modified IDs | 1 |

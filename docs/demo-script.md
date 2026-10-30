@@ -90,18 +90,18 @@ Ruleset `rs-02de835ec068`, today 2026-10-27 (injected, never the wall clock), se
 
 ## 5. Numbers to quote, including the misses
 
-- Core recall on digital tampers: 462/465 = 0.99 (Wilson 95% 0.98 to 1.00) `[core_recall.digital]`
+- Core recall on digital tampers: 464/465 = 1.00 (Wilson 95% 0.99 to 1.00) `[core_recall.digital]`
 - **The hard case** (change a deposit and recompute every later balance, T02b): caught in 5/5 instances (by `x_cash_at_year_end` in 5: the financial statements still show the old cash and revenue). Say it either way. `[recall[T02b,digital]]`
 - **The known miss** (T02c: the same edit with the financial statements adjusted to match): caught in 0/5; content checks cannot see a fully consistent story. `[recall[T02c,digital]]`
 - False alarms on clean bundles: 0 high or medium flags over 33 digital bundles = 0.00 per 10 clean bundles `[false_alarms.digital]`
-- **On scanned renders the false alarms are not small**: 114 high or medium flags over 3 clean scan bundles = 380.0 per 10. We report it as measured `[false_alarms.scan_hq]`
-- Diagnostic: the same bundles as one image-only PDF per document give 0 high or medium flags (0.0 per 10). Uploading a statement as one JPEG per page cannot be put back together; see the false-alarm section of the validation report for the rules that still fire on clean scans `[false_alarms.scan_pdf]`
-- Core tampers with a miss on digital: T57 4/5; T59 8/10 `[recall[*,digital]]`
+- **On scanned renders the false alarms are 0 here, and that rests on 3 clean bundles per render and on oracle extraction**: 0 high or medium flags over 3 clean scan bundles = 0.0 per 10 (a rate of 0 on 3 bundles has a Wilson 95% upper bound of 0.56). With real OCR (Apple Vision) instead of the oracle, the same clean bundles still raised flags in all 3 of 3 (51 flags on `scan_hq`, 58 on `scan_pdf`), so this 0 is an upper bound, not the expected real-scan figure `[false_alarms.scan_hq]`
+- Diagnostic: the same bundles as one image-only PDF per document also give 0 high or medium flags (0.0 per 10). A statement uploaded as one JPEG per page is put back together when its page markers and account number allow it (ingest-and-extraction.md 4.11); otherwise the pages are reported as not reviewed instead of flagged `[false_alarms.scan_pdf]`
+- Core tampers with a miss on digital: T57 4/5 `[recall[*,digital]]`
 - Deck acceptance (digital, gating): 9/9 bundles pass; reproducible reruns 9/9 `[acceptance, reproducibility]`
 - Injection canaries: 12/12 pass (instruction text in a footer, an extra page, white text and a transaction description) `[canaries]`
-- Fairness slice over six name groups: outcome **FAIL** against our proposed criteria; disparity of the false-flag rate 0.00 `[fairness.overall, fairness.disparity]`
-- The weakest fairness number: wrong-match rate (a near-spelled different person that passed) is highest for `indian_patronymic` at 6/15 `[fairness.groups[*].wrong_match_rate]`
-- Cost: no real model cost measured (the fake client prices everything at zero); seconds per digital bundle p50 2.9, p95 5.4 `[cost.seconds]`
+- Fairness slice over six name groups: outcome **PASS** against our proposed criteria; disparity of the false-flag rate 0.00 `[fairness.overall, fairness.disparity]`
+- The weakest fairness number: wrong-match rate (a near-spelled different person that passed) is 0/15 in every group (a six-way tie, Wilson 95% upper bound 0.20 per group, so 15 pairs per group cannot rule out a rate up to about one in five) `[fairness.groups[*].wrong_match_rate]`
+- Cost: no real model cost measured (the fake client prices everything at zero); seconds per digital bundle p50 1.1, p95 1.2 `[cost.seconds]`
 
 **Always say:** the generator is ours, so these are upper bounds; scan numbers use oracle extraction (the generator's own answer sheet stands in for OCR), so they test the rules and the image forensics, not text recognition; the timed analyst test has not been run.
 

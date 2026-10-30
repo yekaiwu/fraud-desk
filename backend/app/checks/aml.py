@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
+from app.assemble import logical_docs
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
 from app.core.models import Cell, Document, Flag, Region, Row
@@ -67,7 +68,9 @@ SOF_COMPANY_ORIGINS = {
 
 
 def _docs(ctx: CaseContext, *types: str) -> list[Document]:
-    return [d for d in ctx.docs(*types) if d.status in USABLE]
+    # bank statements that arrived page by page are read as one statement; pieces that could not
+    # be assembled are left out (the statement counts as not provided, and is reported as such)
+    return [d for d in logical_docs(ctx, *types, whole_only=True) if d.status in USABLE]
 
 
 def _cell(doc: Document, name: str) -> Cell:
@@ -429,18 +432,42 @@ def x_remitter_vs_buyer(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912, PLR09
             ]
         else:
             candidate = _find_set(window, inv.total, tol)
+        wide = False
+        if not candidate and inv.paid is not None:
+            # instalments: the first part may have arrived well before the paid date. Looked for
+            # in the wider window (invoice date to paid date + 5 days) and kept only when it is a
+            # mixed set (some parts from the buyer, a real share from someone else), so a lucky
+            # subset sum among unrelated credits cannot raise a flag.
+            wide_lo, wide_hi = inv.when, inv.paid + timedelta(days=RV_PAID_WINDOW_DAYS)
+            candidate = _find_set([c for c in pool if wide_lo <= c.when <= wide_hi], inv.total, tol)
+            wide = bool(candidate)
         if not candidate:
             continue
-        used.update(c.uid for c in candidate)
+        if not wide:
+            used.update(c.uid for c in candidate)
         remitters = [counterparty_of(c.row) for c in candidate]
         if all(r is None for r in remitters):
             continue  # nothing to compare: an extraction gap, not a finding
         verdicts = [_matches_buyer(c, r, inv) for c, r in zip(candidate, remitters, strict=True)]
+        mixed = False
         if any(v is True for v in verdicts):
+            # an instalment set where the buyer paid some parts: still worth a look when another
+            # payer clearly settled a real share of the invoice (a medium flag, not a high one:
+            # a group company or an agent can pay one instalment honestly)
+            foreign = [
+                i
+                for i, (v, c) in enumerate(zip(verdicts, candidate, strict=True))
+                if v is False and c.amount >= RV_MIN_PART_SHARE * inv.total
+            ]
+            if not foreign:
+                continue
+            mixed = True
+        if wide and not mixed:
             continue
+        used.update(c.uid for c in candidate)
         if all(v is None for v in verdicts):
             continue
-        primary_i = next(i for i, v in enumerate(verdicts) if v is False)
+        primary_i = foreign[0] if mixed else next(i for i, v in enumerate(verdicts) if v is False)
         primary = candidate[primary_i]
         remitter = remitters[primary_i] or ""
         own = _is_applicant(
@@ -465,6 +492,8 @@ def x_remitter_vs_buyer(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912, PLR09
             )
             body = f"paid by {len(candidate)} credits: {parts}"
         evidence = head + body + ("; paid by the applicant's own account" if own else "")
+        if mixed:
+            evidence += "; other parts came from the customer"
         buyer_cell = inv.doc.fields["buyer_name"]
         extra = [cell_region(buyer_cell)]
         extra += [
@@ -476,18 +505,21 @@ def x_remitter_vs_buyer(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912, PLR09
                 docs=[inv.doc, *{c.doc.id: c.doc for c in candidate}.values()],
                 table="transactions",
                 row=primary.row.index,
+                row_doc=primary.doc,
                 region=labelled(
                     cell_region(primary.row.cells["description"], primary.row), "remitter"
                 ),
                 extra_regions=_cap(extra),
                 evidence=evidence + unverified_note(buyer_cell),
                 explanation=(
-                    f"Invoice {inv_label} to {safe_text(inv.buyer or inv.buyer_uen)} was paid by "
-                    f"{safe_text(remitter)}"
+                    f"Invoice {inv_label} to {safe_text(inv.buyer or inv.buyer_uen)} was "
+                    + ("partly " if mixed else "")
+                    + f"paid by {safe_text(remitter)}"
                     + (" (the applicant's own account)" if own else ", not by the customer")
                     + "."
                 ),
                 discriminator=entity_key(remitter) or None,
+                severity="medium" if mixed else None,
             )
         )
     return flags

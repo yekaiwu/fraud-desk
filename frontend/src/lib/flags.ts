@@ -78,6 +78,8 @@ export function humanisePartialReason(reason: string): string {
   if (check) return `Check ${check[1]} errored`;
   const doc = /^document_failed:(.+)$/.exec(reason);
   if (doc) return `Document ${doc[1]} could not be read`;
+  const split = /^statement_incomplete:(\d+)$/.exec(reason);
+  if (split) return `${split[1]} scanned ${Number(split[1]) === 1 ? "statement" : "statements"} could not be put back together`;
   return reason;
 }
 

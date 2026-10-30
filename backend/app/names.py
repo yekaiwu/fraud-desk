@@ -57,7 +57,21 @@ TITLES = frozenset(
 SUFFIXES = frozenset({"jr", "sr", "ii", "iii", "iv", "phd"})
 TOKEN_ALIASES: dict[str, str] = {
     **dict.fromkeys(
-        ("mohd", "mohamed", "mohammad", "mohamad", "muhammad", "muhamad", "mohammed", "muhd"),
+        (
+            "mohd",
+            "mohamed",
+            "mohammad",
+            "mohamad",
+            "muhammad",
+            "muhamad",
+            "mohammed",
+            "muhd",
+            "mhd",
+            "muhamed",
+            "mohmmad",
+            "mohamod",
+            "mohammod",
+        ),
         "muhammad",
     ),
     **dict.fromkeys(("abd", "abdul", "abdull"), "abdul"),
@@ -80,6 +94,7 @@ GENERIC_COMPANY_WORDS = frozenset(
 
 TRUNCATION_MIN_CHARS = 12
 INITIAL_MIN_EDIT_LEN = 6
+INITIALS_MAX = 4  # most initials expanded at once ("S. R. Ramaswamy"); 0 switches it off
 MERGE_MAX_TOKEN_LEN = 6
 MERGE_MAX_MERGES = 4
 _MERGE_VARIANT_CAP = 200
@@ -130,12 +145,16 @@ class NameMatch:
     reason: str  # short, goes into evidence
     a: str  # canonical forms compared
     b: str
+    slip: bool = False  # a ``probable`` that rests on a one-letter spelling difference
+    slip_kind: str = ""  # "double_letter", "vowel" or "other" when ``slip``
 
     @property
     def typo(self) -> bool:
-        """A ``probable`` that rests only on a one-letter spelling difference. That is what a
-        near-spelled fake looks like, so identity checks do not accept it on the name alone."""
-        return self.verdict == "probable" and self.reason.startswith(_TYPO_REASON)
+        """A ``probable`` that rests only on a one-letter spelling difference, in the whole name or
+        in the given names or the patronym of a marked name (``bin``, ``s/o``). That is what a
+        near-spelled fake looks like, so identity checks do not accept it on the name alone. With
+        the same ID on both sides a typo and a deliberate substitution look identical."""
+        return self.verdict == "probable" and self.slip
 
 
 def _latin_tokens(s: str) -> list[str]:
@@ -242,6 +261,19 @@ def _is_initial(x: str, y: str) -> bool:
     return len(y) == 1 and len(x) > 1 and x.startswith(y)
 
 
+def _initials_match(only_a: list[str], only_b: list[str]) -> bool:
+    """One side's leftover tokens are all single letters and the other side has longer names whose
+    first letters cover those letters (``h l`` for ``hemant laxman``; ``p u`` for ``pudukkottai
+    ulaganathan pillai``): the written-out name may carry more given names than the initials."""
+    if not 1 <= min(len(only_a), len(only_b)) <= INITIALS_MAX:
+        return False
+    for short, long_ in ((only_a, only_b), (only_b, only_a)):
+        if all(len(t) == 1 for t in short) and all(len(t) > 1 for t in long_):
+            have = Counter(t[0] for t in long_)
+            return all(have[k] >= n for k, n in Counter(short).items())
+    return False
+
+
 def _edit_one(x: str, y: str) -> bool:
     return (
         min(len(x), len(y)) >= INITIAL_MIN_EDIT_LEN and x != y and Levenshtein.distance(x, y) == 1
@@ -249,6 +281,9 @@ def _edit_one(x: str, y: str) -> bool:
 
 
 _TYPO_REASON = "one letter differs"
+_AB_FORMS = {"ab", "abdul"}  # "Ab" is a Malay short form of Abdul but "AB" may be initials
+_SLIP_TOKENS = re.compile(r"([^\s:/]+)/([^\s:/]+)$")
+_VOWELS = frozenset("aeiouy")  # y stands in for i (Aisyah / Aysyah)
 _RANK = {"same": 3, "probable": 2, "different": 1, "indeterminate": 0}
 
 
@@ -274,6 +309,10 @@ def _compare_tokens(
             return "probable", f"initial: {x}/{y}"
         if _edit_one(x, y):
             return "probable", f"{_TYPO_REASON}: {x}/{y}"
+        if {x, y} == _AB_FORMS:  # not an alias: "AB" is also a pair of initials
+            return "probable", f"short form: {x}/{y}"
+    if len(ta) > len(only_a) and _initials_match(only_a, only_b):  # a shared token anchors it
+        return "probable", f"initials: {' '.join(only_a)}/{' '.join(only_b)}"
     if not only_a or not only_b:
         short, long_ = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
         if len(short) >= 2:
@@ -285,6 +324,33 @@ def _compare_tokens(
     return "different", f"only in a: {only_a}; only in b: {only_b}"
 
 
+def slip_kind(x: str, y: str) -> str:
+    """Kind of a one-letter difference between two tokens: ``double_letter`` (Kamarudin /
+    Kamaruddin), ``vowel`` (Hussain / Hussein, Krishnan / Krishnen) or ``other`` (a consonant
+    substituted, dropped or added, which is also how OCR and keyboard slips and fakes look)."""
+    if len(x) > len(y):
+        x, y = y, x
+    if len(y) == len(x) + 1:
+        for i in range(len(y)):
+            if y[:i] + y[i + 1 :] == x:
+                doubled = (i > 0 and y[i] == y[i - 1]) or (i + 1 < len(y) and y[i] == y[i + 1])
+                if doubled:
+                    return "double_letter"
+                return "vowel" if y[i] in _VOWELS else "other"
+        return "other"
+    diff = [(p, q) for p, q in zip(x, y, strict=False) if p != q]
+    if len(diff) == 1 and diff[0][0] in _VOWELS and diff[0][1] in _VOWELS:
+        return "vowel"
+    return "other"
+
+
+def _slip_of(reason: str) -> tuple[bool, str]:
+    if _TYPO_REASON not in reason:
+        return False, ""
+    m = _SLIP_TOKENS.search(reason)
+    return True, slip_kind(m.group(1), m.group(2)) if m else "other"
+
+
 def _variants_of(p: PersonName) -> list[tuple[str, ...]]:
     out = [p.tokens]
     if p.optional:
@@ -294,12 +360,23 @@ def _variants_of(p: PersonName) -> list[tuple[str, ...]]:
 
 def _compare_marked(pa: PersonName, pb: PersonName) -> tuple[NameVerdict, str]:
     """Both names carry a patronymic marker: the given names and the patronym are compared apart,
-    so ``Ahmad bin Ismail`` and ``Ismail bin Ahmad`` (father and son) are different people."""
+    so ``Ahmad bin Ismail`` and ``Ismail bin Ahmad`` (father and son) are different people. A
+    one-letter slip in either part keeps its reason (``one letter differs in the patronym: ...``)
+    so ``NameMatch.typo`` still sees it."""
     best: tuple[NameVerdict, str] = ("different", "")
     for ga in (pa.given, (*pa.given, *pa.optional)) if pa.optional else (pa.given,):
         for gb in (pb.given, (*pb.given, *pb.optional)) if pb.optional else (pb.given,):
             gv, gr = _compare_tokens(ga, gb, part=True)
-            if _RANK[gv] > _RANK[best[0]] or not best[1]:
+            # the better verdict wins; at equal rank a variant that is not a slip wins
+            if (
+                not best[1]
+                or _RANK[gv] > _RANK[best[0]]
+                or (
+                    _RANK[gv] == _RANK[best[0]]
+                    and (_TYPO_REASON in best[1])
+                    and (_TYPO_REASON not in gr)
+                )
+            ):
                 best = (gv, gr)
     pv, pr = _compare_tokens(pa.patronym, pb.patronym, part=True)
     if best[0] not in ("same", "probable") or pv not in ("same", "probable"):
@@ -308,6 +385,9 @@ def _compare_marked(pa: PersonName, pb: PersonName) -> tuple[NameVerdict, str]:
         return "different", f"given names: {best[1]}; patronym: {pr}"
     if best[0] == "same" and pv == "same":
         return "same", "given names and patronym match"
+    for part, (v, r) in (("given names", best), ("the patronym", (pv, pr))):
+        if v == "probable" and _TYPO_REASON in r:
+            return "probable", f"{_TYPO_REASON} in {part}: {r.rsplit(': ', 1)[-1]}"
     return "probable", f"given names {best[0]}, patronym {pv}"
 
 
@@ -316,7 +396,8 @@ def match_person(a: str | None, b: str | None) -> NameMatch:
     ca, cb = " ".join(pa.tokens), " ".join(pb.tokens)
 
     def result(verdict: NameVerdict, reason: str, x: str = ca, y: str = cb) -> NameMatch:
-        return NameMatch(verdict, SCORES[verdict], reason, x, y)
+        slip, kind = _slip_of(reason) if verdict == "probable" else (False, "")
+        return NameMatch(verdict, SCORES[verdict], reason, x, y, slip, kind)
 
     if pa.script == "empty" or pb.script == "empty":
         return result("indeterminate", "empty name")
@@ -333,7 +414,16 @@ def match_person(a: str | None, b: str | None) -> NameMatch:
     for va in _variants_of(pa):
         for vb in _variants_of(pb):
             verdict, reason = _compare_tokens(va, vb)
-            if best is None or _RANK[verdict] > _RANK[best[0]]:
+            # the better verdict wins; at equal rank a variant that is not a slip wins
+            if (
+                best is None
+                or _RANK[verdict] > _RANK[best[0]]
+                or (
+                    _RANK[verdict] == _RANK[best[0]]
+                    and _TYPO_REASON in best[1]
+                    and _TYPO_REASON not in reason
+                )
+            ):
                 best = (verdict, reason, " ".join(va), " ".join(vb))
     assert best is not None
     return result(best[0], best[1], best[2], best[3])
@@ -456,12 +546,6 @@ def looks_like_nric(s: str | None) -> bool:
     return bool(_NRIC.match(normalise_id(s)))
 
 
-def _name_verdict(a: str | None, b: str | None, kind: Literal["person", "company"]) -> NameVerdict:
-    if kind == "company":
-        return match_company(a, b).verdict
-    return match_person(a, b).verdict
-
-
 def ids_conflict_or_equal(a: str | None, b: str | None) -> Literal["equal", "differ", "na"]:
     """Compare two ids; a masked id compares only its last 4 characters."""
     na, nb = normalise_id(a), normalise_id(b)
@@ -472,6 +556,55 @@ def ids_conflict_or_equal(a: str | None, b: str | None) -> Literal["equal", "dif
     return "equal" if na == nb else "differ"
 
 
+class IdentityStatus(NamedTuple):
+    """``match`` is what ``same_identity`` returns. ``needs`` says what would settle a name that
+    cannot decide alone: ``"id"`` (an NRIC/FIN is missing or only its last 4 characters are
+    known) or ``"dob_or_document"`` (the ID is equal but the name differs by one letter, which is
+    a typo and a deliberate substitution alike, so only another factor can tell them apart)."""
+
+    match: IdentityMatch
+    needs: Literal["", "id", "dob_or_document"]
+    name: NameMatch
+
+
+def identity_status(
+    a_name: str | None,
+    a_id: str | None,
+    b_name: str | None,
+    b_id: str | None,
+    *,
+    kind: Literal["person", "company"] = "person",
+) -> IdentityStatus:
+    na, nb = normalise_id(a_id), normalise_id(b_id)
+    nm = match_company(a_name, b_name) if kind == "company" else match_person(a_name, b_name)
+    verdict = nm.verdict
+    # a one-letter slip between two person names is what a near-spelled fake looks like: it is
+    # no longer a match on the name alone, so it is a conflict (with equal ids) or a mismatch
+    typo = kind == "person" and nm.typo
+    name_ok = verdict == "same" or (verdict == "probable" and not typo)
+    conflict = verdict == "different" or typo
+    soft = "id" if verdict == "probable" and not typo else ""  # accepted, but on the name alone
+    if na and nb:
+        if "*" in na or "*" in nb:  # a masked id compares its last 4 characters only
+            if na[-4:] != nb[-4:]:
+                return IdentityStatus("mismatch", "", nm)
+            if name_ok:
+                return IdentityStatus("match", soft, nm)
+            if typo:
+                return IdentityStatus("match_name_conflict", "dob_or_document", nm)
+            return IdentityStatus("unknown", "", nm)
+        if na == nb:
+            if typo:
+                return IdentityStatus("match_name_conflict", "dob_or_document", nm)
+            return IdentityStatus("match_name_conflict" if conflict else "match", "", nm)
+        return IdentityStatus("mismatch", "", nm)
+    if name_ok:
+        return IdentityStatus("match", soft, nm)
+    if conflict:
+        return IdentityStatus("mismatch", "id" if typo else "", nm)
+    return IdentityStatus("unknown", "", nm)
+
+
 def same_identity(
     a_name: str | None,
     a_id: str | None,
@@ -480,27 +613,7 @@ def same_identity(
     *,
     kind: Literal["person", "company"] = "person",
 ) -> IdentityMatch:
-    na, nb = normalise_id(a_id), normalise_id(b_id)
-    verdict = _name_verdict(a_name, b_name, kind)
-    # a one-letter slip between two person names is what a near-spelled fake looks like: it is
-    # no longer a match on the name alone, so it is a conflict (with equal ids) or a mismatch
-    typo = kind == "person" and match_person(a_name, b_name).typo
-    name_ok = verdict == "same" or (verdict == "probable" and not typo)
-    conflict = verdict == "different" or typo
-    if na and nb:
-        masked = "*" in na or "*" in nb
-        if masked:
-            if na[-4:] != nb[-4:]:
-                return "mismatch"
-            return "match" if name_ok else "unknown"
-        if na == nb:
-            return "match_name_conflict" if conflict else "match"
-        return "mismatch"
-    if name_ok:
-        return "match"
-    if conflict:
-        return "mismatch"
-    return "unknown"
+    return identity_status(a_name, a_id, b_name, b_id, kind=kind).match
 
 
 # --------------------------------------------------------------------------------------

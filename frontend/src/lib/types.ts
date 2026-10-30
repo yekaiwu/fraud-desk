@@ -93,7 +93,7 @@ export interface Coverage { applicable: number; ran: number; ratio: number; skip
   /** Which pages no check looked at, and why. Absent on cases analysed before the backend listed them. */
   unchecked_pages?: UncheckedPage[];
 }
-export type UncheckedReason = "no_document" | "unreadable" | "not_checked" | "failed" | "unrecognised_type" | "low_confidence";
+export type UncheckedReason = "no_document" | "unreadable" | "not_checked" | "failed" | "unrecognised_type" | "low_confidence" | "statement_incomplete";
 export interface UncheckedPage { file_id: string; page: number; reason: UncheckedReason }
 export interface CheckRun { rule: string; stage: FlagStage; status: "ran" | "skipped" | "error"; reason?: string | null; code?: string | null; flags: number; seconds: number }
 export interface Cost {

@@ -301,6 +301,27 @@ class FileRef(Strict):
     added_in_version: int = 1
 
 
+StatementState = Literal["assembled", "incomplete", "ambiguous"]
+
+
+class StatementLink(Strict):
+    """How a bank statement that arrived in pieces (one image per page) was, or was not, put back
+    together (``app.assemble``). Absent on every document that is a whole statement by itself, so
+    a digital case serialises exactly as before.
+
+    ``assembled``: ``members`` are the document ids of one statement in page order and every
+    whole-statement rule reads them as one. ``incomplete`` and ``ambiguous``: the pages could not
+    be completed or told apart, so the rules that need the whole statement did not run on them and
+    the pages count as not reviewed (silence is not safety)."""
+
+    group: str
+    state: StatementState
+    members: list[str]
+    reason: str = ""
+    parts: int | None = None  # number of pages the page markers announce
+    missing: list[int] = []  # page numbers that are announced but were not uploaded
+
+
 class Document(Strict):
     id: str
     file_id: str
@@ -316,6 +337,8 @@ class Document(Strict):
     words: list[Word] = []
     warnings: list[str] = []
     error: str | None = None
+    # Left out of the JSON when None (every document that is not a piece of a split statement).
+    statement: StatementLink | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------------------
@@ -374,7 +397,13 @@ class Score(Strict):
 
 
 UncheckedReason = Literal[
-    "no_document", "unreadable", "not_checked", "failed", "unrecognised_type", "low_confidence"
+    "no_document",
+    "unreadable",
+    "not_checked",
+    "failed",
+    "unrecognised_type",
+    "low_confidence",
+    "statement_incomplete",
 ]
 
 

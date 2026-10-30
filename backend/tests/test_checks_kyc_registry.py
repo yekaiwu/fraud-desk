@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.checks.kyc import kyc_shareholdings, x_directors, x_ownership_vs_registry
+from app.checks.kyc import (
+    SLIP_NEEDS_NOTE,
+    kyc_shareholdings,
+    x_directors,
+    x_ownership_vs_registry,
+)
 from app.checks.registry import CheckSkipped
 from app.core.models import Cell, Document, Region
 from app.names import entity_key
@@ -211,6 +216,47 @@ def test_same_id_different_name() -> None:
     assert flags[0].id.endswith(
         f"~{LIM_KEY}"
     )  # groups with the missing-holder flags of that person
+
+
+def _slip_registry():  # noqa: ANN202
+    return registry_with(
+        shareholders=[
+            {"name": "Tan Wei Ming", "id_or_uen": TAN_ID, "holder_type": "individual",
+             "shares": 300000, "percent": "60.00"},
+            {"name": "Lim Siew Hoon", "id_or_uen": LIM_ID, "holder_type": "individual",
+             "shares": 150000, "percent": "30.00"},
+            {"name": "Rajesh Kumar", "id_or_uen": RAVI_ID, "holder_type": "individual",
+             "shares": 50000, "percent": "10.00"},
+        ]
+    )  # fmt: skip
+
+
+def _slip_chart(third: str) -> Document:
+    return chart_doc(
+        "d3",
+        [
+            ("Tan Wei Ming", "individual", TAN_ID, "60.00", None, "true"),
+            ("Lim Siew Hoon", "individual", LIM_ID, "30.00", None, "true"),
+            (third, "individual", RAVI_ID, "10.00", None, "false"),
+        ],
+    )
+
+
+def test_a_one_letter_slip_on_the_same_id_says_what_would_tell_it_apart() -> None:
+    """needs == dob_or_document: the flag and its severity are those of any other name conflict;
+    only the explanation says to check the date of birth or the ID document."""
+    slip = own(_slip_chart("Ramesh Kumar"), registry=_slip_registry())
+    other = own(_slip_chart("Lee Ah Kow"), registry=_slip_registry())
+    assert len(slip) == len(other) == 1
+    assert slip[0].evidence == "T****345J is 'Rajesh Kumar' in the registry, 'Ramesh Kumar' here"
+    assert slip[0].explanation.endswith(SLIP_NEEDS_NOTE)
+    assert slip[0].severity == other[0].severity  # nothing is decided by the note
+    assert SLIP_NEEDS_NOTE not in other[0].explanation  # an unrelated name gets no such note
+    assert len(slip[0].explanation) < 300  # EXPLANATION_MAX: the note is not cut off
+
+
+def test_a_matching_name_gets_no_slip_note() -> None:
+    assert own(_slip_chart("Rajesh Kumar"), registry=_slip_registry()) == []
 
 
 def test_unknown_identity_never_creates_a_flag() -> None:
@@ -570,3 +616,23 @@ def test_a_one_letter_name_slip_on_the_same_id_is_flagged_on_the_director() -> N
         "belongs to a different name" in f.evidence and f.document_ids == ["d1", "d4"]
         for f in flags
     ), [f.evidence for f in flags]
+
+
+def test_a_director_slip_on_the_same_id_carries_the_dob_or_document_note() -> None:
+    profile = company_profile_doc(
+        "d1", directors=[("Tan Wei Ming", TAN_ID), ("Rajesh Kumar", RAVI_ID)]
+    )
+    slip = [
+        f
+        for f in directors(profile, national_id_doc("d4", "Ramesh Kumar", RAVI_ID, "1980-01-01"))
+        if "belongs to a different name" in f.evidence
+    ]
+    other = [
+        f
+        for f in directors(profile, national_id_doc("d4", "Lee Ah Kow", RAVI_ID, "1980-01-01"))
+        if "belongs to a different name" in f.evidence
+    ]
+    assert len(slip) == len(other) == 1
+    assert slip[0].explanation.endswith(SLIP_NEEDS_NOTE)
+    assert slip[0].severity == other[0].severity
+    assert SLIP_NEEDS_NOTE not in other[0].explanation

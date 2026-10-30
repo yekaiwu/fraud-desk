@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from itertools import combinations
 
+from app.assemble import logical_docs
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
 from app.core.models import Cell, Document, Flag, Region, Row, Table
@@ -66,7 +67,9 @@ def _regions(cells: list[Cell], limit: int = 4) -> list[Region]:
 
 
 def _docs(ctx: CaseContext, *types: str) -> list[Document]:
-    return [d for d in ctx.docs(*types) if d.status in USABLE]
+    # bank statements that arrived page by page are read as one statement; pieces that could not
+    # be assembled are left out (the statement counts as not provided, and is reported as such)
+    return [d for d in logical_docs(ctx, *types, whole_only=True) if d.status in USABLE]
 
 
 def _c(doc: Document, name: str) -> Cell:

@@ -122,13 +122,73 @@ def test_instalments_from_the_buyer_are_silent() -> None:
     assert run(inv, doc) == []
 
 
-def test_set_with_one_credit_from_the_buyer_is_silent() -> None:
+def test_set_with_a_small_part_from_another_payer_is_silent() -> None:
+    inv = invoice_doc("d1", total="10000.00")
+    doc = statement_doc(
+        "d3",
+        [
+            credit("2026-03-02", "8500.00", "ALPHA TRADING PTE LTD"),
+            credit("2026-03-03", "1500.00", "GROUP TREASURY"),  # 15% of the invoice
+        ],
+    )
+    assert run(inv, doc) == []
+
+
+def test_set_with_a_real_share_from_another_payer_is_medium() -> None:
     inv = invoice_doc("d1", total="10000.00")
     doc = statement_doc(
         "d3",
         [
             credit("2026-03-02", "6000.00", "ALPHA TRADING PTE LTD"),
             credit("2026-03-03", "4000.00", "GROUP TREASURY"),
+        ],
+    )
+    (flag,) = run(inv, doc)
+    assert flag.severity == "medium"
+    assert (
+        "GROUP TREASURY" in flag.evidence and "other parts came from the customer" in flag.evidence
+    )
+    assert (
+        flag.explanation.startswith("Invoice")
+        and "partly paid by GROUP TREASURY" in flag.explanation
+    )
+
+
+def test_first_instalment_before_the_paid_window_is_found_when_the_set_is_mixed() -> None:
+    # paid 2026-03-20: the narrow window (+-5 days) misses the 2026-03-03 instalment, the wider one
+    # (invoice date to paid + 5) finds the pair, and the second part is from a stranger
+    inv = invoice_doc("d1", total="10000.00", date_="2026-02-01", paid="2026-03-20")
+    doc = statement_doc(
+        "d3",
+        [
+            credit("2026-03-03", "6000.00", "ALPHA TRADING PTE LTD"),
+            credit("2026-03-20", "4000.00", "GROUP TREASURY"),
+        ],
+    )
+    (flag,) = run(inv, doc)
+    assert flag.severity == "medium" and "GROUP TREASURY" in flag.evidence
+
+
+def test_wide_window_set_of_unrelated_credits_is_not_a_finding() -> None:
+    # a lucky subset sum between strangers is not enough: no part came from the customer
+    inv = invoice_doc("d1", total="10000.00", date_="2026-02-01", paid="2026-03-20")
+    doc = statement_doc(
+        "d3",
+        [
+            credit("2026-03-03", "6000.00", "GAMMA PTE LTD"),
+            credit("2026-03-20", "4000.00", "GROUP TREASURY"),
+        ],
+    )
+    assert run(inv, doc) == []
+
+
+def test_wide_window_set_from_the_customer_only_is_silent() -> None:
+    inv = invoice_doc("d1", total="10000.00", date_="2026-02-01", paid="2026-03-20")
+    doc = statement_doc(
+        "d3",
+        [
+            credit("2026-03-03", "6000.00", "ALPHA TRADING PTE LTD"),
+            credit("2026-03-20", "4000.00", "ALPHA TRADING PTE LTD"),
         ],
     )
     assert run(inv, doc) == []

@@ -197,6 +197,23 @@ A page with `error` is never classified, never extracted, and becomes (via class
 ### 4.10 Resource limits
 File size and page-count limits are enforced at upload (api.md) and by the page budget here. Pillow pixel cap 50 M. Memory: each page's pixmap is released before the next; words are the only retained data.
 
+### 4.11 Split statements (`app.assemble`, end of the extract stage)
+A statement photographed or scanned page by page arrives as one file per page and segmentation never spans files, so every page is its own `bank_statement` document. `assemble_statements(ctx)` runs after the annotation pass and looks only at bank statements made of scanned pages whose own "page x of y" chain is incomplete. Digital documents and scanned PDFs whose chain is complete are never touched. A document whose markers contradict each other inside one file (repeated, out of order, a number skipped between adjacent pages) is also left alone: that chain is verifiable and broken, and `bs_page_chain` flags it as before.
+
+Cues, all deterministic: account number (also from the `page_chain` rows), bank name, currency, period, the markers (page `n+1` follows page `n`, same total), the running balance (the last balance of one page equals the first row's balance before its amount on the next) and transaction dates against the period. Identity and markers decide; balance and dates only rank candidates, so a page whose balance was edited still joins its statement and `bs_running_balance` flags the edit. A link is confirmed only when each page is the other's single best candidate; confirmed pages leave the pool and the rest is retried, which is meant to handle shuffled and interleaved uploads without guessing (tested on the generator's uploads only).
+
+Result, stored in `Document.statement` (absent for every document that is not a piece of a split statement, so digital JSON is unchanged):
+
+| state | meaning | effect |
+|---|---|---|
+| `assembled` | pages 1..y found and ordered | `logical_docs()` hands the members to every whole-statement rule as ONE statement; flags point at the stored page document and that page's own row |
+| `incomplete` | a page is missing or the markers do not close | not flagged; the whole-statement rules skip these pages |
+| `ambiguous` | two statements fit equally well (for example a page uploaded twice) | same as `incomplete`; no page is guessed onto either |
+
+Pieces that are not `assembled` are "pages not reviewed": `UncheckedReason` `statement_incomplete` (coverage and the fast-lane gate), the partial reason `statement_incomplete:N` (the score is partial), and one `doc_unreadable` info flag per piece naming the reason. The rules that only need a page (`bs_running_balance`, `bs_dates`, `bs_duplicates`, `bs_holder`, `bs_benford`) still look at the pieces; `bs_totals`, `bs_page_chain`, `bs_period_continuity`, `bs_round_numbers` and every cross-document rule read `logical_docs(..., whole_only=True)`, so an unassembled statement counts as "not provided" for them (the invoice and revenue rules already treat uncovered periods as not evaluable).
+
+Limits, stated plainly: (1) a page dropped from a per-page upload cannot be told from a page the applicant did not upload, so a removed page (tamper T06) on `scan_hq`, `scan_lq` and `photo` is now "not reviewed" and partial, not a flag; (2) a marker or account number misread by OCR makes a page fall out as `incomplete`; (3) two pages identical in every cue stay `ambiguous`; (4) a forged page with the right markers and a consistent balance is accepted like any other page; (5) the cues use the extractor's output, so on real scans they are only as good as the extraction, which this repository measures only with the ground-truth oracle.
+
 ## 5. Behaviour: `LLMClient`
 
 ### 5.1 `get_llm_client(settings, cache)`
@@ -461,7 +478,7 @@ Tests build tiny PDFs with `reportlab` and `pikepdf` inside `ingest_helpers.py` 
 - No payslips, tax notices, board resolutions and so on (data-model.md section 9): they classify to `other` and are listed as received, not checked.
 - Handwriting, non-Latin scripts and rotated scans beyond 90-degree steps are not handled.
 - **Declared image density is not trusted above A4 size** (integration-kyc, cost lever 6). A JPEG that declares 72 dpi but is 1240 x 1754 px (the generator's `scan_hq`, and many phone and scanner files) is treated as a 150 dpi A4 page, so `GLDB_VISION_DPI` lowers its size: the native dpi used by `render_for_model` is `max(declared, longest_side_px / 11.7)`. A genuine low-resolution image keeps its declared value.
-- **A statement uploaded as one image per page is not reassembled** (W3 triage T-integration-kyc-07; the cause of every remaining false alarm on clean scans). Each JPEG becomes its own document, so a page holding the printed totals or the closing balance is checked against that page's rows only: `bs_totals` (high), `bs_page_chain` and `bs_period_continuity` (medium) fire on the clean `scan_hq`, `scan_lq` and `photo` bundles (eval false-alarm section: 114 high or medium flags per render over 3 bundles, `scan_pdf` 0). Fix path: the C2 packet splitter and a same-account merge of consecutive statement pages (classification.md section 8), or a fragment guard in the bank rules that skips printed-total checks when a page marker says `Page x of y` with y above the pages present. Neither is built; the rules are not retuned for it because that would hide a real removed page.
+- **A statement uploaded as one image per page is reassembled only when the cues allow it** (`backend/app/assemble.py`, section 4.11). It addresses the earlier gap where each JPEG became its own document and the printed-total rules fired on the clean `scan_hq`, `scan_lq` and `photo` bundles (114 high or medium flags per render over 3 clean bundles on the dev seed, `scan_pdf` 0; the evaluation oracle then had a defect that inflated this: on a second seed the original code gave 117 with the defective oracle and 71 with the oracle corrected, and the final code gave 0 on 3 clean bundles per render, with oracle extraction in every case; with real OCR instead of the oracle the same kind of clean bundles still raised flags, so 0 is an upper bound). Pages that cannot be completed or told apart are reported as not reviewed instead of flagged, which means a removed page on a per-page upload is no longer a flag (see 4.11 limits).
 
 ## Contract requests
 

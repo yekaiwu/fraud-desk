@@ -176,6 +176,7 @@ class Document(Strict):
     words: list[Word] = []               # text-layer words for the document's pages; excluded from default API output
     warnings: list[str] = []
     error: str | None = None
+    statement: StatementLink | None = None  # only for a bank statement page that arrived as its own image and is part of a longer statement: group, state "assembled" | "incomplete" | "ambiguous", members, reason, parts, missing (ingest-and-extraction.md 4.11); left out of the JSON when None
 
 class Flag(Strict):                      # plan 8.3
     id: str                              # "<rule>.<document_ids joined '+'>.<locator>" built only by make_flag()

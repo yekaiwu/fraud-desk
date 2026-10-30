@@ -16,8 +16,9 @@ function withUnchecked(): CaseDetail {
     { file_id: f.id, page: 2, reason: "not_checked" as const },
     { file_id: f.id, page: 3, reason: "low_confidence" as const },
     { file_id: f.id, page: 4, reason: "no_document" as const },
+    { file_id: f.id, page: 5, reason: "statement_incomplete" as const },
   ];
-  return { ...c, coverage: { ...c.coverage!, pages_unchecked: 3, unchecked_pages: pages } };
+  return { ...c, coverage: { ...c.coverage!, pages_unchecked: 4, unchecked_pages: pages } };
 }
 
 describe("UncheckedPagesPanel", () => {
@@ -25,11 +26,13 @@ describe("UncheckedPagesPanel", () => {
     const c = withUnchecked();
     render(<UncheckedPagesPanel c={c} onView={() => {}} />);
     const items = within(screen.getByRole("list")).getAllByRole("listitem");
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(4);
     expect(items[0]).toHaveTextContent(new RegExp(`page 2 of ${c.files[0].name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"));
     expect(items[0]).toHaveTextContent("Its document was received but not checked.");
     expect(items[1]).toHaveTextContent("We were not confident what kind of page this is.");
     expect(items[2]).toHaveTextContent("It does not belong to any document we recognised.");
+    expect(items[3]).toHaveTextContent("part of a scanned statement we could not put back together");
+    expect(items[3]).not.toHaveTextContent("statement_incomplete");
   });
 
   it("opens the page when View page is pressed", async () => {
@@ -52,7 +55,7 @@ describe("UncheckedPagesPanel", () => {
 describe("uncheckedPageList", () => {
   it("prefers the backend's list", () => {
     const c = withUnchecked();
-    expect(uncheckedPageList(c)).toHaveLength(3);
+    expect(uncheckedPageList(c)).toHaveLength(4);
   });
 
   it("derives the list when an older analysis comes back with an empty one but a non-zero count", () => {
