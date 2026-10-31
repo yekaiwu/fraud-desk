@@ -6,23 +6,23 @@ Status: the shared base (switch, claim schema, evidence verifier, call wrapper, 
 
 The rules in [check-catalogue.md](check-catalogue.md) compare values: sums, dates, registry fields, name strings. They cannot read meaning. A transaction described as a crypto top-up on the statement of a wholesale electronics firm, or a description that is a paraphrase of the declared business, is invisible to a string matcher. A language model can read it, but a model can also be wrong, be talked into things by the document it reads, and say things that are not in the document.
 
-So model-derived signals are a separate layer with stricter rules than the deterministic checks. They are **off by default**, they can only **add** attention (never remove it), they must **quote the extracted data** for everything they say, and a model failure is shown as "not checked", never as "fine". The deterministic checks do not depend on any of it.
+So model-derived signals are a separate layer with stricter rules than the deterministic checks. They are **on whenever a model is configured** (and off with the fake backend), they can only **add** attention (never remove it), they must **quote the extracted data** for everything they say, and a model failure is shown as "not checked", never as "fine". The deterministic checks do not depend on any of it.
 
 ## 2. The six invariants
 
 | # | Invariant | Where it is enforced in code |
 |---|---|---|
-| 1 | Off by default (`GLDB_SEMANTIC=off`). Off means byte-identical behaviour and eval numbers: the semantic checks are not even registered as applicable, so coverage ratios do not change. | `Settings.semantic`; `checks.registry.all_checks(settings)` and `applicable(ctx)` add semantic checks only when it is on; `result_settings()` lists the switch only when on, so the provenance hash of an off run does not move. |
+| 1 | On when a model is configured, switchable (`GLDB_SEMANTIC=off`). Off means byte-identical behaviour and eval numbers: the semantic checks are not even registered as applicable, so coverage ratios do not change. | `Settings.semantic`; `checks.registry.all_checks(settings)` and `applicable(ctx)` add semantic checks only when it is on; `result_settings()` lists the switch only when on, so the provenance hash of an off run does not move. |
 | 2 | Evidence-bound. The model returns structured claims. Each claim cites document id, a field or a table row (and optionally a column), and the quoted value. Code checks that the document was shown to the model, that the field or row exists, and that the quote appears in that cell's extracted text. A claim with any unverifiable citation is dropped and counted; it is never shown as a flag. | `semantic/claims.py` (`verify_claims`). Counts go to `CheckRun.reason` as `claims proposed=4 kept=3 dropped=1 why=quote_not_found:1`. |
 | 3 | Capped. A model-derived flag is at most `medium`. It never moves a case into the fast lane and never lowers a score. A failed, timed-out or malformed call marks the check as not run (coverage down, case partial), never as passed. | `semantic/policy.py` (`cap_severity`) applied in `semantic/claims.py`, `semantic/flags.py`, `semantic/registry.py` and again in `checks.registry.run_stage_checks` (so a catalogue override cannot lift it either); `queue.py` (fast-lane rules, section 6); `semantic/call.py` (`SemanticNotRun`, section 5). |
 | 4 | All document text is untrusted. | Document text is rendered by `semantic/render.py` into the `user` message inside `wrap_untrusted` delimiters whose nonce is a hash of the enclosed text; instructions live in `system` and never contain document text; the system prompt says the delimited text is data. Semantic canaries are in `backend/tests/test_semantic_canaries.py` and `_eval/canaries.py` (section 8). |
 | 5 | Deterministic where the backend allows. Temperature 0, prompt hash and model name in the cache key, prompts registered with `register_prompt` (so they are hashed into the provenance record). | `semantic/call.py` registers the prompt on every call and puts `sem<version>:<prompt sha>` in `cache_extra`; the clients add the model name, the full request hash and `t0`. Caveat in section 9. |
 | 6 | Fairness. The existing name-group slice is rerun with the features on; the flag-rate disparity across name groups must not increase. | Measured by the feature work and reported in section 10; not enforced by the base. |
 
-## 3. How to turn it on
+## 3. How to turn it on or off
 
 ```
-GLDB_SEMANTIC=on            # off (default) | on; true/false/1/0 are accepted
+GLDB_SEMANTIC=              # empty = on when a model is configured, off with the fake backend; on | off, true/false/1/0 are accepted
 GLDB_SEMANTIC_MAX_CLAIMS=8  # claims kept per model call; more are dropped and counted
 ```
 

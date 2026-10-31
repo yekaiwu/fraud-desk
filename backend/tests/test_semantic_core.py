@@ -92,12 +92,20 @@ def verify(claims: list[dict[str, Any]], docs: list[Document] | None = None, **k
 # ------------------------------------------------------------------------------- the switch
 
 
-def test_default_is_off_and_env_spellings_parse(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert Settings(_env_file=None).semantic == "off"
-    assert not semantic_enabled(Settings(_env_file=None))
-    for raw, want in (("on", "on"), ("TRUE", "on"), ("1", "on"), ("off", "off"), ("", "off")):
+def test_default_follows_the_backend_and_env_spellings_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in ("GLDB_SEMANTIC", "GLDB_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    fake = Settings(_env_file=None, llm_backend="fake")
+    assert fake.semantic == "off" and not semantic_enabled(fake)  # nothing to run the checks on
+    real = Settings(_env_file=None, llm_backend="openai", llm_api_key="x")
+    assert real.semantic == "on" and semantic_enabled(real)
+    assert Settings(_env_file=None, llm_backend="openai", llm_api_key="x", semantic="off").semantic == "off"
+    for raw, want in (("on", "on"), ("TRUE", "on"), ("1", "on"), ("off", "off"), ("0", "off")):
         monkeypatch.setenv("GLDB_SEMANTIC", raw)
-        assert Settings(_env_file=None).semantic == want
+        assert Settings(_env_file=None, llm_backend="fake").semantic == want
+    monkeypatch.setenv("GLDB_SEMANTIC", "")  # empty = the default for the backend
+    assert Settings(_env_file=None, llm_backend="fake").semantic == "off"
+    assert Settings(_env_file=None, llm_backend="openai", llm_api_key="x").semantic == "on"
     monkeypatch.setenv("GLDB_SEMANTIC", "maybe")
     with pytest.raises(ValueError):
         Settings(_env_file=None)

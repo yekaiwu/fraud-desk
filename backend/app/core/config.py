@@ -83,9 +83,11 @@ class Settings(BaseSettings):
     # place the model sees pixels). Empty = on in that setup and off elsewhere; false turns it off.
     llm_vision_fallback: bool | None = None
 
-    # semantic signals (docs/semantic-signals.md): model-derived, evidence-bound checks; OFF by default.
-    # "off" -> the checks are not even registered as applicable, every result is byte-identical.
-    semantic: Literal["off", "on"] = "off"
+    # semantic signals (docs/semantic-signals.md): model-derived, evidence-bound checks. Empty = on
+    # whenever a real model is configured (anthropic or openai) and off with the fake backend, where
+    # they could only come back "not run". "off" -> the checks are not even registered as
+    # applicable, every result is byte-identical.
+    semantic: Literal["off", "on"] | None = None
     semantic_max_claims: int = 8  # claims kept per model call (more are dropped and counted)
 
     # modes
@@ -129,7 +131,9 @@ class Settings(BaseSettings):
             low = v.strip().lower()
             if low in ("1", "true", "yes", "on"):
                 return "on"
-            if low in ("", "0", "false", "no", "off"):
+            if low == "":
+                return None
+            if low in ("0", "false", "no", "off"):
                 return "off"
         return v
 
@@ -154,6 +158,8 @@ class Settings(BaseSettings):
                 self.llm_vision_fallback = not self.llm_supports_vision
         elif self.llm_vision_fallback is None:
             self.llm_vision_fallback = False
+        if self.semantic is None:
+            self.semantic = "off" if self.effective_llm_backend() == "fake" else "on"
         return self
 
     # ----------------------------------------------------------------------------------

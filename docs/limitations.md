@@ -133,7 +133,7 @@ What is not proven:
 
 ## 11. Semantic signals: what a model adds, and what it cannot be trusted with
 
-Three optional checks let a language model read meaning that the rules cannot: what a bank-statement line is (`sem_txn_labels`), whether two differently written names are one entity (`sem_entity_link`), and whether what is declared fits what the documents show (`sem_goods_fit`, `sem_income_fit`, `sem_coherence_fit`). They are off by default (`GLDB_SEMANTIC=off`), and with them off nothing changes: the checks are not even counted, so no existing number or coverage ratio moves. The design is in `docs/semantic-signals.md`. The held-out results are in `docs/eval-results/semantic/summary.md` (a local file; see "How to read the evidence links" above) with the numbers in `docs/eval-results/semantic/metrics.json`.
+Three checks (five rules) let a language model read meaning that the rules cannot: what a bank-statement line is (`sem_txn_labels`), whether two differently written names are one entity (`sem_entity_link`), and whether what is declared fits what the documents show (`sem_goods_fit`, `sem_income_fit`, `sem_coherence_fit`). They are on whenever a model is configured and can be turned off with `GLDB_SEMANTIC=off`; with them off nothing changes: the checks are not even counted, so no existing number or coverage ratio moves. The design is in `docs/semantic-signals.md`. The held-out results are in `docs/eval-results/semantic/summary.md` (a local file; see "How to read the evidence links" above) with the numbers in `docs/eval-results/semantic/metrics.json`.
 
 What they add, measured on a held-out set (seed 7001) with a local 27B model, one run of frozen prompts, three repeats:
 
