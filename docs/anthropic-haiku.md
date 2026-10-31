@@ -107,8 +107,12 @@ A sweep of 30 clean scanned bundles (seed 6101, the seed the fixes were tuned on
 | Haiku reading page images | 12 of 30 (40%), 8 of them `passport_mrz` |
 | Tesseract + Haiku text, plus the row-count guard and tolerant payer matching | 12 of 30 (40%); no arithmetic false alarms left |
 | plus the second reading (`app/verify_reading.py`) | 3 of 30 (10%); 8 of 8 tampered bundles still caught |
+| same code, fresh seed 9101 (held-out, run once) | 1 of 30 (3.3%, interval 0.6% to 17%); 16 of 16 tampered bundles caught |
+| same code, fresh seed 9102 (held-out, run once, 15 clean) | 2 of 15 (13%, interval 4% to 38%) |
+| pooled held-out, rule-based flags | 3 of 45 (6.7%, interval 2% to 18%) |
+| pooled held-out, rule-based or model-based flag | 6 of 45 (13%, interval 6% to 26%); the three extra are `sem_coherence_fit` flags on scans that the digital render did not raise |
 
-The second reading re-reads a case with scan flags using the other reader and keeps a flag only if the same rule is raised on the same first document. It is on by default under the anthropic backend (`GLDB_VERIFY_SCAN_FLAGS`). A set-aside flag keeps its place on the case as `info`, so nothing disappears from the audit trail. Limits: tuning data only; the held-out seed (9101) is built but not yet run; no low-quality scans or photos; 8 tampered bundles is a tiny recall sample (a real forgery that both readings reproduce is kept, and one that only one reading reproduces would be set aside); synthetic data; the second reading costs about as much again as the first and adds minutes of latency to the cases that need it.
+The second reading re-reads a case with scan flags using the other reader and keeps a flag only if the same rule is raised on the same first document. It is on by default under the anthropic backend (`GLDB_VERIFY_SCAN_FLAGS`). A set-aside flag keeps its place on the case as `info`, so nothing disappears from the audit trail. Limits: tuning data only; the held-out rows are one run of each seed with the code frozen, but 45 clean bundles cannot show a rate under 10% (the upper bound is 18%), and the model-based `sem_` flags are not part of the second reading (they are what keeps the any-flag rate at 13%); no low-quality scans or photos; 16 tampered bundles is a small recall sample (a real forgery that both readings reproduce is kept, and one that only one reading reproduces would be set aside); synthetic data; the second reading costs about as much again as the first and adds minutes of latency to the cases that need it.
 
 ## 6. Pricing
 
