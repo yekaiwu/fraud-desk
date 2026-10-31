@@ -161,6 +161,8 @@ After the held-out run, a review found three places where a failed reply could r
 
 Known open items for the semantic checks. These are stated here so that nobody reads the section above as "all fixed".
 
+- Fixed after the held-out run, found on a real pipeline run (2026-10-31): the three fit prompts showed example citations with evaluation-style ids (`invoice:INV-0001`), but in the product every document id is `d<N>`. The model copied the example form (it cited `invoice:INV-0011` for `d11`), the verifier dropped the claim as `document_not_provided`, and the check reported "ran, no flag". The evaluation never saw this because its documents carried keyed ids. The examples now use the product form (`d3`, `d5`, `d7`; `backend/app/semantic/fit.py`). This changes the text of the three fit prompts after the held-out run, so the recorded fit numbers describe the old text and have not been re-run. Checked once afterwards on four variants of one AML bundle (a clean control and one edit per family): each edit raised its fit flag, the control raised none. That is a smoke test, not an evaluation.
+
 - Review findings that are confirmed and not fixed:
   - The provenance `prompt_hash` depends on process history. Semantic prompts are registered on first use, so with the switch on the hash covers only the prompts used so far in that process. Two runs of the same case can record different hashes.
   - `/health`, `/explain` and the rule-effectiveness table ignore `GLDB_SEMANTIC`. They list the rules as if the switch were off, so the semantic checks do not appear there (and the ruleset version `/explain` shows can differ from the one stamped on a case run with the switch on).

@@ -74,7 +74,7 @@ _ANSWER_RULES = (
     'If it is unusual or does_not_fit, return at most 3 claims of kind "{kind}", each one citing '
     "the data it rests on, with the quotes copied exactly. "
     "In a citation, document_id is the id printed after the word document on the first line of the "
-    "block (for example invoice:INV-0001 or company_profile:-), never the DOC-... marker of the "
+    "block (for example d3 or d12), never the DOC-... marker of the "
     "block. To cite a field give field, the name printed after the word field. To cite a table line "
     "give table, row (the number printed after the word row) and column. "
     "When unsure between fits and unusual, answer fits. When unsure between unusual and "
@@ -97,7 +97,7 @@ GOODS_TASK = (
     "names.\n"
     "Each claim cites only the odd invoice lines; the declared activity is added by the system. A "
     "citation looks like "
-    '{"document_id": "invoice:INV-0001", "table": "lines", "row": 2, "column": '
+    '{"document_id": "d3", "table": "lines", "row": 2, "column": '
     '"description", "quote": "<the description copied exactly>"}; always give table and row.\n'
     + _ANSWER_RULES.format(kind="goods_industry_mismatch")
 )
@@ -119,7 +119,7 @@ INCOME_TASK = (
     "judge names, dates or account numbers. If there are several declarations, answer for the "
     "least plausible one.\n"
     "Each claim cites the description, always with its field name: "
-    '{"document_id": "source_of_funds_declaration:-", "field": "origin_description", "quote": '
+    '{"document_id": "d5", "field": "origin_description", "quote": '
     '"<the words naming the job or role, copied exactly>"}. '
     "It may also cite the field declared_amount the same way.\n"
     + _ANSWER_RULES.format(kind="income_occupation_implausible")
@@ -145,7 +145,7 @@ COHERENCE_TASK = (
     "Do not judge amounts, dates or whether a name is familiar.\n"
     "Each claim cites only the odd statement lines; the declared activity is added by the system. "
     "A citation looks like "
-    '{"document_id": "bank_statement:2025-09", "table": "transactions", "row": 4, "column": '
+    '{"document_id": "d7", "table": "transactions", "row": 4, "column": '
     '"description", "quote": "<the description copied exactly>"}; always give table and row.\n'
     + _ANSWER_RULES.format(kind="activity_incoherence")
 )
