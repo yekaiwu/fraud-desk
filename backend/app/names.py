@@ -463,6 +463,26 @@ def is_truncation(a: str | None, b: str | None) -> bool:
     return len(short) >= TRUNCATION_MIN_CHARS and short != long_ and long_.startswith(short)
 
 
+def company_in_text(name: str | None, text: str | None) -> bool:
+    """The company's name (without its legal form) appears, word for word, inside ``text``.
+
+    A word may be one letter off when it has four letters or more. Meant for free text such as a bank
+    description, where OCR noise around a correct name (``EROM VANTAGE TRADING PTE LTD St2026``) must
+    not turn the right payer into a different one. A one-word name must be 6+ letters long."""
+    wanted, _, _ = _company_forms(name)
+    if not wanted or (len(wanted) == 1 and len(wanted[0]) < 6):
+        return False
+    _, words, _ = _company_forms(text)
+
+    def same(a: str, b: str) -> bool:
+        return a == b or (len(a) >= 4 and len(a) == len(b) and _edit_one(a, b))
+
+    return any(
+        all(same(words[i + j], w) for j, w in enumerate(wanted))
+        for i in range(len(words) - len(wanted) + 1)
+    )
+
+
 def has_legal_token(name: str | None) -> bool:
     return _company_forms(name)[2]
 

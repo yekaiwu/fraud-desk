@@ -19,6 +19,7 @@ Order of work for one document, mode ``GLDB_EXTRACTOR_MODE`` (``text_layer`` | `
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from typing import Any
 
 from app.core.context import CaseContext
 from app.core.models import Cell, DocStatus, Document, Row
+from app.core.textlayout import layout_text
 from app.extract.base import ExtractionMeta, ExtractionResult, LayoutNotRecognised, Validation
 from app.extract.llm_extractor import (
     LLMExtractor,
@@ -41,6 +43,12 @@ log = logging.getLogger("gldb.extract")
 
 MAX_WARNINGS = 50
 UNSTABLE_FRACTION = 0.10
+# a statement line starts with its date: "01 Jul 2025", "01/07/2025", "2025-07-01"
+_DATE_LED = re.compile(
+    r"^\s*(\d{1,2}[ /.-](?:[A-Za-z]{3,9}|\d{1,2})[ /.-]\d{2,4}|\d{4}-\d{2}-\d{2})\b"
+)
+ROWS_MISSING_MIN = 3  # at least this many date-led lines without a row ...
+ROWS_MISSING_SHARE = 0.75  # ... and fewer rows than this share of the date-led lines
 _VALUE_KINDS = {"money", "decimal", "percent", "int", "date"}
 _DERIVED_COLUMNS = {
     ("financial_statement", "line"),
@@ -128,7 +136,30 @@ class _Run:
     def validate(self, result: ExtractionResult) -> Validation:
         if self.validator is None:
             return Validation()
-        return self.validator(result, self.ctx, self.doc)
+        validation = self.validator(result, self.ctx, self.doc)
+        for page, reason in self.rows_missing(result).items():
+            validation.failing.setdefault(page, reason)
+        return validation
+
+    def rows_missing(self, result: ExtractionResult) -> dict[int, str]:
+        """Scanned statement pages where the reading holds far fewer rows than the page has date-led
+        lines. A reader that stops after the first row passes every arithmetic test (one row always
+        chains), so the count against the page text is the only evidence of the gap."""
+        table = result.tables.get("transactions")
+        if self.doc.doc_type != "bank_statement" or table is None:
+            return {}
+        pages = result.row_pages.get("transactions") or [self.doc.page_start] * len(table.rows)
+        out: dict[int, str] = {}
+        for page, state in self.states.items():
+            if not state.is_scan or not state.words:
+                continue
+            dated = sum(
+                1 for line in layout_text(state.words).splitlines() if _DATE_LED.match(line)
+            )
+            got = sum(1 for p in pages if p == page)
+            if dated - got >= ROWS_MISSING_MIN and got < ROWS_MISSING_SHARE * dated:
+                out[page] = "rows_missing"
+        return out
 
     def strong_skipped_same_model(self) -> bool:
         s = self.settings

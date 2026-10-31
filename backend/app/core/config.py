@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     # lets a scanned page whose arithmetic does not add up be re-read once from its image (the one
     # place the model sees pixels). Empty = on in that setup and off elsewhere; false turns it off.
     llm_vision_fallback: bool | None = None
+    # A flag raised on scanned pages must be reproduced by a second, different reading of the same
+    # pages (Tesseract text <-> the model reading page images) before it counts. Empty = on under the
+    # anthropic backend; false keeps every first-reading flag as it was.
+    verify_scan_flags: bool | None = None
 
     # semantic signals (docs/semantic-signals.md): model-derived, evidence-bound checks. Empty = on
     # whenever a real model is configured (anthropic or openai) and off with the fake backend, where
@@ -137,7 +141,9 @@ class Settings(BaseSettings):
                 return "off"
         return v
 
-    @field_validator("today", "prices_path", "db_path", "llm_vision_fallback", mode="before")
+    @field_validator(
+        "today", "prices_path", "db_path", "llm_vision_fallback", "verify_scan_flags", mode="before"
+    )
     @classmethod
     def _empty_is_none(cls, v: Any) -> Any:
         if isinstance(v, str) and not v.strip():
@@ -158,6 +164,8 @@ class Settings(BaseSettings):
                 self.llm_vision_fallback = not self.llm_supports_vision
         elif self.llm_vision_fallback is None:
             self.llm_vision_fallback = False
+        if self.verify_scan_flags is None:
+            self.verify_scan_flags = self.effective_llm_backend() == "anthropic"
         if self.semantic is None:
             self.semantic = "off" if self.effective_llm_backend() == "fake" else "on"
         return self
@@ -283,6 +291,8 @@ class Settings(BaseSettings):
         }
         if not self.llm_enable_thinking:
             out["llm_enable_thinking"] = "False"
+        if self.verify_scan_flags:  # listed only when on: other runs keep their provenance hash
+            out["verify_scan_flags"] = "on"
         if self.semantic != "off":  # listed only when on: the hash of every other run is unchanged
             out["semantic"] = self.semantic
             out["semantic_max_claims"] = str(self.semantic_max_claims)

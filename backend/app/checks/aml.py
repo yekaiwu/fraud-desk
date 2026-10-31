@@ -22,6 +22,7 @@ from app.core.money import fmt_money
 from app.graph import APPLICANT_KEY, EntityGraph, counterparty_of, doc_number, uen_in
 from app.names import (
     cell_region,
+    company_in_text,
     entity_key,
     has_legal_token,
     labelled,
@@ -534,6 +535,8 @@ def _matches_buyer(credit: _Credit, remitter: str | None, inv: _Invoice) -> bool
         return desc_uen == inv.buyer_uen
     if not inv.buyer:
         return None
+    if company_in_text(inv.buyer, credit.row.cells["description"].text()):
+        return True  # the buyer's name is on the line; noise around it is a reading problem
     verdict = match_company(remitter, inv.buyer, allow_truncation=True).verdict
     if verdict == "indeterminate":
         return None

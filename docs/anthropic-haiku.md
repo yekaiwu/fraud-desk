@@ -96,6 +96,20 @@ How to read it. The Tesseract settings and its three text repairs (a stray comma
 
 What made Tesseract work, in order of effect: one box per table cell instead of per line (the pipeline spreads a box's words evenly, which erased the debit and credit columns), keeping column positions in the text sent to Haiku, reading the page at about 1.7 times the scan resolution, and the vision fallback for the pages whose arithmetic still failed.
 
+### 5c. Scan reading: a wider measurement, and the second reading (2026-10-31)
+
+A sweep of 30 clean scanned bundles (seed 6101, the seed the fixes were tuned on; 10 each of loan, KYC and AML; high-quality scans only) gave these clean-bundle false-alarm counts, each against the digital render of the same bundle run with the same model checks (the digital re-run differs in 1 of 30):
+
+| Setup | Clean bundles with a medium or high flag the digital version lacks |
+|---|---|
+| Tesseract + Haiku text, first version | 24 of 30 (80%) |
+| after OCR repairs (ID check letters, `PTE LTD`, separators, clipped invoice numbers, low-confidence re-reads) | 13 of 30 (43%) |
+| Haiku reading page images | 12 of 30 (40%), 8 of them `passport_mrz` |
+| Tesseract + Haiku text, plus the row-count guard and tolerant payer matching | 12 of 30 (40%); no arithmetic false alarms left |
+| plus the second reading (`app/verify_reading.py`) | 3 of 30 (10%); 8 of 8 tampered bundles still caught |
+
+The second reading re-reads a case with scan flags using the other reader and keeps a flag only if the same rule is raised on the same first document. It is on by default under the anthropic backend (`GLDB_VERIFY_SCAN_FLAGS`). A set-aside flag keeps its place on the case as `info`, so nothing disappears from the audit trail. Limits: tuning data only; the held-out seed (9101) is built but not yet run; no low-quality scans or photos; 8 tampered bundles is a tiny recall sample (a real forgery that both readings reproduce is kept, and one that only one reading reproduces would be set aside); synthetic data; the second reading costs about as much again as the first and adds minutes of latency to the cases that need it.
+
 ## 6. Pricing
 
 Haiku 5.5 is billed per request by the size of the prompt:

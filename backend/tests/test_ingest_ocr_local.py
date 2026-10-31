@@ -537,3 +537,98 @@ def test_tesseract_upscales_a_small_page_before_reading(monkeypatch: pytest.Monk
     boxes = TesseractOcr().recognise(buf.getvalue())
     assert seen["size"] == (round(1240 * 2600 / 1754), 2600)  # scaled to the target long side
     assert boxes[0].x == pytest.approx(1000 / seen["size"][0])  # fractions use the scaled size
+
+
+@pytest.mark.parametrize(
+    ("raw", "want"),
+    [
+        ("$31290441", "S3129044I"),  # S read as $, check letter I read as 1
+        ("M430707420", "M43070742O"),  # FIN: check letter O read as 0
+        ("$****7491", "S****749I"),  # masked ID card number
+        ("M32552516l", "M32552516I"),  # lower-case l for I
+        ("201741243k),", "201741243K),"),
+        ("167.289.02", "167,289.02"),  # separators read as full stops
+        ("1.234.567.89", "1,234,567.89"),
+        ("8916269856", "8916269856"),  # an account number is not an ID
+        ("$1,872.21", "$1,872.21"),  # a dollar amount stays
+        ("12.345", "12.345"),
+        ("S3129044I", "S3129044I"),
+        ("S1-2026-0112,", "SI-2026-0112,"),  # the I of an invoice number
+        ("S!-2026-0110", "SI-2026-0110"),
+        ("S1-2026", "S1-2026"),
+    ],
+)
+def test_token_repairs_follow_the_shape_of_ids_and_amounts(raw: str, want: str) -> None:
+    assert clean_tesseract_token(raw) == want
+
+
+@pytest.mark.parametrize(
+    ("line", "want"),
+    [
+        ("PAYMENT TO ACME PTE LID", "PAYMENT TO ACME PTE LTD"),
+        ("X ETE LTD", "X PTE LTD"),
+        ("X PTELTD", "X PTE LTD"),
+        ("BLUE PIE LTD", "BLUE PIE LTD"),  # a real word next to an intact LTD is left alone
+        ("BLUE PIE LID", "BLUE PTE LTD"),
+        ("UEN 2021839802", "UEN 202183980Z"),
+        ("Account 8916269856", "Account 8916269856"),
+        ("Acme Pte Ltd", "Acme Pte Ltd"),
+    ],
+)
+def test_line_repairs_need_context(line: str, want: str) -> None:
+    assert " ".join(ocr_backends.repair_line_tokens(line.split())) == want
+
+
+def _tsv(*words: tuple[int, int, int, int, float, str]) -> str:
+    head = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"
+    rows = [
+        f"5\t1\t1\t1\t{1 + i}\t1\t{x}\t{y}\t{w}\t{h}\t{conf}\t{text}"
+        for i, (x, y, w, h, conf, text) in enumerate(words)
+    ]
+    return "\n".join([head, *rows])
+
+
+def _words(tsv: str) -> list[str]:
+    return [r.split("\t")[11] for r in tsv.splitlines()[1:]]
+
+
+def _bare_ocr() -> ocr_backends.TesseractOcr:
+    ocr = object.__new__(ocr_backends.TesseractOcr)  # the passes under test never start the program
+    return ocr
+
+
+def test_sparse_pass_completes_a_clipped_header_value() -> None:
+    page = _tsv(
+        (100, 50, 120, 20, 92.0, "nvoice"),
+        (240, 50, 30, 20, 96.0, "No:"),
+        (300, 50, 140, 22, 90.0, "-2025-010"),
+    )
+    sparse = _tsv(
+        (100, 50, 140, 20, 96.0, "Invoice"),
+        (260, 50, 30, 20, 93.0, "No:"),
+        (300, 50, 200, 22, 89.0, "INV-2025-0107"),
+    )
+    assert "INV-2025-0107" in _words(_bare_ocr()._complete_truncated_words(page, sparse))
+
+
+def test_sparse_pass_leaves_a_correct_word_and_unrelated_differences_alone() -> None:
+    page = _tsv((100, 50, 140, 20, 96.0, "Total"), (300, 50, 140, 22, 90.0, "1,234.50"))
+    sparse = _tsv((100, 50, 140, 20, 96.0, "Total"), (300, 50, 140, 22, 90.0, "1,284.50"))
+    # the page pass is complete and confident, so a different sparse reading does not replace it
+    assert _words(_bare_ocr()._complete_truncated_words(page, sparse)) == ["Total", "1,234.50"]
+
+
+def test_sparse_pass_ignores_a_low_confidence_sparse_word() -> None:
+    page = _tsv((300, 50, 140, 22, 90.0, "-2025-010"))
+    sparse = _tsv((300, 50, 200, 22, 40.0, "INV-2025-0107"))
+    assert _words(_bare_ocr()._complete_truncated_words(page, sparse)) == ["-2025-010"]
+
+
+def test_id_check_letter_read_as_a_bang_and_noise_words() -> None:
+    assert clean_tesseract_token("$7665258!") == "S7665258I"
+    assert clean_tesseract_token("S4966384|") == "S4966384I"
+    assert ocr_backends._is_noise("ee", 12.0)
+    assert ocr_backends._is_noise("————", 90.0)
+    assert not ocr_backends._is_noise("ee", 80.0)  # Tesseract is sure of it
+    assert not ocr_backends._is_noise("123", 5.0)  # digits stay whatever the confidence
+    assert not ocr_backends._is_noise("Acme", 10.0)  # longer words stay

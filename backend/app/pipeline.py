@@ -15,7 +15,7 @@ import time
 from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Literal
+from typing import Any, Literal
 
 from app.checks.registry import run_stage_checks
 from app.core.cache import ResponseCache
@@ -70,16 +70,23 @@ def _run_registry_stage(
 ) -> StageOutcome:
     runs = run_stage_checks(ctx, stage)
     errors = [r for r in runs if r.status == "error"]
-    return StageOutcome(
-        detail={
-            "checks": len(runs),
-            "ran": sum(1 for r in runs if r.status == "ran"),
-            "skipped": sum(1 for r in runs if r.status == "skipped"),
-            "errors": len(errors),
-            "flags": sum(r.flags for r in runs),
-        },
-        warnings=[f"check_error:{r.rule}: {r.reason}" for r in errors],
-    )
+    detail: dict[str, Any] = {
+        "checks": len(runs),
+        "ran": sum(1 for r in runs if r.status == "ran"),
+        "skipped": sum(1 for r in runs if r.status == "skipped"),
+        "errors": len(errors),
+        "flags": sum(r.flags for r in runs),
+    }
+    warnings = [f"check_error:{r.rule}: {r.reason}" for r in errors]
+    if stage == "crossdoc":
+        from app.verify_reading import confirm_scan_flags
+
+        summary = confirm_scan_flags(ctx)
+        note = summary.pop("warning", None)
+        if note:
+            warnings.append(str(note))
+        detail.update(summary)
+    return StageOutcome(detail=detail, warnings=warnings)
 
 
 # --------------------------------------------------------------------------------------

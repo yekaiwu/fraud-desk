@@ -527,3 +527,22 @@ def test_one_initial_matches_a_longer_name_on_the_name_alone_and_asks_for_the_id
         st = identity_status(a, None, b, None)
         assert st.match == "match" and st.needs == "id"
     assert match_person("J. Wong", "Peter Wong").verdict == "different"
+
+
+def test_company_in_text_tolerates_noise_around_a_correct_name() -> None:
+    from app.names import company_in_text
+
+    assert company_in_text("Vantage Trading Pte. Ltd.", "EROM VANTAGE TRADING PTE LTD St2026-0108")
+    assert company_in_text(
+        "Vantage Trading Pte. Ltd.", "FAST PAYMENT FROM VANTAGF TRADING PTE LTD"
+    )  # one letter
+    assert not company_in_text(
+        "Vantage Trading Pte. Ltd.", "FAST PAYMENT FROM ORION HOLDINGS PTE LTD"
+    )
+    assert not company_in_text(
+        "Vantage Trading Pte. Ltd.", "VANTAGE FREIGHT PTE LTD"
+    )  # one word shared is not the name
+    assert not company_in_text(
+        "Ace Pte Ltd", "PAYMENT FROM ACE TRADING"
+    )  # too short to stand alone
+    assert not company_in_text(None, "ANYTHING")

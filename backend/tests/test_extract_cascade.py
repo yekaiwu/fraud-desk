@@ -557,3 +557,36 @@ def test_without_the_fallback_a_same_model_scan_is_not_reread(tmp_path: Path) ->
     )
     extract_document(doc, ctx, render=RENDER)
     assert [c.model_role for c in llm.calls] == ["cheap"]
+
+
+def test_a_scan_page_with_far_fewer_rows_than_date_lines_is_reread(tmp_path: Path) -> None:
+    """A reader that stops after one row passes every arithmetic test; the page text shows the gap."""
+    spec = scan_spec()
+
+    def stops_early(req):  # noqa: ANN001, ANN202
+        page = bank_page_json(spec, page_of(req))
+        page["tables"]["transactions"] = page["tables"]["transactions"][:1]
+        return page
+
+    llm = FakeLLMClient(
+        {
+            "extract:bank_statement:cheap": stops_early,
+            "extract:bank_statement:strong": per_page(spec),
+        }
+    )
+    settings = S(
+        tmp_path,
+        llm_backend="openai",
+        llm_api_key="k",
+        llm_model_cheap="m",
+        llm_model_strong="m",
+        llm_supports_vision=False,
+        llm_vision_fallback=True,
+    )
+    ctx, doc, _ = make_case(
+        render_statement(spec), "bank_statement", llm=llm, is_scan=True, settings=settings
+    )
+    result, _ = extract_document(doc, ctx, render=RENDER)
+    assert [c.model_role for c in llm.calls] == ["cheap", "strong"]
+    assert len(result.tables["transactions"].rows) == len(statement_truth(spec))
+    assert any("reason=rows_missing" in w for w in result.warnings)

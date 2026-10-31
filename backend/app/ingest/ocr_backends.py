@@ -132,6 +132,16 @@ TESSERACT_INSTALL_HINT = "install the program with: brew install tesseract"
 TESSERACT_TIMEOUT_S = 90
 TESSERACT_TARGET_SIDE_PX = 2600  # pages are upscaled towards this long side, never down
 TESSERACT_MAX_UPSCALE = 2.0
+TESSERACT_DOUBT_CONF = 50.0  # a word below this confidence makes its text line doubtful
+TESSERACT_DOUBT_MIN_HEIGHT = 8  # px; specks of noise are not worth a second look
+TESSERACT_MAX_BANDS = 10  # second looks per page
+TESSERACT_RECHECK_SCALE = 3
+# sparse text: reads a header block set beside another block, which psm 4 clips
+TESSERACT_SPARSE_PSM = 11
+TESSERACT_SPARSE_MIN_CONF = 70.0
+TESSERACT_NOISE_CONF = 30.0  # short letter runs below this confidence are dropped as noise
+# the second reading of a doubtful band must beat the first by this much average confidence
+TESSERACT_RECHECK_GAIN = 5.0
 _TESSERACT_DIRS = (
     "/opt/homebrew/bin",
     "/usr/local/bin",
@@ -166,14 +176,120 @@ _AMOUNT_MARK = re.compile(r"^(\d[\d,]*\.\d{2})(CR|DR)$")  # "5.39CR" : the mark 
 
 # "$****854E": the S of an ID number read as a dollar or section sign
 _ID_SYMBOL = re.compile(r"^[$§](\*{3,}\d{3}[A-Z]|\d{7}[A-Z])$")
+# the check letter of an ID number read as a digit: S3129044I -> "$31290441", M43070742O -> "M430707420"
+_ID_CHECK = re.compile(r"^([STFGM$§])(\d{7}|\d{8})([\d!|])([,.;:)]*)$")
+_ID_CHECK_MASKED = re.compile(r"^([STFGMS$§])(\*{3,}\d{3})([\d!|])([,.;:)]*)$")
+_ID_LOWER_CHECK = re.compile(r"^([STFGM])(\d{7}|\d{8})([a-z])([,.;:)]*)$")  # "M32552516l"
+_UEN_LOWER = re.compile(r"^(\(?\d{9})([a-z])(\)?[,.;:]*)$")  # "201741243k),"
+_UEN_TEN_DIGITS = re.compile(r"^(\d{9})(\d)([,.;:]*)$")
+_UEN_LABELS = {"UEN", "ID/UEN", "UEN/ID", "UEN/REG", "REG"}
+# the I of an "SI-2026-0112" invoice number read as a digit, a bar or a t
+_INVOICE_NO_I = re.compile(r"^S[1!|lt](-\d{4}-\d{3,5})([,.;:]?)$")
+# thousands separators read as full stops: "167.289.02"
+_AMOUNT_DOTS = re.compile(r"^(\d{1,3})((?:\.\d{3})+)\.(\d{2})([,.;:]?)$")
+# a digit standing where a check letter belongs: only the shapes digits and letters really swap into
+_DIGIT_AS_LETTER = {"0": "O", "1": "I", "2": "Z", "5": "S", "6": "C", "8": "B", "!": "I", "|": "I"}
+_SUFFIXES = ("PTE", "LTD")
+_REAL_WORDS = {
+    "PIE",
+    "PET",
+    "PEE",
+    "ATE",
+    "UTE",
+    "LID",
+}  # one letter from a suffix but words in their own right
+
+
+def _core(token: str) -> tuple[str, str, str]:
+    """(leading punctuation, the word, trailing punctuation)."""
+    m = re.match(r"^([(\[\"']*)(.*?)([)\]\"',.;:!]*)$", token)
+    return (m.group(1), m.group(2), m.group(3)) if m else ("", token, "")
+
+
+def _one_off(word: str, target: str) -> bool:
+    return (
+        len(word) == len(target)
+        and sum(a != b for a, b in zip(word.upper(), target, strict=True)) == 1
+    )
+
+
+def _in_style(original: str, word: str) -> str:
+    return word if original.isupper() or not original.isalpha() else word.title()
+
+
+def repair_line_tokens(tokens: list[str]) -> list[str]:
+    """Context repairs on the words of one line, for slips a single word cannot show.
+
+    * the company suffix ``PTE LTD`` with one letter misread (``PTE LID``, ``ETE LTD``, ``PTELTD``);
+    * a ten-digit number right after a UEN label (a UEN is nine digits and a letter).
+    Words are only changed when exactly one character is off, and only next to the other half of the
+    suffix pair or a UEN label, so ordinary words and account numbers are left alone."""
+    out = list(tokens)
+    for i in range(len(out)):
+        pre, word, post = _core(out[i])
+        if re.fullmatch(r"(?i)pte\.?ltd", word) and word.upper() not in ("PTE", "LTD"):
+            joined = re.sub(r"(?i)^(pte)\.?(ltd)$", lambda m: f"{m.group(1)} {m.group(2)}", word)
+            out[i] = pre + (joined.upper() if word.isupper() else joined) + post
+        elif i + 1 < len(out):
+            pre2, word2, post2 = _core(out[i + 1])
+            a_ok, a_off = word.upper() == _SUFFIXES[0], _one_off(word, _SUFFIXES[0])
+            b_ok, b_off = word2.upper() == _SUFFIXES[1], _one_off(word2, _SUFFIXES[1])
+            if a_off and word.upper() in _REAL_WORDS and not b_off:
+                a_off = (
+                    False  # "BLUE PIE LTD": leave a real word alone unless the LTD is damaged too
+                )
+            if b_off and word2.upper() in _REAL_WORDS and not a_off and not a_ok:
+                b_off = False
+            if (a_ok or a_off) and (b_ok or b_off) and (a_off or b_off):
+                out[i] = pre + _in_style(word, _SUFFIXES[0]) + post
+                out[i + 1] = pre2 + _in_style(word2, _SUFFIXES[1]) + post2
+        if i and out[i - 1].strip(":").upper() in _UEN_LABELS:
+            m = _UEN_TEN_DIGITS.match(out[i])
+            if m and m.group(2) in _DIGIT_AS_LETTER:
+                out[i] = m.group(1) + _DIGIT_AS_LETTER[m.group(2)] + m.group(3)
+    return out
+
+
+_RULE_MARKS = re.compile(r"^[\u2014\u2013\-_=~|.\u00b7*]{3,}$")
+
+
+def _is_noise(text: str, conf: float) -> bool:
+    """A row of rule marks, or a short run of letters Tesseract itself hardly believes (``ee``, ``Ee``,
+    ``ete`` read from a smudge or a table border). Digits and anything it is fairly sure of stay."""
+    return bool(_RULE_MARKS.match(text)) or (
+        conf < TESSERACT_NOISE_CONF and len(text) <= 3 and text.isalpha()
+    )
 
 
 def clean_tesseract_token(text: str) -> str:
-    """Repair three habitual Tesseract slips: a stray punctuation speck after an amount, a CR/DR mark
-    glued to the amount, and the S of a (masked) ID card number read as ``$`` or ``§``. Digits are never
-    changed."""
+    """Repair habitual Tesseract slips one word at a time: a stray punctuation speck after an amount, a
+    CR/DR mark glued to the amount, thousands separators read as full stops, and ID numbers (the S read
+    as ``$`` or ``§``, the check letter read as a digit or in lower case). A digit inside an amount is
+    never changed."""
     if _ID_SYMBOL.match(text):
         return "S" + text[1:]
+    for pattern in (_ID_CHECK, _ID_CHECK_MASKED):
+        m = pattern.match(text)
+        if m and m.group(3) in _DIGIT_AS_LETTER:
+            head = "S" if m.group(1) in "$§" else m.group(1)
+            return head + m.group(2) + _DIGIT_AS_LETTER[m.group(3)] + m.group(4)
+    m = _INVOICE_NO_I.match(text)
+    if m:
+        return "SI" + m.group(1) + m.group(2)
+    m = _ID_LOWER_CHECK.match(text)
+    if m:
+        return (
+            m.group(1)
+            + m.group(2)
+            + ("I" if m.group(3) == "l" else m.group(3).upper())
+            + m.group(4)
+        )
+    m = _UEN_LOWER.match(text)
+    if m:
+        return m.group(1) + m.group(2).upper() + m.group(3)
+    m = _AMOUNT_DOTS.match(text)
+    if m:
+        return m.group(1) + m.group(2).replace(".", ",") + "." + m.group(3) + m.group(4)
     speck = _AMOUNT_SPECK.match(text)
     if speck:
         return speck.group(1)
@@ -207,12 +323,14 @@ def tesseract_tsv_to_ocr(tsv: str, width: int, height: int) -> list[OcrBox]:
             conf = float(cols[10])
         except ValueError:
             continue
-        if not text or conf < 0 or w <= 0 or h <= 0:
+        if not text or conf < 0 or w <= 0 or h <= 0 or _is_noise(text, conf):
             continue
         lines.setdefault((cols[2], cols[3], cols[4]), []).append((left, top, w, h, text))
     out: list[OcrBox] = []
     for words in lines.values():
         words.sort(key=lambda w: w[0])
+        fixed = repair_line_tokens([w[4] for w in words])
+        words = [(*w[:4], t) for w, t in zip(words, fixed, strict=True)]
         limit = TESSERACT_CELL_GAP * sorted(w[3] for w in words)[len(words) // 2]
         cells: list[list[tuple[int, int, int, int, str]]] = [[words[0]]]
         for prev, cur in zip(words, words[1:], strict=False):
@@ -248,6 +366,23 @@ class TesseractOcr:
         self.language = language
         self.psm = psm  # 4: a single column of text of variable sizes (6 and 4 read alike; 4 was a hair better)
 
+    def _tsv(self, png: bytes, psm: int) -> str:
+        try:
+            done = subprocess.run(  # noqa: S603 - fixed argv, the image goes in on stdin
+                [self._path, "stdin", "stdout", "-l", self.language, "--psm", str(psm), "tsv"],
+                input=png,
+                capture_output=True,
+                timeout=TESSERACT_TIMEOUT_S,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise OcrUnavailable("tesseract timed out on this page") from exc
+        except OSError as exc:
+            raise OcrUnavailable(f"tesseract could not start ({type(exc).__name__})") from exc
+        if done.returncode != 0:
+            raise OcrUnavailable(f"tesseract failed (exit {done.returncode})")
+        return done.stdout.decode("utf-8", errors="replace")
+
     def recognise(self, png: bytes) -> list[OcrBox]:
         from PIL import Image
 
@@ -265,21 +400,140 @@ class TesseractOcr:
                 image.save(buf, format="PNG")
                 png = buf.getvalue()
             width, height = image.size
-        try:
-            done = subprocess.run(  # noqa: S603 - fixed argv, the image goes in on stdin
-                [self._path, "stdin", "stdout", "-l", self.language, "--psm", str(self.psm), "tsv"],
-                input=png,
-                capture_output=True,
-                timeout=TESSERACT_TIMEOUT_S,
-                check=False,
+            tsv = self._tsv(png, self.psm)
+            tsv = self._complete_truncated_words(tsv, self._tsv(png, TESSERACT_SPARSE_PSM))
+            tsv = self._reread_doubtful_bands(tsv, image)
+        return tesseract_tsv_to_ocr(tsv, width, height)
+
+    @staticmethod
+    def _word_rows(tsv: str) -> list[tuple[int, int, int, int, float, list[str]]]:
+        out = []
+        for cols in (r.split("\t") for r in tsv.splitlines()[1:]):
+            if len(cols) < 12 or cols[0] != "5" or not cols[11].strip():
+                continue
+            try:
+                left, top, w, h = (int(cols[i]) for i in (6, 7, 8, 9))
+                conf = float(cols[10])
+            except ValueError:
+                continue
+            if conf >= 0 and w > 0 and h > 0:
+                out.append((left, top, w, h, conf, cols))
+        return out
+
+    def _complete_truncated_words(self, tsv: str, sparse: str) -> str:
+        """Table mode clips some words set in a header block (``INV-2025-0107`` read as ``-2025-010``,
+        with high confidence, so the confidence check cannot see it). Sparse-text mode reads them whole.
+        A page-pass word is replaced by the sparse-pass word it overlaps only when its text is a
+        proper part of that word, or when it is a low-confidence read of a confident one, so a word
+        the page pass read correctly is never swapped for a different reading."""
+        main = self._word_rows(tsv)
+        other = self._word_rows(sparse)
+        if not main or not other:
+            return tsv
+        have = {}
+        for w in main:
+            have[w[5][11].strip()] = have.get(w[5][11].strip(), 0) + 1
+        swapped: dict[int, list[str]] = {}
+        dropped: set[int] = set()
+        for o in other:
+            text = o[5][11].strip()
+            if have.get(text) or len(text) < 3 or o[4] < TESSERACT_SPARSE_MIN_CONF:
+                continue
+            margin = 0.3 * o[3]
+            hits = [
+                w
+                for w in main
+                if w[0] < o[0] + o[2] + margin
+                and w[0] + w[2] > o[0] - margin
+                and abs((w[1] + w[3] / 2) - (o[1] + o[3] / 2)) < 0.6 * max(w[3], o[3])
+            ]
+            if not hits:
+                continue
+            # low-confidence specks beside the word do not count; they go with the replacement
+            strong = sorted(
+                (h for h in hits if h[4] >= TESSERACT_DOUBT_CONF + 10), key=lambda h: h[0]
             )
-        except subprocess.TimeoutExpired as exc:
-            raise OcrUnavailable("tesseract timed out on this page") from exc
-        except OSError as exc:
-            raise OcrUnavailable(f"tesseract could not start ({type(exc).__name__})") from exc
-        if done.returncode != 0:
-            raise OcrUnavailable(f"tesseract failed (exit {done.returncode})")
-        return tesseract_tsv_to_ocr(done.stdout.decode("utf-8", errors="replace"), width, height)
+            joined = "".join(h[5][11].strip() for h in strong)
+            if strong and not (joined in text and joined != text):
+                continue
+            first = min(hits, key=lambda h: h[0])
+            cols = list(first[5])
+            cols[6:10] = [str(o[0]), str(o[1]), str(o[2]), str(o[3])]
+            cols[10], cols[11] = str(o[4]), text
+            swapped[id(first[5])] = cols
+            dropped.update(id(h[5]) for h in hits if h is not first)
+        if not swapped and not dropped:
+            return tsv
+        rows = ["\t".join(swapped.get(id(w[5]), w[5])) for w in main if id(w[5]) not in dropped]
+        return "\n".join([tsv.splitlines()[0], *rows])
+
+    def _reread_doubtful_bands(self, tsv: str, image: Any) -> str:
+        """Second look at the places Tesseract itself doubts.
+
+        Words with a low confidence (a number set in a different face, a line cut in two by the layout
+        analysis) are read badly in the page pass. For each horizontal band holding such a word, the
+        band is cropped, enlarged and read again as a block of text; the new words replace the band
+        only when their average confidence is clearly higher. At most ``TESSERACT_MAX_BANDS`` bands
+        per page, so a noisy page costs a bounded extra time."""
+        from PIL import Image
+
+        words = self._word_rows(tsv)
+        doubtful = [
+            w for w in words if w[4] < TESSERACT_DOUBT_CONF and w[3] >= TESSERACT_DOUBT_MIN_HEIGHT
+        ]
+        if not doubtful:
+            return tsv
+        bands: list[list[tuple[int, int, int, int, float, list[str]]]] = []
+        used: set[int] = set()
+        for d in sorted(doubtful, key=lambda w: w[1]):
+            if id(d[5]) in used:
+                continue
+            mid = d[1] + d[3] / 2
+            band = [w for w in words if w[1] - 0.25 * w[3] <= mid <= w[1] + 1.25 * w[3]]
+            used.update(id(w[5]) for w in band)
+            bands.append(band)
+            if len(bands) >= TESSERACT_MAX_BANDS:
+                break
+        replaced: set[int] = set()
+        extra: list[str] = []
+        for n, band in enumerate(bands):
+            x0 = max(0, min(w[0] for w in band) - 12)
+            y0 = max(0, min(w[1] for w in band) - 12)
+            x1 = min(image.width, max(w[0] + w[2] for w in band) + 12)
+            y1 = min(image.height, max(w[1] + w[3] for w in band) + 12)
+            crop = image.crop((x0, y0, x1, y1))
+            crop = crop.resize(
+                (crop.width * TESSERACT_RECHECK_SCALE, crop.height * TESSERACT_RECHECK_SCALE),
+                Image.Resampling.LANCZOS,
+            )
+            buf = io.BytesIO()
+            crop.save(buf, format="PNG")
+            new_rows = self._word_rows(self._tsv(buf.getvalue(), 6))
+            if not new_rows:
+                continue
+            old_mean = sum(w[4] for w in band) / len(band)
+            new_mean = sum(w[4] for w in new_rows) / len(new_rows)
+            if new_mean < old_mean + TESSERACT_RECHECK_GAIN:
+                continue
+            replaced.update(id(w[5]) for w in band)
+            k = TESSERACT_RECHECK_SCALE
+            for left, top, w, h, conf, cols in new_rows:
+                extra.append(
+                    "\t".join(
+                        ["5", "1", f"r{n}-{cols[2]}", cols[3], cols[4], cols[5]]
+                        + [
+                            str(x0 + left // k),
+                            str(y0 + top // k),
+                            str(max(1, w // k)),
+                            str(max(1, h // k)),
+                        ]
+                        + [str(conf), cols[11]]
+                    )
+                )
+        if not replaced:
+            return tsv
+        kept = ["\t".join(w[5]) for w in words if id(w[5]) not in replaced]
+        return "\n".join([tsv.splitlines()[0], *kept, *extra])
 
 
 # ----------------------------------------------------------------------------- RapidOCR
