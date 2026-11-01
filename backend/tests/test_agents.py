@@ -198,3 +198,24 @@ def test_no_flags_no_calls(n: int) -> None:
     ctx = ctx_with([], llm)
     run_team(ctx)
     assert llm.calls == [] and len(ctx.case.agents) == 6
+
+
+def test_schemas_accept_what_the_model_actually_sends() -> None:
+    from app.core.llm import validate_json_schema
+
+    upheld = {
+        "verdicts": [
+            {
+                "flag_id": "F1",
+                "verdict": "upheld",
+                "reason": "r",
+                "document_id": None,
+                "quote": None,
+            }
+        ]
+    }
+    assert validate_json_schema(upheld, challenger.SCHEMA) is None
+    assert validate_json_schema({"summary": "s"}, officer.SCHEMA) is None  # no steps is fine
+    assert (
+        validate_json_schema({"next_steps": []}, officer.SCHEMA) is not None
+    )  # a summary is not optional

@@ -24,8 +24,8 @@ summary: two or three plain sentences. Say what stands out and what the reviewer
 first. Use only the flags and notes you are given; do not add facts. Never say a document is forged; \
 say what does not match.
 next_steps: up to three concrete actions for the reviewer (for example: ask the applicant for the \
-original March statement), each with the flag ids it relates to. If nothing needs action, return no \
-steps."""
+original March statement), each with the flag ids it relates to. If nothing needs action, return an \
+empty list. Always include both summary and next_steps."""
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -44,7 +44,7 @@ SCHEMA: dict[str, Any] = {
             },
         },
     },
-    "required": ["summary", "next_steps"],
+    "required": ["summary"],
     "additionalProperties": False,
 }
 

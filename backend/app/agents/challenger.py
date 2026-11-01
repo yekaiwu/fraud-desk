@@ -40,7 +40,8 @@ something the customer simply declared. Do not excuse figures that do not add up
 or amounts that differ. When in doubt, uphold.
 
 Give one verdict per flag id. For "doubtful" give the document_id and the quote copied exactly from \
-that document's text, and a one-sentence reason in your own words."""
+that document's text, and a one-sentence reason in your own words. For "upheld" give only the reason \
+(leave document_id and quote out or null)."""
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -53,8 +54,8 @@ SCHEMA: dict[str, Any] = {
                     "flag_id": {"type": "string"},
                     "verdict": {"type": "string", "enum": ["upheld", "doubtful"]},
                     "reason": {"type": "string"},
-                    "document_id": {"type": "string"},
-                    "quote": {"type": "string"},
+                    "document_id": {"type": ["string", "null"]},
+                    "quote": {"type": ["string", "null"]},
                 },
                 "required": ["flag_id", "verdict", "reason"],
                 "additionalProperties": False,
