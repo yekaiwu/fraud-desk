@@ -62,7 +62,7 @@ One run on a fresh synthetic seed (9103), code frozen at commit 74fc3fe, 30 clea
 | Clean bundles with any flag at medium or above | 3 / 30 (10%, 3.5% to 26%) | 3 / 30 (same) |
 | Tampered bundles whose expected flag stands | 29 / 32 (90.6%, 75.8% to 96.8%) | 29 / 32 (same) |
 
-- **The challenger lowered nothing.** It was asked about 24 cases with a judgement flag and found no passage in the documents that explains one, so it changed neither false alarms nor recall. The two clean-bundle false alarms it saw (`x_directors`, `passport_mrz`) are misreadings of one page, and the explanation is not written anywhere else in the case. We do not claim it helps.
+- **The challenger lowered nothing.** It was asked about 24 cases with a judgement flag and found no passage in the documents that explains one, so it changed neither false alarms nor recall. It upheld both clean-bundle false alarms it was shown (`x_directors`, `passport_mrz`): no passage in the case explains them. We do not claim it helps.
 - **The case officer's summaries are unmeasured.** 32 cases got one; whether reviewers find them useful needs a reviewer, not a rate.
 - **Cost and time of the team:** challenger 24 calls, mean $0.0013 and 2.8 s; officer 32 calls, mean $0.0004 and 3.3 s; $0.044 in total over 62 cases. A whole case averaged $0.115 ($0.091 clean, $0.137 tampered) and 285 s clean, 408 s tampered with three cases running at once.
 - **Reliability.** 4 of 56 model calls (3 officer, 1 challenger) were rejected because the model sent null or left out an optional field; the flags stood and the trail said so. The schemas now accept both (commit after 74fc3fe). The re-run was not repeated.
