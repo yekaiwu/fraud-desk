@@ -530,6 +530,41 @@ class ReviewEntry(Strict):
     created_at: UtcDatetime
 
 
+AgentName = Literal[
+    "documents", "finance", "identity", "relationships", "challenger", "case_officer"
+]
+
+
+class AgentVerdict(Strict):
+    """The challenger agent's ruling on one flag. A flag is lowered to ``info`` only when the
+    challenger quoted document text that explains it (``quote`` is verified); otherwise it is kept."""
+
+    flag_id: str
+    verdict: Literal["upheld", "doubtful"]
+    action: Literal["kept", "lowered"]
+    reason: str
+    document_id: str | None = None
+    quote: str | None = None
+
+
+class AgentReport(Strict):
+    """One member of the review team and what it handed on (docs/agents.md). Specialists are the
+    existing checks grouped by what they examine (no model call); the challenger and the case officer
+    each make one bounded model call."""
+
+    agent: AgentName
+    role: str
+    status: Literal["ok", "skipped", "failed"] = "ok"
+    checks_run: int = 0
+    flag_ids: list[str] = []
+    summary: str = ""
+    verdicts: list[AgentVerdict] = []
+    next_steps: list[str] = []
+    handoff: str = ""
+    cost_usd: UsdDecimal = Decimal("0")
+    seconds: float = 0.0
+
+
 class Applicant(Strict):
     name: str | None = None
     uen: str | None = None
@@ -563,6 +598,8 @@ class Case(Strict):
     review: list[ReviewEntry] = []
     decision: Verdict | None = None
     escalated_at: UtcDatetime | None = None
+    # the review team's trail (docs/agents.md); absent from the JSON when the team did not run
+    agents: list[AgentReport] = Field(default=[], exclude_if=lambda v: not v)
 
 
 class QueueItem(Strict):

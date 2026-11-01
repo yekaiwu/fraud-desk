@@ -122,6 +122,17 @@ export interface ReviewEntry {
 }
 export interface Applicant { name?: string | null; uen?: string | null; source: "upload" | "derived" }
 
+export type AgentName = "documents" | "finance" | "identity" | "relationships" | "challenger" | "case_officer";
+export interface AgentVerdict {
+  flag_id: string; verdict: "upheld" | "doubtful"; action: "kept" | "lowered"; reason: string;
+  document_id?: string | null; quote?: string | null;
+}
+export interface AgentReport {
+  agent: AgentName; role: string; status: "ok" | "skipped" | "failed"; checks_run: number;
+  flag_ids: string[]; summary: string; verdicts: AgentVerdict[]; next_steps: string[];
+  handoff: string; cost_usd: DecimalString; seconds: number;
+}
+
 export interface CaseDetail {
   id: string; reference?: string | null; use_case: UseCase; status: CaseStatus; version: number;
   today: IsoDate; created_at: IsoDateTime; updated_at: IsoDateTime;
@@ -132,6 +143,7 @@ export interface CaseDetail {
   partial: boolean; partial_reasons: string[];
   stages: StageRecord[]; provenance?: Provenance | null; costs: Cost[];
   review: ReviewEntry[]; decision?: Verdict | null; escalated_at?: IsoDateTime | null;
+  agents?: AgentReport[];
   // API-only extras
   pending_second_approvals: { entry_id: string; flag_ids: string[]; reviewer: string; created_at: IsoDateTime }[];
   allowed_verdicts: Verdict[];

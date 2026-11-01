@@ -30,6 +30,7 @@ import { CustomCatalogueNote } from "../catalogue/CustomCatalogueNote";
 import { NotRunGroups } from "./CoverageExplainer";
 import { NextStepExplainer } from "./NextStepExplainer";
 import { ExplainFacts, ExplainNote } from "./parts";
+import { ReviewTeam } from "./ReviewTeam";
 import { ScoreExplainer } from "./ScoreExplainer";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -260,6 +261,8 @@ export function AnalysisTrailBody({ c, onGoCoverage }: { c: CaseDetail; onGoCove
           <NextStepExplainer c={c} />
         </Step>
       </ol>
+
+      <ReviewTeam agents={c.agents ?? []} />
 
       <section aria-labelledby="trail-repro" className="mt-6 space-y-3 rounded-lg border border-rule bg-paper-2/60 p-4">
         <h3 id="trail-repro" className="label-caps font-sans">

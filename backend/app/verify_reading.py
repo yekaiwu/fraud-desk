@@ -95,6 +95,7 @@ def shadow_reading(ctx: CaseContext, reader: dict[str, object]) -> tuple[Case, l
     shadow.score = shadow.coverage = shadow.lane = shadow.top_finding = shadow.provenance = None
     shadow.stages, shadow.costs, shadow.partial_reasons, shadow.partial = [], [], [], False
     shadow.decision = None
+    shadow.agents = []
     if shadow.applicant.source != "upload":
         from app.core.models import Applicant
 
@@ -104,6 +105,7 @@ def shadow_reading(ctx: CaseContext, reader: dict[str, object]) -> tuple[Case, l
             **reader,
             "semantic": "off",
             "verify_scan_flags": False,
+            "agents": False,
             "max_usd_per_day": Decimal("100"),
         }
     )

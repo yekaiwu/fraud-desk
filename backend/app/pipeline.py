@@ -86,6 +86,13 @@ def _run_registry_stage(
         if note:
             warnings.append(str(note))
         detail.update(summary)
+        from app.agents import run_team
+
+        team = run_team(ctx)
+        note = team.pop("warning", None)
+        if note:
+            warnings.append(str(note))
+        detail.update(team)
     return StageOutcome(detail=detail, warnings=warnings)
 
 
@@ -253,6 +260,7 @@ def prepare_rerun(db: Database, case_id: str) -> Case:
     case.stages = []
     case.provenance = None
     case.costs = []
+    case.agents = []
     case.decision = None
     if case.applicant.source != "upload":
         case.applicant = Applicant()

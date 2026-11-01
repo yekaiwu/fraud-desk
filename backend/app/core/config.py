@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     # anthropic backend; false keeps every first-reading flag as it was.
     verify_scan_flags: bool | None = None
 
+    # review team (docs/agents.md): a challenger agent argues the innocent reading of judgement flags
+    # and a case officer writes the summary. Empty = on under the anthropic backend, off otherwise.
+    agents: bool | None = None
+
     # semantic signals (docs/semantic-signals.md): model-derived, evidence-bound checks. Empty = on
     # whenever a real model is configured (anthropic or openai) and off with the fake backend, where
     # they could only come back "not run". "off" -> the checks are not even registered as
@@ -142,7 +146,13 @@ class Settings(BaseSettings):
         return v
 
     @field_validator(
-        "today", "prices_path", "db_path", "llm_vision_fallback", "verify_scan_flags", mode="before"
+        "today",
+        "prices_path",
+        "db_path",
+        "llm_vision_fallback",
+        "verify_scan_flags",
+        "agents",
+        mode="before",
     )
     @classmethod
     def _empty_is_none(cls, v: Any) -> Any:
@@ -166,6 +176,8 @@ class Settings(BaseSettings):
             self.llm_vision_fallback = False
         if self.verify_scan_flags is None:
             self.verify_scan_flags = self.effective_llm_backend() == "anthropic"
+        if self.agents is None:
+            self.agents = self.effective_llm_backend() == "anthropic"
         if self.semantic is None:
             self.semantic = "off" if self.effective_llm_backend() == "fake" else "on"
         return self
@@ -293,6 +305,8 @@ class Settings(BaseSettings):
             out["llm_enable_thinking"] = "False"
         if self.verify_scan_flags:  # listed only when on: other runs keep their provenance hash
             out["verify_scan_flags"] = "on"
+        if self.agents:
+            out["agents"] = "on"
         if self.semantic != "off":  # listed only when on: the hash of every other run is unchanged
             out["semantic"] = self.semantic
             out["semantic_max_claims"] = str(self.semantic_max_claims)
