@@ -66,6 +66,13 @@ def audit_for(request: Request) -> AuditLog:
     return AuditLog(request.app.state.db, request.app.state.settings, clock=get_clock(request))
 
 
+def signed_in_reviewer(request: Request) -> str | None:
+    """The account the proxy vouched for (``X-Gldb-Reviewer``), or None when nobody is signed in by
+    account (open mode, tests, a single shared login before personal accounts)."""
+    who = getattr(request.state, "reviewer", None)
+    return who if isinstance(who, str) and who else None
+
+
 def review_service(request: Request) -> ReviewService:
     return ReviewService(
         request.app.state.db,

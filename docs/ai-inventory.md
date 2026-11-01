@@ -46,7 +46,7 @@ Settings for the self-hosted alternative (the owner's own machine, see [local-ll
 
 ## 3 Materiality assessment
 
-Proposed rating: **medium**. The output informs but never makes decisions, volumes are small for a wholesale bank and errors are reversible by a human; but errors can mislead credit and AML decisions and the system touches personal data and customer information. The dimensions are our working set; the Guidelines' own dimensions are `[confirm]` because only the headline structure was read. GLDB's method is unknown (plan 11 Q9).
+Proposed ratings, which the bank's own risk team must confirm (4.11, 4.13): **inherent risk medium** (before our controls: a model-assisted tool reading customer documents, with personal data) and **residual risk low to medium** (after them: no automated decision, a named human with a reason on every verdict, a second approver for high flags, coverage beside every score, spend caps, monitoring against thresholds). Only the bank can approve either rating. The output informs but never makes decisions, volumes are small for a wholesale bank and errors are reversible by a human; but errors can mislead credit and AML decisions and the system touches personal data and customer information. The dimensions are our working set; the Guidelines' own dimensions are `[confirm]` because only the headline structure was read. GLDB's method is unknown (plan 11 Q9).
 
 | Dimension | Assessment | Mitigation in the tool |
 |---|---|---|

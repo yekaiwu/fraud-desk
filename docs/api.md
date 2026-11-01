@@ -69,8 +69,12 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/explain/method` | scoring and routing method, read from the engine's constants | explainability |
 | DELETE | `/cases/{id}` | delete a case and its data | 7.2 |
 | POST | `/admin/retention/purge` | purge cases older than retention | 7.2 |
+| GET | `/me` | the signed-in account the proxy vouched for, or null | 5.9 |
+| GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption | 5.23 |
+| GET | `/monitoring/incidents` | the AI incident log, newest first | 5.23 |
+| POST | `/monitoring/incidents` | report (or resolve) an AI incident | 5.23 |
 
-Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `rules.py` (catalogue, overrides and change log), `explain.py`.
+Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring and the incident log; `/me` is in `health.py`).
 
 ## 3. Create case: `POST /cases`
 

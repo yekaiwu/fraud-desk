@@ -109,11 +109,11 @@ A new password or session secret signs everybody out. A new proxy secret needs *
 
 ## 9. Honest limits
 
-- **Reviewer identity is self-declared.** One shared login means the reviewer name in the audit log is whatever the user typed. The second-approver control therefore only separates two typed names; it does not prove two different people.
-- Anyone with the password can upload, review and delete cases. There are no roles.
+- **Reviewer identity.** With personal accounts (`GLDB_SITE_USERS`, a JSON object of username to password) every person signs in as themselves; the frontend vouches for the account to the backend (`X-Gldb-Reviewer`, believed only with the proxy secret) and the backend writes that account, not a typed name, into every verdict, check-catalogue edit and deletion. The second approver must then be a different account. With only `GLDB_SITE_USERNAME` / `GLDB_SITE_PASSWORD` (the setup of the one-person demo) there is one account, and the name in the audit log is the typed one, so the second-approver control separates two typed names only. The bank's own sign-in and MFA would replace this gate (5.16).
+- Anyone who can sign in can upload, review and delete cases. There are no roles.
 - Rate limits and the job cap are in memory in one process; they reset on restart.
 - The client address comes from `X-Forwarded-For`. If your front passes a client-supplied header through, an attacker can pick the address the per-address limits key on; the global login backstop and the job cap still bound the damage.
-- No TLS between your front and Next (loopback). Uploaded documents are stored unencrypted under the data directory. SQLite, one process; jobs are not durable across restarts.
+- No TLS between your front and Next (loopback). Uploaded documents are stored under the data directory without application-level encryption; at rest they rely on the volume's own encryption (`GET /monitoring` reports it where the platform allows: FileVault on macOS). SQLite, one process; jobs are not durable across restarts.
 - Everything extracted from a document is untrusted text from the person being checked; the tool never auto-approves or auto-rejects.
 
 ## 10. Pre-flight checklist

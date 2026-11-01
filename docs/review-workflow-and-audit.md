@@ -24,7 +24,7 @@ The human decision step. The tool recommends and ranks; people approve, refer or
 | Out | Why |
 |---|---|
 | Filing an STR, deciding legal duties | the tool never files (plan 2, 7.1); compliance decides outside the tool |
-| Authentication, roles, real identity | out of scope (plan 2); reviewer is a typed name |
+| Authentication, roles, real identity | personal accounts (`GLDB_SITE_USERS`) give a real account per reviewer; no roles; with one shared login the reviewer is a typed name |
 | Credit decision | stays with the bank (plan 7.3) |
 | Applicant-facing anything | there is no applicant endpoint (section 4.12) |
 
@@ -172,7 +172,7 @@ Not gated on purpose: `refer_edd`, `escalate_aml` and `reject_or_escalate` are a
 - `second_approval` request: `target_entry_id` must name an entry of this case and version with `status="pending_second_approval"` (`404 not_found` `details.kind="entry"` if unknown; `409 entry_not_pending` if not pending). `reviewer` must differ from the target's reviewer after `strip().casefold()`: `409 second_approver_must_differ`.
 - `approve`: target becomes `effective` (flags `dismissed`). `decline`: target becomes `declined` (flags `open`). The second-approval entry itself is stored `effective`. The only permitted UPDATE on `review_entries` is this `status` change of a pending entry (architecture.md section 6).
 - A `reason` is mandatory for the countersigner too.
-- Honest limit: "different reviewer" means a different typed name (no authentication, api.md section 15). The control proves a second *decision was recorded*, not a second *person*.
+- "Different reviewer" means a different signed-in account when personal accounts are configured (the proxy supplies the account and a typed name is ignored). With one shared login it means a different typed name, and the control proves only that a second *decision was recorded*, not a second *person*.
 
 ### 4.6 Escalation timestamp (plan 7.3, 7.1)
 

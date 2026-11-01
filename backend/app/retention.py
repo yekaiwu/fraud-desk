@@ -9,6 +9,8 @@ cases are never purged automatically (suspicion records may need longer retentio
 from __future__ import annotations
 
 import logging
+import threading
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -129,3 +131,37 @@ def purge(
         },
     )
     return {"dry_run": False, "case_ids": deleted, "count": len(deleted)}
+
+
+def start_auto_purge(
+    db: Database,
+    settings: Any,
+    *,
+    now: Callable[[], datetime],
+    wait: Callable[[float], bool] | None = None,
+) -> threading.Event:
+    """Run ``purge`` (not a dry run) every ``retention_interval_hours`` on a daemon thread, first after one
+    interval so a restart never deletes at once. Returns the stop event. A failed run is logged and the
+    loop carries on. ``wait`` (seconds -> stop requested) exists so tests do not sleep."""
+    from app.audit import AuditLog
+
+    stop = threading.Event()
+    interval = max(1, int(settings.retention_interval_hours)) * 3600.0
+    waiter = wait or stop.wait
+
+    def loop() -> None:
+        while not waiter(interval):
+            try:
+                result = purge(
+                    db,
+                    AuditLog(db, settings),
+                    older_than_days=settings.retention_days,
+                    dry_run=False,
+                    now=now(),
+                )
+                log.info("scheduled retention purge removed %d case(s)", result["count"])
+            except Exception:  # noqa: BLE001 - the schedule must outlive one bad run
+                log.exception("scheduled retention purge failed")
+
+    threading.Thread(target=loop, name="gldb-retention", daemon=True).start()
+    return stop

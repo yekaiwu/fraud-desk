@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { readAuthConfig } from "./config";
-import { clientIp, decide, isHttps, isPublicPath, isSignedIn, safeNext, sessionCookie, setupErrorResponse, signInRedirect } from "./gate";
+import { clientIp, decide, isHttps, isPublicPath, isSignedIn, safeNext, sessionCookie, sessionUser, setupErrorResponse, signInRedirect } from "./gate";
 import { LoginLimiter } from "./ratelimit";
 import { safeEqual, signSession, verifySession } from "./session";
 
@@ -93,7 +93,7 @@ describe("auth config (fail closed)", () => {
   const good = { NODE_ENV: "production", GLDB_SITE_USERNAME: USERNAME, GLDB_SITE_PASSWORD: PASSWORD, GLDB_SESSION_SECRET: SECRET };
 
   it("enforces with valid values", () => {
-    expect(readAuthConfig(good)).toEqual({ mode: "enforce", username: USERNAME, password: PASSWORD, secret: SECRET });
+    expect(readAuthConfig(good)).toEqual({ mode: "enforce", username: USERNAME, password: PASSWORD, secret: SECRET, users: { [USERNAME]: PASSWORD } });
   });
 
   it("production with nothing set is a setup error, not an open site", () => {
@@ -225,5 +225,59 @@ describe("helpers", () => {
     for (const bad of ["//evil.example", "https://evil.example", "/\\evil", "javascript:alert(1)", "/api/cases", "/login", undefined, 5]) {
       expect(safeNext(bad)).toBe("/");
     }
+  });
+});
+
+
+describe("personal accounts", () => {
+  const PW_A = "alice has a long password";
+  const PW_B = "bob has another long one";
+  const env = { NODE_ENV: "production", GLDB_SESSION_SECRET: SECRET, GLDB_SITE_USERS: JSON.stringify({ Alice: PW_A, bob: PW_B }) };
+
+  it("reads a JSON list of accounts, lower-cased, with no single account needed", () => {
+    const cfg = readAuthConfig(env);
+    expect(cfg.mode).toBe("enforce");
+    if (cfg.mode === "enforce") expect(cfg.users).toEqual({ alice: PW_A, bob: PW_B });
+  });
+
+  it("keeps the single account as one more account", () => {
+    const cfg = readAuthConfig({ ...env, GLDB_SITE_USERNAME: USERNAME, GLDB_SITE_PASSWORD: PASSWORD });
+    if (cfg.mode === "enforce") expect(Object.keys(cfg.users).sort()).toEqual(["alice", "bob", USERNAME]);
+    else throw new Error("expected enforce");
+  });
+
+  it("rejects bad JSON, short passwords, odd names and duplicates without echoing them", () => {
+    for (const raw of ["not json", "[1]", JSON.stringify({ ab: PW_A }), JSON.stringify({ alice: "short" }), JSON.stringify({ "a b c": PW_A }), JSON.stringify({ Alice: PW_A, alice: PW_B })]) {
+      const cfg = readAuthConfig({ ...env, GLDB_SITE_USERS: raw });
+      expect(cfg.mode).toBe("error");
+      expect(JSON.stringify(cfg)).not.toContain(PW_A);
+    }
+  });
+
+  it("tells who a session belongs to, and only after the signature checks out", async () => {
+    const cfg = readAuthConfig(env);
+    const alice = await signSession(SECRET, `alice\u0000${PW_A}`, T0, undefined, "alice");
+    expect(await sessionUser(cfg, alice, T0 + 1000)).toBe("alice");
+    // bob cannot present a token that says alice but was signed with bob's password
+    const forged = await signSession(SECRET, `alice\u0000${PW_B}`, T0, undefined, "alice");
+    expect(await sessionUser(cfg, forged, T0 + 1000)).toBeNull();
+    // an unknown name, an expired token and no cookie are all nobody
+    const ghost = await signSession(SECRET, `ghost\u0000${PW_A}`, T0, undefined, "ghost");
+    expect(await sessionUser(cfg, ghost, T0 + 1000)).toBeNull();
+    expect(await sessionUser(cfg, alice, T0 + 13 * 3600 * 1000)).toBeNull();
+    expect(await sessionUser(cfg, undefined, T0)).toBeNull();
+  });
+
+  it("lets every signed-in account through the gate and nobody else", async () => {
+    const cfg = readAuthConfig(env);
+    const bob = await signSession(SECRET, `bob\u0000${PW_B}`, T0, undefined, "bob");
+    expect((await decide(cfg, "/cases", bob, T0 + 1000)).kind).toBe("allow");
+    expect((await decide(cfg, "/cases", "junk", T0 + 1000)).kind).toBe("login");
+  });
+
+  it("still honours a token from before personal accounts (no name in it) for the first account", async () => {
+    const cfg = readAuthConfig({ NODE_ENV: "production", GLDB_SESSION_SECRET: SECRET, GLDB_SITE_USERNAME: USERNAME, GLDB_SITE_PASSWORD: PASSWORD });
+    const legacy = await signSession(SECRET, BINDING, T0);
+    expect(await sessionUser(cfg, legacy, T0 + 1000)).toBe(USERNAME);
   });
 });

@@ -30,9 +30,9 @@ async function hmacKey(secret: string, password: string, usage: "sign" | "verify
   return crypto.subtle.importKey("raw", enc.encode(`gldb-session-v1\0${secret}\0${password}`), { name: "HMAC", hash: "SHA-256" }, false, [usage]);
 }
 
-export async function signSession(secret: string, password: string, nowMs: number = Date.now(), maxAgeS: number = SESSION_MAX_AGE_S): Promise<string> {
+export async function signSession(secret: string, password: string, nowMs: number = Date.now(), maxAgeS: number = SESSION_MAX_AGE_S, sub?: string): Promise<string> {
   const iat = Math.floor(nowMs / 1000);
-  const payload = b64url(enc.encode(JSON.stringify({ iat, exp: iat + maxAgeS })));
+  const payload = b64url(enc.encode(JSON.stringify(sub ? { iat, exp: iat + maxAgeS, sub } : { iat, exp: iat + maxAgeS })));
   const sig = await crypto.subtle.sign("HMAC", await hmacKey(secret, password, "sign"), enc.encode(payload));
   return `${payload}.${b64url(new Uint8Array(sig))}`;
 }
@@ -57,6 +57,22 @@ export async function verifySession(token: string | undefined | null, secret: st
     return exp > now && iat <= now + 60;
   } catch {
     return false;
+  }
+}
+
+/**
+ * The account a token claims to belong to. This reads the payload WITHOUT verifying it: use it only to
+ * pick which password to verify against, and trust the name only if verifySession then passes.
+ */
+export function claimedSubject(token: string | undefined | null): string | null {
+  if (!token || token.length > 512) return null;
+  const raw = fromB64url(token.split(".")[0] ?? "");
+  if (!raw) return null;
+  try {
+    const { sub } = JSON.parse(new TextDecoder().decode(raw)) as { sub?: unknown };
+    return typeof sub === "string" && /^[a-z0-9._@-]{3,64}$/.test(sub) ? sub : null;
+  } catch {
+    return null;
   }
 }
 

@@ -8,6 +8,10 @@ address in ``X-Forwarded-For``). This module is the second line of defence, inst
 * **Proxy secret.** When ``GLDB_PROXY_SECRET`` is set, every request without the matching header is
   rejected with 401 (constant-time compare). The only exception is ``GET /health`` from a loopback
   peer, so a local status script keeps working. Unset = no gate (local development, tests).
+* **Who is signed in.** The proxy sends the signed-in account in ``X-Gldb-Reviewer``. It is believed
+  only when the proxy secret matched, then stored as ``request.state.reviewer``; the review, check
+  catalogue and delete endpoints record that name and ignore any name typed in the request. Without a
+  proxy secret (local development, tests) the header is ignored.
 * **Per-client rate limits** (sliding window, in memory, single process): ``POST /cases`` at most
   ``GLDB_RATE_CASES_PER_HOUR`` per hour, review ``POST /cases/{id}/review`` at most
   ``GLDB_RATE_REVIEWS_PER_MIN`` per minute. The check catalogue writes (``PUT`` and ``DELETE``
@@ -44,6 +48,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 log = logging.getLogger("gldb.access")
 
 PROXY_SECRET_HEADER = "x-gldb-proxy-secret"
+REVIEWER_HEADER = "x-gldb-reviewer"
+_REVIEWER_OK = re.compile(r"^[a-z0-9._@-]{3,64}$")
 FORWARDED_FOR_HEADER = "x-forwarded-for"
 REQUEST_ID_HEADER = "X-Request-Id"
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"})
@@ -187,6 +193,9 @@ class AccessMiddleware:
         if self._secret:
             if self._secret_ok(headers):
                 trusted = True
+                who = headers.get(REVIEWER_HEADER, "").strip().lower()
+                if _REVIEWER_OK.match(who):
+                    scope.setdefault("state", {})["reviewer"] = who
             elif (
                 scope["type"] == "http"
                 and method == "GET"

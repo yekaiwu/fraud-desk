@@ -18,6 +18,7 @@ from app.api._common import (
     audit_for,
     load_case_or_404,
     review_service,
+    signed_in_reviewer,
 )
 from app.audit import install_log_filter
 from app.review import ReviewRequest
@@ -31,6 +32,9 @@ def init(app: Any, settings: Any) -> None:
 
 @router.post("/cases/{case_id}/review", status_code=201)
 def post_review(case_id: str, body: ReviewRequest, request: Request) -> JSONResponse:
+    who = signed_in_reviewer(request)
+    if who:  # the signed-in account is the reviewer; a typed name cannot stand in for it
+        body = body.model_copy(update={"reviewer": who})
     with MUTATION_LOCK:  # a review never interleaves with a rerun or add-documents in this process
         result = review_service(request).submit(case_id, body)
     return JSONResponse(result.model_dump(mode="json"), status_code=201)

@@ -7,7 +7,7 @@
  * skips /_next/static and the favicon). Everything else needs a valid session cookie.
  */
 import { SESSION_COOKIE, sessionBinding, type AuthConfig } from "./config";
-import { verifySession } from "./session";
+import { claimedSubject, verifySession } from "./session";
 
 export const WELCOME_PATH = "/welcome";
 
@@ -23,11 +23,27 @@ export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname.replace(/\/+$/, "") || "/");
 }
 
+/**
+ * Who this cookie belongs to, or null (not signed in, or open mode where nobody is). A token carrying an
+ * account name is verified against that account's password; an older token without one belongs to the
+ * first account. The name is trusted only after the signature checks out.
+ */
+export async function sessionUser(cfg: AuthConfig, cookie: string | undefined | null, nowMs: number = Date.now()): Promise<string | null> {
+  if (cfg.mode !== "enforce") return null;
+  const sub = claimedSubject(cookie);
+  if (sub) {
+    const password = cfg.users[sub];
+    if (password === undefined) return null;
+    return (await verifySession(cookie, cfg.secret, `${sub}\u0000${password}`, nowMs)) ? sub : null;
+  }
+  return (await verifySession(cookie, cfg.secret, sessionBinding(cfg), nowMs)) ? cfg.username.trim().toLowerCase() : null;
+}
+
 export async function decide(cfg: AuthConfig, pathname: string, cookie: string | undefined, nowMs: number = Date.now()): Promise<GateDecision> {
   if (cfg.mode === "error") return { kind: "setup-error", problems: cfg.problems };
   if (cfg.mode === "open") return { kind: "allow" };
   if (isPublicPath(pathname)) return { kind: "allow" };
-  return (await verifySession(cookie, cfg.secret, sessionBinding(cfg), nowMs)) ? { kind: "allow" } : { kind: "login" };
+  return (await sessionUser(cfg, cookie, nowMs)) ? { kind: "allow" } : { kind: "login" };
 }
 
 /**
@@ -47,7 +63,7 @@ export function signInRedirect(pathname: string, search: string): string {
 export async function isSignedIn(cfg: AuthConfig, cookie: string | undefined, nowMs: number = Date.now()): Promise<boolean> {
   if (cfg.mode === "open") return true;
   if (cfg.mode === "error") return false;
-  return verifySession(cookie, cfg.secret, sessionBinding(cfg), nowMs);
+  return (await sessionUser(cfg, cookie, nowMs)) !== null;
 }
 
 export { SESSION_COOKIE };

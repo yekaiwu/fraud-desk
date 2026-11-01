@@ -2,7 +2,8 @@
 
 import clsx from "clsx";
 import { CheckCircle2, Circle } from "lucide-react";
-import { useId } from "react";
+import { useEffect, useId } from "react";
+import { useSignedInReviewer } from "@/lib/useSignedInReviewer";
 import { REASON_MAX, REASON_MIN } from "@/lib/reviewValidation";
 import { inputClasses } from "../ui/Field";
 
@@ -44,6 +45,10 @@ export function ReviewFields({
   reasonMax?: number;
 }) {
   const uid = useId();
+  const signedIn = useSignedInReviewer();
+  useEffect(() => {
+    if (signedIn && reviewer !== signedIn) onReviewer(signedIn);
+  }, [signedIn, reviewer, onReviewer]);
   const rid = `${uid}-reviewer`;
   const tid = `${uid}-reason`;
   const used = reason.trim().length;
@@ -53,12 +58,13 @@ export function ReviewFields({
     <div className="space-y-4">
       <div>
         <label htmlFor={rid} className="block text-sm font-semibold text-ink">
-          Reviewer name (required)
+          {signedIn ? "Reviewer" : "Reviewer name (required)"}
         </label>
         <input
           id={rid}
           ref={reviewerRef}
-          value={reviewer}
+          value={signedIn ?? reviewer}
+          readOnly={Boolean(signedIn)}
           onChange={(e) => onReviewer(e.target.value)}
           onBlur={onBlurReviewer}
           autoComplete="off"
@@ -67,6 +73,7 @@ export function ReviewFields({
           aria-describedby={errors.reviewer ? `${rid}-err` : undefined}
           className={clsx(inputClasses, "mt-1")}
         />
+        {signedIn ? <p className="mt-1.5 text-sm text-muted">Signed in as {signedIn}. This name goes in the audit log.</p> : null}
         {errors.reviewer ? (
           <p id={`${rid}-err`} className="mt-1.5 text-sm font-medium text-sev-high">
             {errors.reviewer}

@@ -20,6 +20,7 @@ STUB_MODULES = [
     "files",
     "health",
     "jobs",
+    "monitoring",
     "pack",
     "queue",
     "review",
@@ -52,7 +53,7 @@ def client(settings: Settings) -> TestClient:
     return TestClient(main.create_app(settings))
 
 
-def test_router_discovery_lists_all_ten_modules(settings: Settings) -> None:
+def test_router_discovery_lists_all_modules(settings: Settings) -> None:
     modules = [m.__name__.rsplit(".", 1)[-1] for m in main.discover_api_modules()]
     assert modules == STUB_MODULES
     app_ = main.create_app(settings)

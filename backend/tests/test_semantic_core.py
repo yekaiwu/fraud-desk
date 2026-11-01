@@ -92,14 +92,19 @@ def verify(claims: list[dict[str, Any]], docs: list[Document] | None = None, **k
 # ------------------------------------------------------------------------------- the switch
 
 
-def test_default_follows_the_backend_and_env_spellings_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_follows_the_backend_and_env_spellings_parse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     for key in ("GLDB_SEMANTIC", "GLDB_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     fake = Settings(_env_file=None, llm_backend="fake")
     assert fake.semantic == "off" and not semantic_enabled(fake)  # nothing to run the checks on
     real = Settings(_env_file=None, llm_backend="openai", llm_api_key="x")
     assert real.semantic == "on" and semantic_enabled(real)
-    assert Settings(_env_file=None, llm_backend="openai", llm_api_key="x", semantic="off").semantic == "off"
+    assert (
+        Settings(_env_file=None, llm_backend="openai", llm_api_key="x", semantic="off").semantic
+        == "off"
+    )
     for raw, want in (("on", "on"), ("TRUE", "on"), ("1", "on"), ("off", "off"), ("0", "off")):
         monkeypatch.setenv("GLDB_SEMANTIC", raw)
         assert Settings(_env_file=None, llm_backend="fake").semantic == want

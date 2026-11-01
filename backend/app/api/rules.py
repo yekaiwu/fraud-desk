@@ -11,7 +11,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Query, Request
 
-from app.api._common import ApiRoute, DbDep, SettingsDep, get_clock
+from app.api._common import ApiRoute, DbDep, SettingsDep, get_clock, signed_in_reviewer
 from app.catalogue import (
     CHANGES_DEFAULT_LIMIT,
     CHANGES_MAX_LIMIT,
@@ -45,6 +45,9 @@ def list_rule_changes(
 def put_rule_override(
     rule: str, body: OverrideRequest, request: Request, db: DbDep
 ) -> dict[str, Any]:
+    who = signed_in_reviewer(request)
+    if who:
+        body = body.model_copy(update={"reviewer": who})
     return put_override(db, rule, body, now=get_clock(request)())
 
 
@@ -63,4 +66,7 @@ def delete_rule_override(
         reviewer=given.reviewer if given.reviewer is not None else reviewer,
         reason=given.reason if given.reason is not None else reason,
     )
+    who = signed_in_reviewer(request)
+    if who:
+        merged = merged.model_copy(update={"reviewer": who})
     return reset_override(db, rule, merged, now=get_clock(request)())

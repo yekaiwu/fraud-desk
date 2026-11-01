@@ -28,6 +28,7 @@ from app.api._common import (
     not_found,
     read_uploads,
     require_state,
+    signed_in_reviewer,
 )
 from app.audit import AuditLog, scrub
 from app.core.cases import add_file, new_case
@@ -320,7 +321,11 @@ def delete_case(
 ) -> Response:
     with MUTATION_LOCK:
         delete_case_with_audit(
-            db, audit_for(request), case_id, reviewer=reviewer or "", reason=reason or ""
+            db,
+            audit_for(request),
+            case_id,
+            reviewer=signed_in_reviewer(request) or reviewer or "",
+            reason=reason or "",
         )
     return Response(status_code=204)
 

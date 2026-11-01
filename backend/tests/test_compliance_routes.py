@@ -13,6 +13,10 @@ from app.main import create_app
 # api.md section 2, hard-coded on purpose. The three /rules routes for the check catalogue were
 # added deliberately (owner request: edit the check catalogue) and each needs a reviewer and reason. Path parameter names are normalised to ``{}``.
 API_MD_SECTION_2: set[tuple[str, str]] = {
+    ("GET", "/me"),
+    ("GET", "/monitoring"),
+    ("GET", "/monitoring/incidents"),
+    ("POST", "/monitoring/incidents"),
     ("GET", "/health"),
     ("POST", "/cases"),
     ("GET", "/cases"),

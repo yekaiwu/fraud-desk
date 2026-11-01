@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from app.api._common import signed_in_reviewer
 from app.checks.registry import all_checks
 from app.core.config import APP_VERSION
 from app.core.provenance import ruleset_version
@@ -28,3 +29,9 @@ def health(request: Request) -> dict:
             "require_second_approver": settings.require_second_approver,
         },
     }
+
+
+@router.get("/me")
+def me(request: Request) -> dict:
+    """Who the proxy says is signed in, so the screen can show the name the audit log will carry."""
+    return {"reviewer": signed_in_reviewer(request)}

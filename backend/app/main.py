@@ -135,9 +135,18 @@ def create_app(
         log.warning("marked %d interrupted job(s) as failed", len(recovered))
     runner = JobRunner(db, settings, llm=llm, registry=registry)
 
+    purge_stop = None
+    if settings.retention_auto:
+        from app.core.models import utcnow
+        from app.retention import start_auto_purge
+
+        purge_stop = start_auto_purge(db, settings, now=utcnow)
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
+        if purge_stop is not None:
+            purge_stop.set()
         runner.shutdown(wait=False)
 
     # Behind the gate (production) the interactive docs and the OpenAPI schema are off: a map of every route is

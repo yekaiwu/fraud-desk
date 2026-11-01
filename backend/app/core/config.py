@@ -126,6 +126,19 @@ class Settings(BaseSettings):
     money_tolerance: Decimal = Decimal("1.00")
     require_second_approver: bool = True
     retention_days: int = 1825
+    # purge expired closed cases on a schedule instead of only when someone calls the purge endpoint
+    retention_auto: bool = False
+    retention_interval_hours: int = 24
+    # monitoring (docs/ai-incidents.md): the named person accountable for the AI system and the thresholds
+    # GET /monitoring compares the last window of cases against
+    ai_owner: str = ""
+    monitor_window_days: int = 7
+    monitor_min_cases: int = 10
+    monitor_partial_rate_max: float = 0.30
+    monitor_check_error_rate_max: float = 0.05
+    monitor_agent_failure_rate_max: float = 0.10
+    monitor_daily_spend_ratio_max: float = 0.80
+    monitor_rule_drift_max: float = 0.25
     pseudonymise_logs: bool = True
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:3000"

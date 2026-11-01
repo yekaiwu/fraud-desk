@@ -97,7 +97,9 @@ def test_ci_workflow_is_valid_yaml_with_the_expected_commands() -> None:
     steps = " ".join(s.get("run", "") for s in wf["jobs"]["frontend"]["steps"])
     for cmd in ("npm ci", "npm run lint", "npx tsc --noEmit", "npm test", "npm run build"):
         assert cmd in steps
-    assert "pip" not in (ROOT / ".github/workflows/ci.yml").read_text()
+    assert (
+        "pip install" not in (ROOT / ".github/workflows/ci.yml").read_text()
+    )  # uv only; pip-audit runs through uvx
 
 
 def test_pyproject_contract() -> None:

@@ -9,13 +9,13 @@
  */
 import type { NextRequest } from "next/server";
 import { backendUrl, readAuthConfig } from "@/lib/auth/config";
-import { clientIp, decide, SESSION_COOKIE, setupErrorResponse, unauthorizedJson } from "@/lib/auth/gate";
+import { clientIp, decide, SESSION_COOKIE, sessionUser, setupErrorResponse, unauthorizedJson } from "@/lib/auth/gate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const HOP_BY_HOP = ["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"];
-const DROP_REQUEST = [...HOP_BY_HOP, "host", "cookie", "expect", "accept-encoding", "x-gldb-proxy-secret", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "forwarded", "x-real-ip"];
+const DROP_REQUEST = [...HOP_BY_HOP, "host", "cookie", "expect", "accept-encoding", "x-gldb-proxy-secret", "x-gldb-reviewer", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "forwarded", "x-real-ip"];
 const DROP_RESPONSE = [...HOP_BY_HOP, "content-encoding", "set-cookie"];
 
 async function handle(request: NextRequest, ctx: { params: Promise<{ path: string[] }> }): Promise<Response> {
@@ -33,6 +33,9 @@ async function handle(request: NextRequest, ctx: { params: Promise<{ path: strin
   headers.set("x-forwarded-for", clientIp(request.headers));
   const proxySecret = process.env.GLDB_PROXY_SECRET?.trim();
   if (proxySecret) headers.set("x-gldb-proxy-secret", proxySecret);
+  // The signed-in account, set here and nowhere else: the backend records it as the reviewer and ignores any typed name.
+  const who = await sessionUser(cfg, request.cookies.get(SESSION_COOKIE)?.value);
+  if (who && proxySecret) headers.set("x-gldb-reviewer", who);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD" && request.body !== null;
   let upstream: Response;

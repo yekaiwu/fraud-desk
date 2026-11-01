@@ -1,4 +1,4 @@
-import { readAuthConfig, SESSION_MAX_AGE_S, sessionBinding } from "@/lib/auth/config";
+import { readAuthConfig, SESSION_MAX_AGE_S } from "@/lib/auth/config";
 import { clientIp, isHttps, safeNext, sessionCookie, setupErrorResponse } from "@/lib/auth/gate";
 import { loginLimiter } from "@/lib/auth/ratelimit";
 import { safeEqual, signSession } from "@/lib/auth/session";
@@ -40,12 +40,17 @@ export async function POST(request: Request) {
   const wait = limiter.retryAfterS(client);
   if (wait > 0) return err(429, "rate_limited", `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute(s).`, { "Retry-After": String(wait) });
 
-  // Both comparisons always run, so the response time does not reveal whether the username was right.
-  const [userOk, passOk] = await Promise.all([safeEqual(username.trim().toLowerCase(), cfg.username.toLowerCase()), safeEqual(password, cfg.password)]);
-  if (!(userOk && passOk)) {
+  // Every account is compared on every attempt, so the response time does not reveal which part was wrong.
+  const given = username.trim().toLowerCase();
+  let matched: string | null = null;
+  for (const [name, pw] of Object.entries(cfg.users)) {
+    const [userOk, passOk] = await Promise.all([safeEqual(given, name), safeEqual(password, pw)]);
+    if (userOk && passOk) matched = name;
+  }
+  if (matched === null) {
     limiter.recordFailure(client);
     return err(401, "invalid_credentials", "Wrong username or password.");
   }
-  const token = await signSession(cfg.secret, sessionBinding(cfg));
+  const token = await signSession(cfg.secret, `${matched}\u0000${cfg.users[matched]}`, Date.now(), SESSION_MAX_AGE_S, matched);
   return Response.json({ ok: true, next: safeNext(next) }, { headers: { ...NO_STORE, "Set-Cookie": sessionCookie(token, isHttps(request.headers, request.url), SESSION_MAX_AGE_S) } });
 }
