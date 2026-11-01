@@ -114,6 +114,16 @@ A sweep of 30 clean scanned bundles (seed 6101, the seed the fixes were tuned on
 
 The second reading re-reads a case with scan flags using the other reader and keeps a flag only if the same rule is raised on the same first document. It is on by default under the anthropic backend (`GLDB_VERIFY_SCAN_FLAGS`). A set-aside flag keeps its place on the case as `info`, so nothing disappears from the audit trail. Limits: tuning data only; the held-out rows are one run of each seed with the code frozen, but 45 clean bundles cannot show a rate under 10% (the upper bound is 18%), and the model-based `sem_` flags are not part of the second reading (they are what keeps the any-flag rate at 13%); no low-quality scans or photos; 16 tampered bundles is a small recall sample (a real forgery that both readings reproduce is kept, and one that only one reading reproduces would be set aside); synthetic data; the second reading costs about as much again as the first and adds minutes of latency to the cases that need it.
 
+Reading accuracy by scan quality (fresh seed 9103, 15 clean bundles, 467 pages, 67,150 words; Tesseract alone against the generator's page text, no model, no cost):
+
+| Render | Words missed | Amounts missed | Dates missed |
+|---|---|---|---|
+| high-quality scan (`scan_hq`) | 256 (0.4%) | 1 | 1 |
+| low-quality scan (`scan_lq`) | 875 (1.3%) | 29 | 33 |
+| phone photo (`photo`) | 10,995 (16.4%) | 1,045 | 725 |
+
+Only the high-quality scans have been run through the full pipeline. Low-quality scans lose about 30 times as many amounts and dates, so more arithmetic checks will misfire there until the second reading and the page-image re-read have been measured on them. On photos Tesseract is not usable (about one word in six is wrong, and over a thousand amounts): photographed documents need the model to read the image, and that path has not been measured on photos.
+
 ## 6. Pricing
 
 Haiku 5.5 is billed per request by the size of the prompt:
