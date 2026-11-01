@@ -97,12 +97,12 @@ def _render_all(ctx: CaseContext, flags: list[Flag]) -> dict[str, str]:
     return out
 
 
-def _flags_text(flags: list[Flag]) -> str:
+def _flags_text(flags: list[Flag], alias: dict[str, str]) -> str:
     lines = []
     for f in flags:
         docs = ",".join(f.document_ids)
         lines.append(
-            f"- flag_id={f.id} rule={f.rule} severity={f.severity} documents={docs}\n"
+            f"- flag_id={alias[f.id]} rule={f.rule} severity={f.severity} documents={docs}\n"
             f"  explanation: {clean_text(f.explanation, 300)}\n"
             f"  evidence: {clean_text(f.evidence, 300)}"
         )
@@ -118,19 +118,21 @@ def challenge(ctx: CaseContext, flags: list[Flag]) -> list[AgentVerdict]:
     Raises ``AgentFailed``."""
     rendered = _render_all(ctx, flags)
     try:
-        flag_block = wrap_untrusted(_flags_text(flags), label="flags")
+        alias = {f.id: f"F{n}" for n, f in enumerate(flags, start=1)}
+        flag_block = wrap_untrusted(_flags_text(flags, alias), label="flags")
         doc_blocks = "\n\n".join(wrap_untrusted(t, label=i) for i, t in rendered.items())
     except ValueError:
         raise AgentFailed("document text could not be wrapped safely") from None
     user = f"Flags to rule on:\n{flag_block}\n\nDocuments:\n{doc_blocks}"
     reply = ask(ctx, name=NAME, task=TASK, user=user, schema_name="Verdicts", json_schema=SCHEMA)
-    by_id = {f.id: f for f in flags}
+    by_alias = {a: f for f in flags for a in [alias[f.id]]}
     folded = {i: _fold(t) for i, t in rendered.items()}
     seen: dict[str, AgentVerdict] = {}
     for item in reply.get("verdicts", []):
-        fid = str(item.get("flag_id", ""))
-        if fid not in by_id or fid in seen:
+        target = by_alias.get(str(item.get("flag_id", "")).strip())
+        if target is None or target.id in seen:
             continue
+        fid = target.id
         reason = clean_text(str(item.get("reason", "")), 240)
         verdict = "doubtful" if item.get("verdict") == "doubtful" else "upheld"
         doc_id = str(item.get("document_id") or "") or None

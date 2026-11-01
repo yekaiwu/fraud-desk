@@ -65,7 +65,7 @@ def ctx_with(flags: list[Flag], llm: StubLLM, **kw: Any):  # noqa: ANN202
 GOOD_QUOTE = {
     "verdicts": [
         {
-            "flag_id": "a",
+            "flag_id": "F1",
             "verdict": "doubtful",
             "reason": "The statement prints the name correctly.",
             "document_id": "d1",
@@ -75,7 +75,7 @@ GOOD_QUOTE = {
 }
 BRIEFING = {
     "summary": "One thing stands out.",
-    "next_steps": [{"step": "Ask for the ID", "flag_ids": ["a", "zz"]}],
+    "next_steps": [{"step": "Ask for the ID", "flag_ids": ["F1", "zz"]}],
 }
 
 
@@ -170,7 +170,7 @@ def test_officer_citations_are_checked_against_real_flag_ids() -> None:
     )
     run_team(ctx)
     co = next(r for r in ctx.case.agents if r.agent == "case_officer")
-    assert co.next_steps == ["Ask for the ID (a)"]
+    assert co.next_steps == ["Ask for the ID (bs_totals)"]
     assert co.flag_ids == ["b"]  # a was lowered, b stands
     assert officer.open_flags(ctx)[0].id == "b"
 

@@ -1,7 +1,7 @@
 """The case officer: read the whole trail and brief the human reviewer.
 
 It writes words only. Its text never changes a flag, the score or the lane; the screen labels it as
-generated. Step citations are checked against the case's flag ids and dropped when they do not exist.
+generated. Step citations name the rules of flags that exist on the case; an unknown citation is dropped.
 """
 
 from __future__ import annotations
@@ -53,27 +53,31 @@ def open_flags(ctx: CaseContext) -> list[Flag]:
     return [f for f in ctx.case.flags if f.severity in ("medium", "high")]
 
 
-def _digest(ctx: CaseContext, team: list[AgentReport], flags: list[Flag]) -> str:
+def _digest(
+    ctx: CaseContext, team: list[AgentReport], flags: list[Flag], alias: dict[str, str]
+) -> str:
     lines = [f"use case: {ctx.case.use_case}"]
     for r in team:
         if r.agent in ("documents", "finance", "identity", "relationships"):
             lines.append(f"{r.agent}: {r.summary}")
     lines.append("flags still standing:")
     for f in flags:
-        lines.append(f"- {f.id} [{f.severity}] {f.rule}: {clean_text(f.explanation, 260)}")
+        lines.append(f"- {alias[f.id]} [{f.severity}] {f.rule}: {clean_text(f.explanation, 260)}")
     challenger = next((r for r in team if r.agent == "challenger"), None)
+    rule_of = {f.id: f.rule for f in ctx.case.flags}
     lowered = [v for v in (challenger.verdicts if challenger else []) if v.action == "lowered"]
     if lowered:
         lines.append("flags the challenger lowered (with its reason):")
-        lines.extend(f"- {v.flag_id}: {v.reason}" for v in lowered)
+        lines.extend(f"- {rule_of.get(v.flag_id, '?')}: {v.reason}" for v in lowered)
     return "\n".join(lines)
 
 
 def brief(ctx: CaseContext, team: list[AgentReport]) -> tuple[str, list[str]]:
     """(summary, next steps). Raises ``AgentFailed``."""
     flags = open_flags(ctx)
+    alias = {f.id: f"F{n}" for n, f in enumerate(flags, start=1)}
     try:
-        body = wrap_untrusted(_digest(ctx, team, flags), label="trail")
+        body = wrap_untrusted(_digest(ctx, team, flags, alias), label="trail")
     except ValueError:
         raise AgentFailed("trail text could not be wrapped safely") from None
     reply = ask(
@@ -87,11 +91,11 @@ def brief(ctx: CaseContext, team: list[AgentReport]) -> tuple[str, list[str]]:
     summary = clean_text(str(reply.get("summary", "")), 600)
     if not summary:
         raise AgentFailed("empty summary")
-    known = {f.id for f in ctx.case.flags}
+    rule_of = {a: f.rule for f in flags for a in [alias[f.id]]}
     steps: list[str] = []
     for item in reply.get("next_steps", [])[:MAX_STEPS]:
         step = clean_text(str(item.get("step", "")), 240)
-        ids = [i for i in item.get("flag_ids", []) if i in known]
+        rules = sorted({rule_of[i] for i in item.get("flag_ids", []) if i in rule_of})
         if step:
-            steps.append(f"{step} ({', '.join(ids)})" if ids else step)
+            steps.append(f"{step} ({', '.join(rules)})" if rules else step)
     return summary, steps
