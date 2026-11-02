@@ -3,7 +3,8 @@
 ``snapshot`` looks at the cases updated in the last ``monitor_window_days`` and compares them with
 fixed thresholds from the settings, and with the window before for each rule's firing rate. It says
 "not enough data" instead of a verdict when a window has fewer than ``monitor_min_cases`` cases, and
-every alert names the number, the threshold and what to do. It reads, it never changes anything.
+every alert names the number, the threshold and what to do. It reads, it never changes anything; telling
+someone is ``app/alerts.py``.
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ from app.core.db import Database, ts
 
 CASE_LIMIT = 500  # newest cases per window; enough for a demo, bounded for a real database
 INCIDENT_ACTION = "ai.incident_reported"
+INCIDENT_ACK_ACTION = (
+    "ai.incident_acknowledged"  # an acknowledgement or assignment note; never changes open/resolved
+)
 
 
 def disk_encryption() -> dict[str, str]:
@@ -170,12 +174,46 @@ def incidents(db: Database, limit: int = 50) -> list[dict[str, Any]]:
             "SELECT id, ts, actor, detail FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT ?",
             (INCIDENT_ACTION, limit),
         ).fetchall()
+        acks = c.execute(
+            "SELECT id, ts, actor, detail FROM audit_log WHERE action = ? ORDER BY id",
+            (INCIDENT_ACK_ACTION,),
+        ).fetchall()
     parsed = [(r, json.loads(r["detail"])) for r in rows]
     closed = {d["resolves"] for _, d in parsed if d.get("resolves")}
+    latest_ack: dict[int, dict[str, Any]] = {}
+    for a in acks:  # oldest first, so the newest note for an incident wins
+        d = json.loads(a["detail"])
+        if isinstance(d.get("incident"), int):
+            latest_ack[d["incident"]] = {
+                "acknowledged_by": a["actor"],
+                "acknowledged_at": a["ts"],
+                "ack_note": d.get("note"),
+                "assigned_to": d.get("assigned_to"),
+            }
     out = []
     for r, d in parsed:
         row = {"id": r["id"], "reported_at": r["ts"], "reported_by": r["actor"], **d}
         if r["id"] in closed:
             row["status"] = "resolved"
+        if r["id"] in latest_ack:
+            row.update(latest_ack[r["id"]])
         out.append(row)
     return out
+
+
+def open_incident(db: Database, incident_id: int) -> dict[str, Any] | None:
+    """The incident report with this id when it is a report still open (not itself a resolution, not resolved)."""
+    with db.conn() as c:
+        row = c.execute(
+            "SELECT id, detail FROM audit_log WHERE id = ? AND action = ?",
+            (incident_id, INCIDENT_ACTION),
+        ).fetchone()
+        if row is None:
+            return None
+        detail = json.loads(row["detail"])
+        if detail.get("status") != "open":
+            return None
+        for (d,) in c.execute("SELECT detail FROM audit_log WHERE action = ?", (INCIDENT_ACTION,)):
+            if json.loads(d).get("resolves") == incident_id:
+                return None
+    return {"id": row["id"], **detail}

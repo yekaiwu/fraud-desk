@@ -17,6 +17,13 @@ API_MD_SECTION_2: set[tuple[str, str]] = {
     ("GET", "/monitoring"),
     ("GET", "/monitoring/incidents"),
     ("POST", "/monitoring/incidents"),
+    # alert delivery, acknowledgement and readiness (api.md section 9b): about the monitor, never about a case
+    ("POST", "/monitoring/incidents/{}/acknowledge"),
+    ("GET", "/monitoring/alerts"),
+    ("POST", "/monitoring/alerts/test"),
+    ("POST", "/monitoring/alerts/{}/acknowledge"),
+    ("GET", "/monitoring/readiness"),
+    ("POST", "/monitoring/thresholds/approve"),
     ("GET", "/health"),
     ("POST", "/cases"),
     ("GET", "/cases"),
@@ -73,8 +80,14 @@ def test_no_route_is_named_or_pathed_auto(settings, db) -> None:  # noqa: ANN001
 def test_no_applicant_facing_or_decision_only_route(settings, db) -> None:  # noqa: ANN001
     ops, pairs = _registered(settings, db)
     banned = ("applicant", "approve", "reject", "decide", "public")
+    # the one deliberate exception: a person records that the bank approved the monitoring thresholds
+    # (readiness 5.23(b)). It touches no case and decides nothing about an applicant.
+    monitoring_approval = "/monitoring/thresholds/approve"
     for path, _ in ops:
+        if path == monitoring_approval:
+            continue
         assert not any(w in path.lower() for w in banned), path
+    assert sum(1 for p, _ in ops if "approve" in p.lower()) == 1
     # the only route that records a verdict is the review route, which needs a reviewer and reason
     assert [p for p in pairs if p[0] == "POST" and p[1].endswith("/review")] == [
         ("POST", "/cases/{}/review")

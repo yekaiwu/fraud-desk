@@ -146,6 +146,34 @@ class Settings(BaseSettings):
     monitor_agent_failure_rate_max: float = 0.10
     monitor_daily_spend_ratio_max: float = 0.80
     monitor_rule_drift_max: float = 0.25
+    # Alert delivery, acknowledgement and the silence check (docs/ai-incidents.md). Every sink is optional
+    # and off until configured. Secrets are SecretStr: never logged, never returned by any endpoint.
+    # 0 = nothing evaluates by itself (run backend/scripts/monitor_once.py from the bank's scheduler instead).
+    monitor_interval_minutes: int = 0
+    # False: the interval only declares how often an external scheduler (cron) runs monitor_once.py,
+    # so the silence check still works but this process starts no thread.
+    monitor_in_process: bool = True
+    alert_webhook_url: SecretStr = SecretStr("")  # may carry a token, so it is a secret
+    alert_webhook_secret: SecretStr = SecretStr("")  # non-empty -> X-Gldb-Signature: sha256=<hmac>
+    alert_smtp_host: str = ""
+    alert_smtp_port: int = 587
+    alert_smtp_starttls: bool = True
+    alert_smtp_user: str = ""
+    alert_smtp_password: SecretStr = SecretStr("")
+    alert_email_from: str = ""
+    alert_email_to: str = ""  # comma-separated
+    alert_telegram_bot_token: SecretStr = SecretStr("")
+    alert_telegram_chat_id: str = ""
+    alert_file_path: Path | None = None  # JSON lines, append-only, the last-resort sink
+    alert_timeout_s: float = 8.0
+    alert_retries: int = 3  # attempts per sink per message
+    alert_retry_backoff_s: float = 1.0  # wait n = backoff * 2**n between attempts
+    alert_renotify_hours: int = 24  # an open, unacknowledged alert is sent again after this long
+    alert_test_max_age_days: int = 30  # a delivered test alert older than this no longer counts
+    alert_base_url: str = ""  # shown in messages as the place to read GET /monitoring
+    # True when every person signs in with a personal account (GLDB_SITE_USERS on the front): then
+    # acknowledging an alert or approving thresholds needs that account, not a typed name.
+    personal_accounts: bool = False
     pseudonymise_logs: bool = True
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:3000"
@@ -172,6 +200,7 @@ class Settings(BaseSettings):
         "llm_vision_fallback",
         "verify_scan_flags",
         "agents",
+        "alert_file_path",
         mode="before",
     )
     @classmethod
@@ -295,6 +324,16 @@ class Settings(BaseSettings):
             problems.append("GLDB_LLM_RETRY_503_ATTEMPTS and _BACKOFF_S must be >= 0")
         if self.semantic_max_claims <= 0:
             problems.append("GLDB_SEMANTIC_MAX_CLAIMS must be > 0")
+        if self.monitor_interval_minutes < 0:
+            problems.append("GLDB_MONITOR_INTERVAL_MINUTES must be >= 0 (0 = off)")
+        if self.alert_renotify_hours <= 0 or self.alert_test_max_age_days <= 0:
+            problems.append(
+                "GLDB_ALERT_RENOTIFY_HOURS and GLDB_ALERT_TEST_MAX_AGE_DAYS must be > 0"
+            )
+        if self.alert_retries <= 0 or self.alert_timeout_s <= 0 or self.alert_retry_backoff_s < 0:
+            problems.append(
+                "GLDB_ALERT_RETRIES and GLDB_ALERT_TIMEOUT_S must be > 0, GLDB_ALERT_RETRY_BACKOFF_S >= 0"
+            )
         if not 0 <= self.classifier_min_prob <= 1:
             problems.append("GLDB_CLASSIFIER_MIN_PROB must be between 0 and 1")
         if problems:

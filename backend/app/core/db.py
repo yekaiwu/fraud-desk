@@ -174,6 +174,46 @@ CREATE TABLE IF NOT EXISTS daily_spend (
     day TEXT PRIMARY KEY,
     micro_usd INTEGER NOT NULL DEFAULT 0
 );
+
+-- Alert state (app/alerts.py): one row per alert key (a monitoring metric, or monitor_stale). Global
+-- configuration like rule_overrides: no case id. Acknowledgements are also written to audit_log.
+CREATE TABLE IF NOT EXISTS alert_state (
+    key TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    last_notified TEXT,
+    notify_count INTEGER NOT NULL DEFAULT 0,
+    value REAL,
+    threshold REAL,
+    meaning TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL DEFAULT '',
+    acknowledged_by TEXT,
+    acknowledged_at TEXT,
+    note TEXT,
+    resolved_at TEXT,
+    resolution_notified INTEGER NOT NULL DEFAULT 1
+);
+
+-- One row per sink per message: which sink, when, whether it arrived and the error class (never a
+-- message, URL or secret). Pruned to the newest rows by app/alerts.py.
+CREATE TABLE IF NOT EXISTS alert_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    sink TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    alert_key TEXT,
+    ok INTEGER NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    error TEXT
+);
+
+-- Small named values of the monitor: last evaluation time, last test alert, scheduler start.
+CREATE TABLE IF NOT EXISTS monitor_meta (
+    name TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 # A partial case (pages that could not be read) has an understated score: silence is not safety.
