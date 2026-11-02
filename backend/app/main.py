@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib
 import logging
 import pkgutil
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -25,6 +26,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import app.api as api_package
 from app.access import AccessSettings, install_access
+from app.alerts import build_sinks
 from app.core.config import APP_VERSION, Settings, get_settings
 from app.core.db import Database
 from app.core.errors import ApiError
@@ -142,11 +144,15 @@ def create_app(
 
         purge_stop = start_auto_purge(db, settings, now=utcnow)
 
+    monitor_stop: list[Any] = []
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
         if purge_stop is not None:
             purge_stop.set()
+        for event in monitor_stop:
+            event.set()
         runner.shutdown(wait=False)
 
     # Behind the gate (production) the interactive docs and the OpenAPI schema are off: a map of every route is
@@ -163,6 +169,25 @@ def create_app(
     app.state.settings = settings
     app.state.db = db
     app.state.runner = runner
+
+    if settings.monitor_interval_minutes > 0 and settings.monitor_in_process:
+        from app.alerts import start_monitor_scheduler
+        from app.core.models import utcnow as _now
+
+        monitor_stop.append(
+            start_monitor_scheduler(
+                db,
+                settings,
+                now=lambda: getattr(app.state, "clock", _now)(),
+                sinks=lambda: getattr(app.state, "alert_sinks", None),
+                sleep=lambda s: getattr(app.state, "alert_sleep", time.sleep)(s),
+            )
+        )
+        log.info(
+            "monitor schedule on: every %d minute(s), sinks configured: %s",
+            settings.monitor_interval_minutes,
+            ",".join(s.name for s in build_sinks(settings)) or "none",
+        )
 
     app.add_middleware(
         CORSMiddleware,
