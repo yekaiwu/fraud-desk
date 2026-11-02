@@ -224,6 +224,17 @@ Requires `company_profile` and a registry entity (`CheckSkipped("registry unavai
 - **(d) info notes** (severity override `info`, weight 0): a profile director with no ID document in the bundle (`no ID document supplied for director X`); an ID document whose holder matches no director and no shareholder or chart individual (`ID of X is not linked to a director or owner (guarantor?)`).
 Appointment dates, positions and nationalities are not compared (gap).
 
+### 4.5a `x_entity_vs_registry` and the live company register
+
+With `GLDB_REGISTRY_LIVE=on`, an applicant UEN that the registry file does not hold is looked up in Singapore's open ACRA data on data.gov.sg (`app/registry_live.py`, one dataset per first letter of the company name; answers are cached on disk for a week, misses for a day). The open data says what an entity is (UEN, name, type, status, incorporation date, address, SSIC) and does not list shareholders or directors, so such an entity carries `source="acra"` and `x_ownership_vs_registry` and `x_directors` do not judge it.
+
+`x_entity_vs_registry` (high, crossdoc, KYC) runs only on a live entity and flags, on a company profile or certificate of incorporation: a company name the register does not hold for this UEN (`~name`), a different incorporation date (`~date`), a status that is not live (`~status`). A one-letter legal-form difference ("Pte Ltd" against "Pte. Ltd.") is not a flag.
+
+Three answers are kept apart: an entity, "no such UEN" (then `x_ownership_vs_registry` says the UEN is not in the registry), and "could not ask" (rate limit, network, bad answer). The last never becomes a flag: the registry checks skip and the case is marked partial with `registry_unavailable`.
+
+Limits: the register says nothing about who owns or runs the company; a genuine company with a stolen UEN and its true name passes; the open data lags the official register by days; the free API is rate limited, so a burst of new UENs can come back unavailable.
+
+
 ### 4.6 `x_declared_vs_activity` (C5)
 
 Inputs: `company_profile.fields.principal_activity` and every `bank_statement.transactions` row with annotation `c5` whose `probability >= settings.classifier_min_prob` (0.70); `counterparty` annotation for names. Statements in different currencies: `CheckSkipped("currency mismatch")`. No row has `c5`: `CheckSkipped("no c5 annotations")`.

@@ -2,7 +2,7 @@
 # Check catalogue
 Our reading as students, not legal advice. Decision support only; a human decides. All data is fictitious.
 
-Ruleset version: `rs-02de835ec068` | Checks registered: 55 | Planned in the plan but not registered: 0
+Ruleset version: `rs-1c498df8c690` | Checks registered: 57 | Planned in the plan but not registered: 0
 
 ## How to read this
 
@@ -27,6 +27,7 @@ Ruleset version: `rs-02de835ec068` | Checks registered: 55 | Planned in the plan
 | `pdf_editor_software` | medium | any file | - | aml, kyc, loan | PDF metadata (Info or XMP) names editing software such as an online PDF editor. | editor named in metadata | 1 |
 | `pdf_modified` | low | any file | - | aml, kyc, loan | PDF was modified more than 300 seconds after creation, before it was created, or carries a date after the case date. | re-saved after creation | 1 |
 | `pdf_producer_unexpected` | medium | any file | - | aml, kyc, loan | A bank statement PDF was produced by software other than the issuer's known producer. | statement made by other software | 1 |
+| `pdf_signature_invalid` | high | any file | - | aml, kyc, loan | A digital signature in a PDF no longer matches the bytes it covers, or later revisions change more than signing allows. | signed PDF edited after signing | 1 |
 | `pdf_text_vs_render` | medium | any file | - | aml, kyc, loan | Text-layer words are hidden, covered by a later opaque shape, or have no visible ink in the rendered page. | white box and retyped figure, hidden text | 1 |
 | `signature_reuse` | medium | any file | - | aml, kyc, loan | The same signature or stamp image appears on documents of different parties (no claim that any signature is genuine). | one signature/stamp image pasted on documents by different parties | 1 |
 
@@ -74,6 +75,7 @@ Ruleset version: `rs-02de835ec068` | Checks registered: 55 | Planned in the plan
 | `x_declared_vs_activity` | medium | company_profile | bank_statement, company_profile | kyc | Declared business against counterparty activity | declares logistics, statements show crypto | 1 |
 | `x_directors` | high | company_profile | company_profile | kyc | Directors match the registry and the ID documents | director not found in registry | 1 |
 | `x_entity` | high | bank_statement, certificate_of_incorporation, company_profile, contract, financial_statement, invoice, ownership_chart, purchase_order, shareholder_register, source_of_funds_declaration | - | aml, kyc, loan | Company names and UENs agree across the bundle and with the applicant. | Documents of different companies spliced into one bundle, or the applicant's UEN under another name. | 1 |
+| `x_entity_vs_registry` | high | certificate_of_incorporation, company_profile | - | kyc | Company name, status and incorporation date match the live company register | company name or incorporation date edited against the register | 1 |
 | `x_invoice_vs_contract` | medium | contract, purchase_order | invoice | aml, loan | Invoices agree with the contract or purchase order they cite on parties, amount and dates. | Forged or altered contract or purchase order values, or invoices that bill more than the contract. | 1 |
 | `x_invoice_vs_receipts` | medium | invoice | bank_statement | aml, loan | Every invoice marked paid has a matching deposit in the bank statements inside its payment window. | Fake or unpaid invoices presented as paid. | 1 |
 | `x_ownership_vs_registry` | high | company_profile, ownership_chart, shareholder_register | - | kyc | Chart and register match the registry | ownership chart omits a shareholder | 1 |
@@ -89,6 +91,8 @@ None
 
 | Rule | Stage | Reason |
 |---|---|---|
+| `pdf_signature_invalid` | forensics | 2026-11 signature integrity with pyHanko (docs/forensics.md 4.9) |
 | `doc_unclassified` | rules | built-in info check, emitted from pipeline warnings (plan 5.3) |
 | `doc_unreadable` | rules | built-in info check, emitted from pipeline warnings (plan 8.5) |
 | `file_reuse` | crossdoc | 0.4 duplicate detection (file hash), added at R0 |
+| `x_entity_vs_registry` | crossdoc | 2026-11 live company register (docs/checks-kyc-aml.md 4.5a) |

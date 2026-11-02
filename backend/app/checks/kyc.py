@@ -31,6 +31,7 @@ from app.names import (
     labelled,
     looks_like_nric,
     mask_id,
+    match_company,
     match_person,
     normalise_id,
     pct_tol,
@@ -1705,4 +1706,96 @@ def x_declared_vs_activity(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912
                     f"which differs from the declared business ({declared_text}).",
                 )
             )
+    return flags
+
+
+LIVE_STATUSES = ("live", "registered")  # "Live Company", "Registered"; anything else is not trading
+
+
+# --------------------------------------------------------------------------------------
+# x_entity_vs_registry
+# --------------------------------------------------------------------------------------
+
+
+@check(
+    rule="x_entity_vs_registry",
+    applies_to={"company_profile", "certificate_of_incorporation"},
+    stage="crossdoc",
+    severity="high",
+    use_cases={"kyc"},
+    description="Company name, status and incorporation date match the live company register",
+    tamper="company name or incorporation date edited against the register",
+)
+def x_entity_vs_registry(ctx: CaseContext) -> list[Flag]:
+    """Only for an entity read from the open ACRA data: those records say what the entity is and
+    whether it is live, which is what a forged certificate or profile gets wrong. (The mock register
+    belongs to the generator, so its entities keep to the owner and director checks.)"""
+    if ctx.registry is None:
+        raise CheckSkipped("registry unavailable")
+    uen = normalise_id(ctx.applicant.uen)
+    if not uen:
+        raise CheckSkipped("applicant uen unknown")
+    entity = ctx.registry.lookup(uen)
+    if entity is None:
+        raise CheckSkipped("entity absent from registry")  # x_ownership_vs_registry says so
+    if entity.source != "acra":
+        raise CheckSkipped("registry entity is not from the live register")
+    docs = _docs(ctx, "company_profile", "certificate_of_incorporation")
+    flags: list[Flag] = []
+    for doc in docs:
+        name_cell = _cell(doc, "company_name")
+        if (
+            name_cell.value
+            and match_company(name_cell.value, entity.entity_name).verdict == "different"
+        ):
+            flags.append(
+                make_flag(
+                    "x_entity_vs_registry",
+                    docs=[doc],
+                    field="company_name",
+                    region=labelled(cell_region(name_cell), "name"),
+                    discriminator="name",
+                    evidence=(
+                        f"document: {safe_text(name_cell.value)}; register ({entity.uen}): "
+                        f"{safe_text(entity.entity_name)}"
+                    ),
+                    explanation=(
+                        f"The company name on this document ({safe_text(name_cell.value)}) is not "
+                        f"the name the register holds for {entity.uen} ({safe_text(entity.entity_name)})."
+                    ),
+                )
+            )
+        stated = _cell(doc, "incorporation_date").date_()
+        if stated is not None and stated != entity.incorporation_date:
+            flags.append(
+                make_flag(
+                    "x_entity_vs_registry",
+                    docs=[doc],
+                    field="incorporation_date",
+                    region=labelled(cell_region(_cell(doc, "incorporation_date")), "date"),
+                    discriminator="date",
+                    evidence=(
+                        f"document: {stated.isoformat()}; register: "
+                        f"{entity.incorporation_date.isoformat()}"
+                    ),
+                    explanation=(
+                        f"This document gives {stated.isoformat()} as the incorporation date, but "
+                        f"the register holds {entity.incorporation_date.isoformat()}."
+                    ),
+                )
+            )
+    status = entity.status.strip().lower()
+    if docs and status and status != "not stated" and not status.startswith(LIVE_STATUSES):
+        flags.append(
+            make_flag(
+                "x_entity_vs_registry",
+                docs=docs,
+                discriminator="status",
+                evidence=f"register status for {entity.uen}: {safe_text(entity.status)}",
+                explanation=(
+                    f"The register lists this company as '{safe_text(entity.status)}', not as a "
+                    "live company, so it may not be able to trade or borrow."
+                ),
+            )
+        )
     return flags

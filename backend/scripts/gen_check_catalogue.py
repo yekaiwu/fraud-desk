@@ -118,6 +118,8 @@ BUILTIN_RULES: dict[str, str] = {"doc_unreadable": "8.5", "doc_unclassified": "5
 # registered checks that the plan does not list, with the reason
 ADDED_RULES: dict[str, str] = {
     "file_reuse": "0.4 duplicate detection (file hash), added at R0",
+    "x_entity_vs_registry": "2026-11 live company register (docs/checks-kyc-aml.md 4.5a)",
+    "pdf_signature_invalid": "2026-11 signature integrity with pyHanko (docs/forensics.md 4.9)",
 }
 
 STAGE_SECTIONS: tuple[tuple[str, str], ...] = (

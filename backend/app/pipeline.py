@@ -278,6 +278,29 @@ def _short_error(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
 
 
+def attach_live_entity(ctx: CaseContext) -> None:
+    """With ``registry_live`` on, add the applicant's entity from the open ACRA data when the registry
+    file does not hold it. If the register cannot be asked the registry checks skip (never a flag
+    that "the UEN is not in the registry") and the case says it is partial."""
+    uen = ctx.case.applicant.uen
+    if not ctx.settings.registry_live or not uen:
+        return
+    from app.registry_live import AcraLookup, RegistryUnavailable, with_live_entity
+
+    try:
+        ctx.registry = with_live_entity(
+            ctx.registry,
+            uen,
+            ctx.case.applicant.name,
+            ctx.today,
+            AcraLookup(ctx.settings.data_dir / "registry-cache"),
+        )
+    except RegistryUnavailable as exc:
+        log.warning("live registry unavailable for %s: %s", ctx.case.id, exc)
+        ctx.registry = None
+        _add_reason(ctx.case, "registry_unavailable: the company register could not be asked")
+
+
 def _add_reason(case: Case, reason: str) -> None:
     case.partial = True
     if reason not in case.partial_reasons:
@@ -336,6 +359,7 @@ def run_pipeline(
         for stage in STAGES:
             if stage == "forensics":
                 case.applicant = resolve_applicant(ctx)
+                attach_live_entity(ctx)
             _run_one_stage(ctx, stage, db, on_stage)
         case.provenance = build_provenance(ctx)
         try:

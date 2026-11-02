@@ -10,8 +10,15 @@ survives only if the shadow run raised the same rule on the same first document.
 Flags the shadow run did not reproduce stay on the case as ``info`` with the reason in front of their
 explanation, so an analyst can still see them and the audit trail is complete; they no longer add to
 the score or the queue. If the second reading cannot be made (budget, error) nothing is dropped and a
-warning says so. Duplicate-invoice flags and every forensic or model-based flag are left alone: they do
-not depend on how the text was read.
+warning says so.
+
+A flag is set aside only when the second reading *contradicts* it: the other reader found the same
+documents and the check did not fire on them. When the other reader did not find a document the flag
+names (it classified it differently, or could not read it), the second reading says nothing, so the flag
+stays and is counted as inconclusive. Model-based (``sem_``) flags go through the same test, with the
+model-based checks switched on in the shadow run, because a misread counterparty name makes a
+statement look incoherent. Duplicate-invoice flags and every forensic flag are left alone: they do not
+depend on how the text was read.
 """
 
 from __future__ import annotations
@@ -57,12 +64,22 @@ def candidates(ctx: CaseContext) -> list[Flag]:
         if (
             f.stage in CHECK_STAGES
             and f.severity in ("medium", "high")
-            and not is_semantic_rule(f.rule)
             and f.rule not in EXEMPT_RULES
             and any(is_scan_document(ctx.case, d, ctx) for d in f.document_ids)
         ):
             out.append(f)
     return out
+
+
+def shadow_saw_documents(case: Case, shadow: Case, flag: Flag) -> bool:
+    """Whether the second reading found every document the flag names, as the same kind of document.
+    Only then does its silence contradict the flag; otherwise it is simply a different failure to read."""
+    seen = {(d.file_id, d.doc_type) for d in shadow.documents if d.status in ("ok", "partial")}
+    for doc_id in flag.document_ids:
+        doc = next((d for d in case.documents if d.id == doc_id), None)
+        if doc is not None and (doc.file_id, doc.doc_type) not in seen:
+            return False
+    return True
 
 
 def other_reader(ctx: CaseContext) -> dict[str, object] | None:
@@ -80,9 +97,12 @@ def other_reader(ctx: CaseContext) -> dict[str, object] | None:
     return {"ocr_backend": "tesseract", "llm_supports_vision": False, "llm_vision_fallback": False}
 
 
-def shadow_reading(ctx: CaseContext, reader: dict[str, object]) -> tuple[Case, list]:
+def shadow_reading(
+    ctx: CaseContext, reader: dict[str, object], flagged: list[Flag] | None = None
+) -> tuple[Case, list]:
     """Read the case again with the other reader, in memory, up to and including the cross-document
-    checks. Returns the shadow case and its cost entries."""
+    checks. Returns the shadow case and its cost entries. ``flagged`` are the flags being checked: the
+    model-based checks run in the shadow only when one of them is model-based."""
     from app.core.cache import ResponseCache
     from app.core.costs import BudgetLimits, CostMeter, DailySpend, PriceTable
     from app.core.db import Database
@@ -103,7 +123,7 @@ def shadow_reading(ctx: CaseContext, reader: dict[str, object]) -> tuple[Case, l
     settings = ctx.settings.model_copy(
         update={
             **reader,
-            "semantic": "off",
+            "semantic": "on" if any(is_semantic_rule(f.rule) for f in flagged or []) else "off",
             "verify_scan_flags": False,
             "agents": False,
             "max_usd_per_day": Decimal("100"),
@@ -151,7 +171,7 @@ def confirm_scan_flags(ctx: CaseContext) -> dict[str, object]:
             "warning": "verification_unavailable: no second reader",
         }
     try:
-        shadow, costs = shadow_reading(ctx, reader)
+        shadow, costs = shadow_reading(ctx, reader, flagged)
     except Exception as exc:  # noqa: BLE001 - never lose the first reading's flags to a failed second one
         log.warning(
             "second reading failed for %s: %s", ctx.case.id, type(exc).__name__, exc_info=True
@@ -178,17 +198,19 @@ def confirm_scan_flags(ctx: CaseContext) -> dict[str, object]:
             "warning": "verification_unavailable: second reading incomplete",
         }
     confirmed = {flag_key(shadow, f) for f in shadow.flags if f.stage in CHECK_STAGES}
-    drop = {f.id for f in flagged if flag_key(ctx.case, f) not in confirmed}
-    if drop:
-        by_rule: dict[str, int] = {}
-        for i, f in enumerate(ctx.case.flags):
-            if f.id in drop:
-                ctx.case.flags[i] = f.model_copy(
-                    update={"severity": "info", "explanation": (NOTE + f.explanation)}
-                )
-                by_rule[f.rule] = by_rule.get(f.rule, 0) + 1
-    return {
+    unreproduced = [f for f in flagged if flag_key(ctx.case, f) not in confirmed]
+    drop = {f.id for f in unreproduced if shadow_saw_documents(ctx.case, shadow, f)}
+    inconclusive = len(unreproduced) - len(drop)
+    for i, f in enumerate(ctx.case.flags):
+        if f.id in drop:
+            ctx.case.flags[i] = f.model_copy(
+                update={"severity": "info", "explanation": (NOTE + f.explanation)}
+            )
+    out: dict[str, object] = {
         "verification": "done",
-        "verified_flags": len(flagged) - len(drop),
+        "verified_flags": len(flagged) - len(unreproduced),
         "unconfirmed_flags": len(drop),
     }
+    if inconclusive:
+        out["inconclusive_flags"] = inconclusive
+    return out

@@ -818,6 +818,103 @@ def pdf_bytes_after_signature(ctx: CaseContext) -> list[Flag]:
 
 
 # --------------------------------------------------------------------------------------
+# pdf_signature_invalid: does the signature still match the signed bytes? (pyHanko)
+# --------------------------------------------------------------------------------------
+
+
+def signature_problems(data: bytes) -> list[str]:
+    """What is wrong with the embedded signatures of ``data``, in words; empty when each signature
+    still matches the bytes it covers and nothing but permitted changes follows it.
+
+    Only integrity is judged. Whether the signer's certificate is trusted is not: the tool holds no
+    trust roots, and a self-signed or unknown signer is not evidence of editing. Nothing is fetched
+    from the network. A PDF that cannot be parsed raises ``ValueError``."""
+    import io
+
+    from pyhanko.pdf_utils.reader import PdfFileReader
+    from pyhanko.sign.diff_analysis import ModificationLevel
+    from pyhanko.sign.validation import validate_pdf_signature
+    from pyhanko_certvalidator import ValidationContext
+
+    problems: list[str] = []
+    try:
+        reader = PdfFileReader(io.BytesIO(data), strict=False)
+        signatures = list(reader.embedded_signatures)
+    except Exception as exc:  # noqa: BLE001 - any parser failure is "could not read"
+        raise ValueError(type(exc).__name__) from exc
+    for i, sig in enumerate(signatures, start=1):
+        try:
+            status = validate_pdf_signature(
+                sig, ValidationContext(trust_roots=[], allow_fetching=False)
+            )
+        except Exception as exc:  # noqa: BLE001
+            problems.append(f"signature {i} could not be validated ({type(exc).__name__})")
+            continue
+        if not status.intact:
+            problems.append(f"signature {i}: the signed bytes no longer match its digest")
+        elif status.modification_level == ModificationLevel.OTHER:
+            problems.append(
+                f"signature {i}: later revisions change content beyond what signing allows"
+            )
+    return problems
+
+
+@check(
+    rule="pdf_signature_invalid",
+    stage="forensics",
+    applies_to={"*"},
+    severity="high",
+    description=(
+        "A digital signature in a PDF no longer matches the bytes it covers, or later revisions "
+        "change more than signing allows."
+    ),
+    tamper="signed PDF edited after signing",
+)
+def pdf_signature_invalid(ctx: CaseContext) -> list[Flag]:
+    files = _pdf_files(ctx)
+    if not files:
+        raise CheckSkipped("no PDF file in the case")
+    flags: list[Flag] = []
+    failed: list[str] = []
+    for f in files:
+        try:
+            data = _read_bytes(ctx, f.id)
+        except OSError:
+            failed.append(f.id)
+            continue
+        if not signature_ranges(data):
+            continue  # nothing signed: no signal
+        try:
+            problems = signature_problems(data)
+        except ValueError:
+            failed.append(f.id)
+            continue
+        if problems:
+            flags.append(
+                make_flag(
+                    "pdf_signature_invalid",
+                    docs=_docs_of_file(ctx, f.id),
+                    evidence="; ".join(problems[:3]),
+                    explanation=(
+                        "This PDF carries a digital signature, but the file has been changed since it "
+                        "was signed, so the signature no longer vouches for what the page shows."
+                    ),
+                    severity="high",
+                    discriminator=f.id,
+                )
+            )
+    if failed:
+        flags.append(
+            _notice(
+                "pdf_signature_invalid",
+                [d for fid in failed for d in _docs_of_file(ctx, fid)],
+                f"files not analysed (unreadable): {', '.join(failed)}",
+            )
+        )
+    return flags
+
+
+# --------------------------------------------------------------------------------------
 # Text-layer analysis (PyMuPDF, no model call): pdf_text_vs_render, font_span_outlier, font_mix
 # --------------------------------------------------------------------------------------
 

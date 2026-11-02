@@ -227,6 +227,13 @@ Cross-case: for each candidate, `ctx.fingerprints.lookup("crop_phash", phash, ex
 
 Budget, expressed as deterministic caps (not timers, so re-runs give identical flags): `MAX_TEXT_PAGES = 30` per file, `MAX_RASTER_PAGES = 8` per file, analysis long side 1600 px, ORB `nfeatures = 1500`, ELA skipped above 12 MP, 3 regions per page per rule, 10 flags per rule per file. Hitting a cap emits a limit notice (4.1). **Target:** forensics stage median `<= 3 s` per file and p95 `<= 10 s` on a team laptop, measured by `StageRecord.seconds / file count` in the eval and reported even if missed (plan 6: no invented targets; these are the starting numbers the eval confirms or replaces). A CI test asserts a loose ceiling (`<= 20 s` for a 10-page text PDF and a 2 MP JPEG together) with `pytest-timeout`, not a tight timing assertion.
 
+### 4.9 `pdf_signature_invalid`
+
+`pdf_bytes_after_signature` sees bytes added after a signature. It cannot see a signed PDF whose signed bytes were edited in place, which breaks the signature's digest. `pdf_signature_invalid` (high) reads each embedded signature with pyHanko and flags a signature whose signed bytes no longer match its digest, or whose later revisions change more than signing allows (not form filling or annotation).
+
+Only integrity is judged. The tool holds no trust roots, so an unknown or self-signed signer is not a flag, and nothing is fetched from the network. A PDF with no signature gives no signal; one pyHanko cannot parse gets an info notice. Limit: a forger who removes the signature altogether, or prints the PDF to a new file, leaves nothing for this check; the other PDF checks and the cross-document checks carry that case.
+
+
 ## 5. Files owned
 
 | Path | Owner agent |

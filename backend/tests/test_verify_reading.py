@@ -56,7 +56,7 @@ def shadow_with(ctx, flags: list[Flag]):  # noqa: ANN001, ANN202
 def test_a_flag_both_readings_raise_stays(monkeypatch: pytest.MonkeyPatch) -> None:
     ctx = ctx_with([flag("a", "bs_totals", ["d1"])])
     monkeypatch.setattr(
-        vr, "shadow_reading", lambda c, r: shadow_with(c, [flag("z", "bs_totals", ["d1"])])
+        vr, "shadow_reading", lambda c, r, f=None: shadow_with(c, [flag("z", "bs_totals", ["d1"])])
     )
     out = vr.confirm_scan_flags(ctx)
     assert out["unconfirmed_flags"] == 0 and out["verified_flags"] == 1
@@ -68,7 +68,7 @@ def test_a_flag_only_the_first_reading_raised_is_set_aside_not_deleted(
 ) -> None:
     ctx = ctx_with([flag("a", "x_directors", ["d1"]), flag("b", "bs_totals", ["d2"])])
     monkeypatch.setattr(
-        vr, "shadow_reading", lambda c, r: shadow_with(c, [flag("z", "bs_totals", ["d2"])])
+        vr, "shadow_reading", lambda c, r, f=None: shadow_with(c, [flag("z", "bs_totals", ["d2"])])
     )
     out = vr.confirm_scan_flags(ctx)
     assert out["unconfirmed_flags"] == 1
@@ -83,30 +83,28 @@ def test_the_key_ignores_the_other_documents_a_flag_cites(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         vr,
         "shadow_reading",
-        lambda c, r: shadow_with(c, [flag("z", "x_remitter_vs_buyer", ["d2"], stage="crossdoc")]),
+        lambda c, r, f=None: shadow_with(
+            c, [flag("z", "x_remitter_vs_buyer", ["d2"], stage="crossdoc")]
+        ),
     )
     assert vr.confirm_scan_flags(ctx)["unconfirmed_flags"] == 0
 
 
-def test_duplicates_semantic_and_low_flags_are_not_second_guessed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_duplicates_and_low_flags_are_not_second_guessed(monkeypatch: pytest.MonkeyPatch) -> None:
     ctx = ctx_with(
-        [
-            flag("a", "inv_duplicate", ["d2"]),
-            flag("b", "sem_goods_fit", ["d2"], severity="medium", stage="crossdoc"),
-            flag("c", "bs_dates", ["d1"], severity="low"),
-        ]
+        [flag("a", "inv_duplicate", ["d2"]), flag("c", "bs_dates", ["d1"], severity="low")]
     )
     called = []
-    monkeypatch.setattr(vr, "shadow_reading", lambda c, r: called.append(1) or shadow_with(c, []))
+    monkeypatch.setattr(
+        vr, "shadow_reading", lambda c, r, f=None: called.append(1) or shadow_with(c, [])
+    )
     assert vr.confirm_scan_flags(ctx) == {} and not called
 
 
 def test_a_failed_second_reading_drops_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     ctx = ctx_with([flag("a", "bs_totals", ["d1"])])
 
-    def boom(c, r):  # noqa: ANN001, ANN202
+    def boom(c, r, f=None):  # noqa: ANN001, ANN202
         raise RuntimeError("network")
 
     monkeypatch.setattr(vr, "shadow_reading", boom)
@@ -119,3 +117,47 @@ def test_off_by_default_without_a_model() -> None:
     assert Settings(_env_file=None, llm_backend="fake").verify_scan_flags is False
     ctx = ctx_with([flag("a", "bs_totals", ["d1"])], settings=settings())
     assert vr.confirm_scan_flags(ctx) == {}
+
+
+def test_a_document_the_other_reader_did_not_find_is_inconclusive_not_a_contradiction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = ctx_with(
+        [
+            flag("a", "x_remitter_vs_buyer", ["d2", "d1"], stage="crossdoc"),
+            flag("b", "bs_totals", ["d1"]),
+        ]
+    )
+
+    def shadow(c, r, f=None):  # noqa: ANN001, ANN202
+        s, costs = shadow_with(c, [])
+        s.documents = [d for d in s.documents if d.id != "d2"]  # the invoice was not found
+        return s, costs
+
+    monkeypatch.setattr(vr, "shadow_reading", shadow)
+    out = vr.confirm_scan_flags(ctx)
+    by_id = {f.id: f for f in ctx.case.flags}
+    assert by_id["a"].severity == "high" and out["inconclusive_flags"] == 1
+    assert by_id["b"].severity == "info" and out["unconfirmed_flags"] == 1
+
+
+def test_a_model_based_flag_needs_the_second_reading_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    ctx = ctx_with(
+        [
+            flag("a", "sem_coherence_fit", ["d1"], severity="medium", stage="crossdoc"),
+            flag("b", "sem_goods_fit", ["d2"], severity="medium", stage="crossdoc"),
+        ]
+    )
+    seen: list[list[Flag]] = []
+
+    def shadow(c, r, f=None):  # noqa: ANN001, ANN202
+        seen.append(f)
+        return shadow_with(
+            c, [flag("z", "sem_goods_fit", ["d2"], severity="medium", stage="crossdoc")]
+        )
+
+    monkeypatch.setattr(vr, "shadow_reading", shadow)
+    out = vr.confirm_scan_flags(ctx)
+    by_id = {f.id: f for f in ctx.case.flags}
+    assert out["unconfirmed_flags"] == 1 and len(seen[0]) == 2
+    assert by_id["a"].severity == "info" and by_id["b"].severity == "medium"

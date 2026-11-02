@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     db_path: str | None = None
     registry_path: Path = Path("./samples/registry.json")
+    # Ask Singapore's open ACRA dataset about an applicant UEN that the registry file does not hold
+    # (app/registry_live.py). Off by default: it makes a network call per new UEN.
+    registry_live: bool = False
     today: date | None = None
 
     # LLM
@@ -78,6 +81,9 @@ class Settings(BaseSettings):
     anthropic_timeout_s: float = 120.0
     # local OCR for scans (ingest/ocr.py)
     ocr_backend: Literal["auto", "vision", "tesseract", "rapidocr", "none"] = "auto"
+    # Find the page in a phone photo and straighten it before a local OCR reads it (ingest/flatten.py).
+    # Only the text reading uses the straightened picture; the stored page and the image forensics do not.
+    ocr_straighten: bool = True
     # With a local OCR chosen under the anthropic backend the model reads OCR text only. True also
     # lets a scanned page whose arithmetic does not add up be re-read once from its image (the one
     # place the model sees pixels). Empty = on in that setup and off elsewhere; false turns it off.
@@ -329,6 +335,10 @@ class Settings(BaseSettings):
             out["llm_supports_vision"] = "False"
         if self.ocr_backend != "auto":
             out["ocr_backend"] = self.ocr_backend
+        if self.registry_live:
+            out["registry_live"] = "on"
+        if not self.ocr_straighten:
+            out["ocr_straighten"] = "False"
         if self.effective_llm_backend() == "anthropic":
             out["anthropic_model"] = self.anthropic_model
         if self.max_usd_per_day != Decimal("5.00"):

@@ -47,6 +47,9 @@ class RegistryEntity(Strict):
     currency: str | None = None
     officers: list[RegistryOfficer] = []
     shareholders: list[RegistryShareholder] = []
+    # "acra": a live record from Singapore's open ACRA dataset (app/registry_live.py). It states what
+    # the entity is, not who owns or runs it, so owner and director checks skip it.
+    source: Literal["mock", "acra"] = "mock"
 
 
 class MockRegistry(Strict):

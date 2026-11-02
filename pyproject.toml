@@ -17,6 +17,7 @@ dependencies = [
     "pillow>=13.0.0",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.1",
+    "pyhanko>=0.26",
     "pymupdf>=2.0",
     "python-dateutil>=3.0.0",
     "python-multipart>=0.0.32",

@@ -128,9 +128,21 @@ def _local_ocr(ctx: CaseContext, file_id: str, page: int, backend) -> tuple[list
     file = ctx.file(file_id)
     dpi = max(ctx.settings.vision_dpi, MIN_LOCAL_OCR_DPI)
     rendered = render_for_model(ctx.file_path(file_id), file.mime, page, dpi=dpi)
-    lines = [
-        OcrLine(text=b.text, x=b.x, y=b.y, w=b.w, h=b.h) for b in backend.recognise(rendered.png)
-    ]
+    png, to_image = rendered.png, None
+    if ctx.settings.ocr_straighten and file.mime.startswith("image/"):
+        from app.ingest.flatten import flatten
+
+        flat = flatten(rendered.png)
+        if flat.changed:
+            png, to_image = flat.png, flat.to_original
+    lines = [OcrLine(text=b.text, x=b.x, y=b.y, w=b.w, h=b.h) for b in backend.recognise(png)]
+    if to_image is not None:  # boxes were read on the straightened picture; put them back
+        lines = [
+            OcrLine(
+                text=ln.text, **dict(zip("xywh", to_image(ln.x, ln.y, ln.w, ln.h), strict=True))
+            )
+            for ln in lines
+        ]
     return lines_to_words(lines, page, rendered.to_page)
 
 

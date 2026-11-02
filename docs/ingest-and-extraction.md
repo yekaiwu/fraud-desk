@@ -214,6 +214,13 @@ Pieces that are not `assembled` are "pages not reviewed": `UncheckedReason` `sta
 
 Limits, stated plainly: (1) a page dropped from a per-page upload cannot be told from a page the applicant did not upload, so a removed page (tamper T06) on `scan_hq`, `scan_lq` and `photo` is now "not reviewed" and partial, not a flag; (2) a marker or account number misread by OCR makes a page fall out as `incomplete`; (3) two pages identical in every cue stay `ambiguous`; (4) a forged page with the right markers and a consistent balance is accepted like any other page; (5) the cues use the extractor's output, so on real scans they are only as good as the extraction, which this repository measures only with the ground-truth oracle.
 
+### 4.8 Straightening phone photos for OCR
+
+A photo of a page on a desk is skewed, has a dark border and uneven light. For image uploads read by a local OCR, `ingest/flatten.py` finds the page outline (largest light region, four corners), warps it upright to the page's own shape and evens out the lighting. The words are read on the straightened picture and their boxes are mapped back onto the original, so highlights land on the photo the analyst sees. The stored image and all image forensics keep the original.
+
+It leaves a picture alone when no outline covering at least 40% of the frame is found, or when the page already fills the frame upright. `GLDB_OCR_STRAIGHTEN=off` disables it. Measured on simulated phone photos, straightening cut Tesseract's word misses from 1.8% to 0.34% (docs/anthropic-haiku.md section 5). Not measured on real photos, where shadows, curl, glare, fingers and cluttered backgrounds will defeat the outline search some of the time.
+
+
 ## 5. Behaviour: `LLMClient`
 
 ### 5.1 `get_llm_client(settings, cache)`
