@@ -203,12 +203,14 @@ def test_three_checks_share_one_analysis(
 # --------------------------------------------------------------------------------------
 
 
-def test_noise_mismatch_flags_a_patch_with_other_noise_and_alone_stays_medium() -> None:
+def test_noise_mismatch_flags_a_patch_with_other_noise_and_alone_is_only_low() -> None:
     ctx = upload_ctx(noise_patch_png(), "image/png")
     flags = fi.noise_mismatch(ctx)
     assert len(flags) == 1
     flag = flags[0]
-    assert flag.rule == "noise_mismatch" and flag.severity == "medium"  # one noisy check alone
+    assert (
+        flag.rule == "noise_mismatch" and flag.severity == "low"
+    )  # one noisy check alone is a hint
     assert flag.region is not None and flag.region.label == "noise"
     # patch pasted at (500, 300) .. (820, 520) of a 1200 x 800 page
     assert 0.3 < flag.region.x < 0.55 and 0.3 < flag.region.y < 0.45
@@ -292,8 +294,8 @@ def test_overlap_threshold_is_intersection_over_the_smaller_area() -> None:
     edge = cand("noise_mismatch", 0.225, 0.2, 0.05, 0.05)
     assert [c.severity for c in fi._corroborate([small, edge])] == ["high", "high"]
     barely = cand("noise_mismatch", 0.2251, 0.2, 0.05, 0.05)
-    # a lone ELA region is low; noise_mismatch has no lone demotion
-    assert [c.severity for c in fi._corroborate([small, barely])] == ["low", "medium"]
+    # a lone region of any of the three raster rules is low
+    assert [c.severity for c in fi._corroborate([small, barely])] == ["low", "low"]
 
 
 def test_a_third_rule_adds_its_name_once() -> None:

@@ -43,7 +43,10 @@ from app.core.config import Settings  # noqa: E402
 from app.core.db import Database  # noqa: E402
 
 BASE = "https://huggingface.co/datasets/mychen76/invoices-and-receipts_ocr_v1/resolve/main/data/"
-SPLITS = {"test": "test-00000-of-00001-af2d92d1cee28514.parquet"}
+SPLITS = {
+    "test": "test-00000-of-00001-af2d92d1cee28514.parquet",
+    "valid": "valid-00000-of-00001-894b4e1f736b5732.parquet",
+}
 TODAY = date(2026, 10, 27)
 
 
@@ -110,10 +113,19 @@ def run(args: argparse.Namespace) -> int:
         : args.limit
     ]
     rows = []
+    spent = Decimal("0")
     for img in images:
+        if spent > Decimal(args.max_usd):
+            print("BUDGET REACHED", spent, flush=True)
+            break
         data_dir = Path(tempfile.mkdtemp(prefix="gldb-ext-"))
         settings = Settings(
-            _env_file=None, data_dir=data_dir, db_path=str(data_dir / "gldb.sqlite3")
+            _env_file=args.env,
+            data_dir=data_dir,
+            db_path=str(data_dir / "gldb.sqlite3"),
+            **({"ocr_backend": args.ocr} if args.ocr else {}),
+            max_usd_per_case=Decimal(args.max_usd_per_case),
+            max_usd_per_day=Decimal(args.max_usd),
         )
         db = Database(settings.database_path, data_dir=settings.data_dir)
         db.init_schema()
@@ -139,6 +151,7 @@ def run(args: argparse.Namespace) -> int:
             "partial": case.partial,
         }
         rows.append(row)
+        spent += Decimal(row["usd"])
         print(
             img.name,
             row["doc_types"],
@@ -181,6 +194,16 @@ def main() -> int:
     r.add_argument("--dir", type=Path, required=True)
     r.add_argument("--out", type=Path, required=True)
     r.add_argument("--limit", type=int, default=60)
+    r.add_argument(
+        "--env", type=Path, default=None, help="a .env file with the model settings (never printed)"
+    )
+    r.add_argument("--ocr", default=None, choices=["tesseract", "rapidocr", "vision", "none"])
+    r.add_argument(
+        "--max-usd",
+        default="1.50",
+        help="spend stops here (each case has its own database, so this caps per case chain)",
+    )
+    r.add_argument("--max-usd-per-case", default="0.30")
     args = ap.parse_args()
     return fetch(args) if args.cmd == "fetch" else run(args)
 

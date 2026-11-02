@@ -169,7 +169,9 @@ SIG_MAX_HAMMING = 6
 
 RASTER_RULES = ("ela_region", "copy_move", "noise_mismatch")
 # rules whose lone, uncorroborated region is only "low" (findings.NOISY_RASTER_RULES groups them)
-LONE_LOW_RULES = frozenset({"ela_region", "copy_move"})
+# noise_mismatch joined on 2 Nov 2026: on 60 untouched JPEG invoices from another author it raised a
+# medium flag on 10 (17%) (docs/limitations.md section 12)
+LONE_LOW_RULES = frozenset({"ela_region", "copy_move", "noise_mismatch"})
 
 _CONTROL_CATEGORIES = {"Cc", "Zl", "Zp"}
 

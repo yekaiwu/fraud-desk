@@ -35,6 +35,8 @@ GST_RATE_TABLE: list[tuple[date, str]] = [
 # [confirm on IRAS] accepted compact GST registration formats (a valid UEN is also accepted).
 GST_NO_PATTERNS: list[re.Pattern[str]] = [re.compile(r"^M\d{8}[A-Z]$")]
 DEFAULT_GST_RATE = Decimal("9.00")
+# every rate Singapore GST has ever had (3% 1994, 4% 2003, 5% 2004, then the table above) and zero
+SG_GST_RATES = frozenset(Decimal(r) for r in ("0", "3", "4", "5", "7", "8", "9"))
 LINE_CAP = 5
 
 
@@ -363,6 +365,24 @@ def _uen_error(value: str) -> str | None:
     return None
 
 
+FOREIGN_TAX_ID = (
+    re.compile(r"^\d{2}-\d{7}$"),  # US employer number
+    re.compile(
+        r"^\d{3}-\d{2}-\d{4}$"
+    ),  # US social-security shape, as printed on many foreign invoices
+    re.compile(
+        r"^[A-Z]{2}\d{8,12}([A-Z]\d{2})?$"
+    ),  # EU / UK VAT number: country prefix, then digits
+)
+
+
+def _foreign_tax_id(value: str) -> bool:
+    """A number in the shape of another country's tax number. It cannot be checked as a Singapore UEN
+    or GST number, and supply-chain invoices often come from abroad, so it is noted, not alarmed on."""
+    compact = value.strip().upper().replace(" ", "")
+    return any(p.match(compact) for p in FOREIGN_TAX_ID)
+
+
 def _gst_no_ok(value: str) -> bool:
     compact = re.sub(r"[\s-]", "", value.upper())
     if any(p.match(compact) for p in GST_NO_PATTERNS):
@@ -389,31 +409,44 @@ def inv_ids(ctx: CaseContext) -> list[Flag]:
         if sup.value:
             err = _uen_error(sup.value)
             if err:
+                foreign = _foreign_tax_id(sup.value)
                 flags.append(
                     make_flag(
                         "inv_ids",
                         docs=[doc],
                         field="supplier_uen",
                         region=_lab(sup.box, "supplier_uen"),
+                        **({"severity": "low", "discriminator": "foreign"} if foreign else {}),
                         evidence=f"supplier_uen {_clip(sup.value)} fails UEN validation ({err})"
                         + _unverified({"supplier_uen": sup}),
-                        explanation="The supplier UEN is not a valid Singapore UEN.",
+                        explanation=(
+                            "The supplier number looks like a non-Singapore tax number, which this "
+                            "check cannot validate."
+                            if foreign
+                            else "The supplier UEN is not a valid Singapore UEN."
+                        ),
                     )
                 )
         if buy.value:
             err = _uen_error(buy.value)
             if err:
+                foreign = _foreign_tax_id(buy.value)
                 flags.append(
                     make_flag(
                         "inv_ids",
                         docs=[doc],
                         field="buyer_uen",
                         region=_lab(buy.box, "buyer_uen"),
-                        severity="medium",
+                        severity="low" if foreign else "medium",
                         discriminator="buyer_uen",
                         evidence=f"buyer_uen {_clip(buy.value)} fails UEN validation ({err})"
                         + _unverified({"buyer_uen": buy}),
-                        explanation="The buyer UEN is not a valid Singapore UEN.",
+                        explanation=(
+                            "The buyer number looks like a non-Singapore tax number, which this "
+                            "check cannot validate."
+                            if foreign
+                            else "The buyer UEN is not a valid Singapore UEN."
+                        ),
                     )
                 )
         if gst_no.value:
@@ -424,27 +457,44 @@ def inv_ids(ctx: CaseContext) -> list[Flag]:
                         docs=[doc],
                         field="supplier_gst_no",
                         region=_lab(gst_no.box, "supplier_gst_no"),
-                        severity="medium",
+                        severity="low" if _foreign_tax_id(gst_no.value) else "medium",
                         discriminator="supplier_gst_no",
                         evidence=(
                             f"supplier_gst_no {_clip(gst_no.value)} does not match M + 8 digits + "
                             "letter and is not a valid UEN"
                             + _unverified({"supplier_gst_no": gst_no})
                         ),
-                        explanation="The GST registration number is not in a recognised format.",
+                        explanation=(
+                            "The tax number looks like a non-Singapore tax number, which this "
+                            "check cannot validate."
+                            if _foreign_tax_id(gst_no.value)
+                            else "The GST registration number is not in a recognised format."
+                        ),
                     )
                 )
         elif gst is not None and gst > ZERO:
+            printed = _c(doc, "gst_rate").money()
+            other_tax = printed is not None and printed not in SG_GST_RATES
             flags.append(
                 make_flag(
                     "inv_ids",
                     docs=[doc],
                     field="supplier_gst_no",
                     region=_lab(_c(doc, "gst_amount").box, "gst_amount"),
-                    severity="medium",
+                    severity="low" if other_tax else "medium",
                     discriminator="gst_no_missing",
-                    evidence=f"GST {fmt_money(gst)} charged but no supplier GST number printed",
-                    explanation="GST is charged but no GST registration number is shown.",
+                    evidence=f"GST {fmt_money(gst)} charged but no supplier GST number printed"
+                    + (
+                        f"; the printed rate {printed}% is not a Singapore GST rate"
+                        if other_tax
+                        else ""
+                    ),
+                    explanation=(
+                        "A tax is charged at a rate that Singapore GST has never had, so this may be "
+                        "a foreign invoice, and no registration number is shown."
+                        if other_tax
+                        else "GST is charged but no GST registration number is shown."
+                    ),
                 )
             )
     if evaluated == 0:

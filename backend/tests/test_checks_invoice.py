@@ -395,6 +395,27 @@ def test_inv_ids_gst_number_format() -> None:  # T-INV-ID-3
     )
 
 
+@pytest.mark.parametrize("number", ["952-73-7223", "98-1234567", "GB123456789", "DE123456789"])
+def test_inv_ids_a_foreign_tax_number_is_noted_not_alarmed_on(number: str) -> None:
+    for field in ("supplier_uen", "buyer_uen", "supplier_gst_no"):
+        flag = one("inv_ids", make_invoice(fields={field: number}))
+        assert flag.severity == "low" and "non-Singapore" in flag.explanation
+
+
+@pytest.mark.parametrize("number", ["201912345K", "M2123456K", "12345"])
+def test_inv_ids_only_foreign_shapes_get_the_lower_severity(number: str) -> None:
+    flag = one("inv_ids", make_invoice(fields={"supplier_gst_no": number}))
+    assert flag.severity == "medium" and "non-Singapore" not in flag.explanation
+
+
+def test_inv_ids_tax_at_a_rate_singapore_never_had_is_only_low() -> None:
+    foreign = make_invoice(fields={"supplier_gst_no": None, "gst_rate": "10.00"})
+    flag = one("inv_ids", foreign)
+    assert flag.severity == "low" and "not a Singapore GST rate" in flag.evidence
+    flag = one("inv_ids", make_invoice(fields={"supplier_gst_no": None, "gst_rate": "9.00"}))
+    assert flag.severity == "medium"
+
+
 def test_inv_ids_sole_proprietor_uen_passes_because_the_library_is_used() -> None:  # T-INV-ID-4
     assert run_rule("inv_ids", ctx_of(make_invoice(fields={"supplier_uen": UEN_D}))) == []
 
