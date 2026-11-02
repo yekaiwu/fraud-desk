@@ -29,7 +29,7 @@ Any of: a flag or summary that was wrong in a way that could have changed a deci
 ## Process
 
 1. **Report.** `POST /monitoring/incidents` with a severity (`low`, `medium`, `high`), a summary of at least 10 characters and, if there is one, the case id. The report is written to the append-only audit log under the signed-in account. `GET /monitoring/incidents` lists them; one is `open` until another report names it in `resolves`.
-2. **Contain.** Switch off what is misbehaving, without a redeploy of code: `GLDB_AGENTS=false` (review team), `GLDB_SEMANTIC=off` (model-based checks), `GLDB_VERIFY_SCAN_FLAGS=false` (second reading), or `GLDB_LLM_BACKEND=fake` (no model at all; the rule checks still run). Cases already analysed keep their provenance, so they can be re-run after the fix.
+2. **Contain.** Switch off what is misbehaving, without a redeploy of code: `GLDB_AGENTS=false` (review team), `GLDB_SEMANTIC=off` (model-based checks; the name-linking one is already off unless `GLDB_SEMANTIC_ENTITY=on`), `GLDB_VERIFY_SCAN_FLAGS=false` (second reading), or `GLDB_LLM_BACKEND=fake` (no model at all; the rule checks still run). Cases already analysed keep their provenance, so they can be re-run after the fix.
 3. **Investigate.** Every case carries the ruleset version, model ids, prompt hashes, settings hash and a digest of its flags, and the audit log has who did what. Re-run the case; compare.
 4. **Fix and record.** Fix, add a test, and report a `resolves` entry saying what was done. A change that alters detection goes through the validation report again.
 5. **Tell.** Whether the incident must be reported to the regulator or to affected customers is the bank's decision; this tool does not file anything.

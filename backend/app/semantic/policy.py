@@ -16,6 +16,11 @@ SEMANTIC_STAGES = ("rules", "crossdoc")  # semantic checks run in an existing fl
 _RANK = {"info": 0, "low": 1, "medium": 2, "high": 3}
 
 
+# Model-derived checks that have a switch of their own, off by default: rule -> setting name. The
+# check runs only when ``GLDB_SEMANTIC`` is on AND its own setting is on.
+OPT_IN_SETTINGS: dict[str, str] = {"sem_entity_link": "semantic_entity"}
+
+
 class _HasSemantic(Protocol):
     semantic: str
 
@@ -34,6 +39,16 @@ def counts_in_coverage(rule: str, status: str) -> bool:
 def semantic_enabled(settings: _HasSemantic) -> bool:
     """``GLDB_SEMANTIC`` is anything but ``off``."""
     return settings.semantic != "off"
+
+
+def switched_off_by_setting(settings: object, rule: str) -> str | None:
+    """The reason a model-derived check is switched off by its own setting (``None`` if it is not).
+    Reported as a skip with code ``switched_off``: not an error, not a pass, and outside coverage."""
+    name = OPT_IN_SETTINGS.get(rule)
+    if name is None or getattr(settings, name, "off") == "on":
+        return None
+    env = "GLDB_" + name.upper()
+    return f"Switched off by setting {env}=off (the default). Not run until the bank agrees to it."
 
 
 def cap_severity(severity: str) -> str:

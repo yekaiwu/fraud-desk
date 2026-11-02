@@ -26,7 +26,7 @@ Specs for the GLDB document-fraud analysis tool. Source plan: the master plan (n
 - [anthropic-haiku.md](anthropic-haiku.md): the optional paid Anthropic backend (official SDK, Claude Haiku 5.5 only): setup, workspace id, request settings, pricing tiers, spend caps, privacy, refusals, which stages call the model.
 - [ai-incidents.md](ai-incidents.md): what `GET /monitoring` watches and its thresholds, the named accountable owner, the AI incident log and the contain, investigate, fix process.
 - [agents.md](agents.md): the review team (four specialists, a challenger that may lower a judgement flag only by quoting the documents, and a case officer that writes the summary), what each can change, switches and cost.
-- [semantic-signals.md](semantic-signals.md): the layer, on whenever a model is configured and switchable with `GLDB_SEMANTIC`, of model-derived checks that must quote the extracted data: the six invariants, the claim verifier, severity cap and fast-lane rules, how to turn it on, the two models and what each is for, and the measured local-model latency.
+- [semantic-signals.md](semantic-signals.md): the layer, on whenever a model is configured and switchable with `GLDB_SEMANTIC` (the name-linking check has its own switch, `GLDB_SEMANTIC_ENTITY`, off by default), of model-derived checks that must quote the extracted data: the six invariants, the claim verifier, severity cap and fast-lane rules, how to turn it on, the two models and what each is for, and the measured local-model latency.
 
 ## Work tracking
 
