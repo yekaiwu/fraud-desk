@@ -192,7 +192,39 @@ Known open items for the semantic checks. These are stated here so that nobody r
 Five changes went in together; none has been measured on real documents (sections 3 and 5 still apply).
 
 - **The second reading drops a flag only on contradiction.** It used to drop any flag the other reader did not reproduce, which also removed true flags when the other reader had not found the document (3 of 14 payer-mismatch detections on one seed). Now the other reader must have found the same documents and the check must have run and stayed silent. The cost: more scan flags survive, so the false-alarm rate on scans can only go up, not down; it has to be measured (section 12 when run). Model-based flags now go through the same test. A model is not deterministic, so its silence is weaker evidence than a rule's silence, and a true model-based flag can be set aside (it stays on the case as information).
-- **Phone photos are straightened before a local OCR reads them** (`ingest/flatten.py`). Measured only on simulated photos. It gives up (reads the picture as it is) on anything that does not look like a page outline, so a cluttered or white background simply gets no benefit.
+- **Phone photos can be straightened before a local OCR reads them** (`ingest/flatten.py`, opt-in; see section 12 for why it is off). Measured only on simulated photos. It gives up (reads the picture as it is) on anything that does not look like a page outline, so a cluttered or white background simply gets no benefit.
 - **A live company register lookup** (`GLDB_REGISTRY_LIVE`, off by default). It checks the name on a company profile, the incorporation date and whether the company is live. It does not check who owns or runs the company, and it cannot tell a genuine document about the wrong company from the right one. The open data is rate limited and lags the official register.
 - **Signature integrity** (`pdf_signature_invalid`). Catches an edit inside a signed PDF. A forger who removes the signature or prints to a new PDF leaves nothing for it. A signature the library cannot assess is reported as "not analysed", never as tampering.
 - **A benchmark on invoices someone else made** (`backend/scripts/ext_eval/independent_invoices.py`). The public data are synthetic invoices, so this tests other layouts and fonts, not real paperwork.
+
+## 12. Measured on 2 November 2026 (outside tests and a fresh seed)
+
+All of this is small-sample and none of it is real business paperwork. Intervals are 95% Wilson.
+
+**Invoices drawn by someone else** (`backend/scripts/ext_eval/independent_invoices.py`; public data set `mychen76/invoices-and-receipts_ocr_v1`: synthetic invoices with other layouts and fonts, mixed with real photographed receipts). Tesseract reads, Claude Haiku 5.5 extracts, nothing is tampered, so every medium or high flag is a false alarm.
+
+| Run | Images | Cases with a medium or high flag |
+|---|---|---|
+| Before the invoice fixes, first 60 images | 60 | 29 (48%, 36 to 61%) |
+| After the fixes, the same 60 (the fixes were chosen on these, so not a fair number) | 60 | 4 (6.7%, 3 to 16%) |
+| After the fixes, 65 further images from the same split (seen once before the last of the fixes) | 65 | 15 before the last fix (23%) |
+| After all fixes, the data set's validation split, never inspected | 70 | 1 (1.4%, 0.3 to 7.7%) |
+
+What caused the false alarms: `inv_ids` read US and EU tax numbers ("952-73-7223") as invalid Singapore UENs and GST numbers, "GST charged but no GST number" fired on invoices with a 10% foreign tax, and `noise_mismatch` fired on 10 of 60 untouched JPEGs. The fixes: a foreign-shaped number is noted at low severity, tax at a rate Singapore GST never had is low, and a lone noise region is low like the other two raster rules (corroborated regions still go to high). The cost of the fixes: a forger who writes a foreign-shaped number instead of a Singapore one now gets a low flag, not a medium one.
+
+What the run also showed, unfixed: of the 70 validation images, 55 were read as invoices and 15 were not (the ones inspected are photographed receipts, a document type the tool does not support; they are reported as not checked, with no flags). The invoice number was read correctly on 48 of 70; the total was read correctly on 0 of 70, because these invoices print amounts as "$ 978,12" (comma decimal) and the extractor leaves the total empty, so the total arithmetic did not run. The model-assisted classifier (`GLDB_CLASSIFIER_MODE=cascade`) read 57 instead of 55 as invoices and added false alarms (3 against 1), so the default stays rules.
+
+**Local model.** Qwen3.8-27B on the Mac's GPU (text only, behind LM Studio) matched Haiku on 20 validation invoices: the same document type on 20 of 20, the same invoice number on 4 of the 8 read as invoices, the same flag outcome. 46 seconds an image, no cost. Too few images to claim equal accuracy.
+
+**Scans on a fresh seed (9201, high-quality scans, Tesseract plus Haiku, the new second-reading rule).**
+
+| | Result |
+|---|---|
+| Clean scanned bundles with a medium or high rule-based flag the digital render did not raise | 1 of 15 (6.7%, 1 to 30%) |
+| Clean scanned bundles with a model-based flag | 0 of 15 |
+| Tampered scans where the expected rule fired (T01, T10, T58, T59) | 38 of 40 (95%, 83 to 99%) |
+| Spend | $6.92 for 55 scanned cases |
+
+This is in line with the earlier held-out figures (3 of 45 false alarms; 45 of 48 tampered caught); it neither confirms an improvement nor shows a regression, and 15 clean bundles cannot show a false-alarm rate under 10%.
+
+**Phone photos.** On 60 simulated phone photos Tesseract missed 15.6% of the words as shot and 5.3% after `ingest/flatten.py`; the simulated photos have a dark desk and a clean outline. End to end, on 15 clean simulated photo bundles (Tesseract plus Haiku, same bundles both times), 8 had a medium or high false alarm with straightening (53%, 30 to 75%) and 6 without (40%, 20 to 64%); every one of the 30 cases was marked partial. The difference is not significant, but the word-level gain did not turn into fewer false alarms, so `GLDB_OCR_STRAIGHTEN` is off by default. A likely reason (not tested): the OCR repairs and row checks were tuned on unstraightened Tesseract output. The conclusion that matters more: clean phone photos still raise a false alarm on about half the bundles, so a photographed statement should be treated as needing human reading, not as a screened case.

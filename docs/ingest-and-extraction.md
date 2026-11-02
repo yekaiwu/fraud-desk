@@ -218,7 +218,7 @@ Limits, stated plainly: (1) a page dropped from a per-page upload cannot be told
 
 A photo of a page on a desk is skewed, has a dark border and uneven light. For image uploads read by a local OCR, `ingest/flatten.py` finds the page outline (largest light region, four corners), warps it upright to the page's own shape and evens out the lighting. The words are read on the straightened picture and their boxes are mapped back onto the original, so highlights land on the photo the analyst sees. The stored image and all image forensics keep the original.
 
-It leaves a picture alone when no outline covering at least 40% of the frame is found, or when the page already fills the frame upright. `GLDB_OCR_STRAIGHTEN=off` disables it. Measured on simulated phone photos, straightening cut Tesseract's word misses from 1.8% to 0.34% (docs/anthropic-haiku.md section 5). Not measured on real photos, where shadows, curl, glare, fingers and cluttered backgrounds will defeat the outline search some of the time.
+It leaves a picture alone when no outline covering at least 40% of the frame is found, or when the page already fills the frame upright. It is **off by default** (`GLDB_OCR_STRAIGHTEN=on` enables it): on 15 clean simulated photo bundles it left 8 with a false alarm against 6 with it off, so the word-level gain did not carry through (docs/limitations.md section 12). Measured on simulated phone photos, straightening cut Tesseract's word misses from 1.8% to 0.34% (docs/anthropic-haiku.md section 5). Not measured on real photos, where shadows, curl, glare, fingers and cluttered backgrounds will defeat the outline search some of the time.
 
 
 ## 5. Behaviour: `LLMClient`

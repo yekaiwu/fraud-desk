@@ -82,8 +82,9 @@ class Settings(BaseSettings):
     # local OCR for scans (ingest/ocr.py)
     ocr_backend: Literal["auto", "vision", "tesseract", "rapidocr", "none"] = "auto"
     # Find the page in a phone photo and straighten it before a local OCR reads it (ingest/flatten.py).
-    # Only the text reading uses the straightened picture; the stored page and the image forensics do not.
-    ocr_straighten: bool = True
+    # Off by default: it cut word misses on simulated photos from 15.6% to 5.3% but did not reduce
+    # false alarms end to end (docs/limitations.md section 12). Only the text reading uses the straightened picture; the stored page and the image forensics do not.
+    ocr_straighten: bool = False
     # With a local OCR chosen under the anthropic backend the model reads OCR text only. True also
     # lets a scanned page whose arithmetic does not add up be re-read once from its image (the one
     # place the model sees pixels). Empty = on in that setup and off elsewhere; false turns it off.
@@ -337,8 +338,8 @@ class Settings(BaseSettings):
             out["ocr_backend"] = self.ocr_backend
         if self.registry_live:
             out["registry_live"] = "on"
-        if not self.ocr_straighten:
-            out["ocr_straighten"] = "False"
+        if self.ocr_straighten:  # listed only when on: other runs keep their provenance hash
+            out["ocr_straighten"] = "on"
         if self.effective_llm_backend() == "anthropic":
             out["anthropic_model"] = self.anthropic_model
         if self.max_usd_per_day != Decimal("5.00"):

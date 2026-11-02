@@ -119,11 +119,30 @@ def run(args: argparse.Namespace) -> int:
             print("BUDGET REACHED", spent, flush=True)
             break
         data_dir = Path(tempfile.mkdtemp(prefix="gldb-ext-"))
+        local = (
+            {
+                "llm_backend": "openai",
+                "llm_base_url": args.local_llm,
+                "llm_api_key": "local",
+                "llm_model_cheap": args.local_model,
+                "llm_model_strong": args.local_model,
+                "llm_timeout_s": 600.0,
+                "llm_enable_thinking": False,
+                "llm_supports_vision": False,
+                "llm_max_concurrency": 1,
+                "semantic": "off",
+                "cache_enabled": False,
+            }
+            if args.local_llm
+            else {}
+        )
         settings = Settings(
-            _env_file=args.env,
+            **local,
+            _env_file=None if args.local_llm else args.env,
             data_dir=data_dir,
             db_path=str(data_dir / "gldb.sqlite3"),
             **({"ocr_backend": args.ocr} if args.ocr else {}),
+            **({"classifier_mode": args.classifier} if args.classifier else {}),
             max_usd_per_case=Decimal(args.max_usd_per_case),
             max_usd_per_day=Decimal(args.max_usd),
         )
@@ -198,6 +217,13 @@ def main() -> int:
         "--env", type=Path, default=None, help="a .env file with the model settings (never printed)"
     )
     r.add_argument("--ocr", default=None, choices=["tesseract", "rapidocr", "vision", "none"])
+    r.add_argument(
+        "--local-llm",
+        default=None,
+        help="an OpenAI-compatible URL such as http://127.0.0.1:1234/v1",
+    )
+    r.add_argument("--local-model", default="qwen3.8-27b")
+    r.add_argument("--classifier", default=None, choices=["rules", "local", "llm", "cascade"])
     r.add_argument(
         "--max-usd",
         default="1.50",
