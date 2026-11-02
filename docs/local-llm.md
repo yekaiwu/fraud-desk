@@ -2,7 +2,7 @@
 
 How to point the tool at the owner's own machine (a Mac running Qwen3.8-27B) instead of a hosted model, what changes, and what it can and cannot do. Companion to [ingest-and-extraction.md](ingest-and-extraction.md) (the stages), [cost-efficiency.md](cost-efficiency.md) (budget guard) and the server's own README (`yekaiwu/local-llm-server`). All data in this repo is fictitious.
 
-Status, stated plainly: everything here was built and tested **offline** (fake server over `httpx.MockTransport`, a stub SDK, a fake OCR backend, and a real `ocrmac` run on a generated page). The server was stopped while this was written and no API key was available, so **no live call has been made**. Section 7 is the checklist that turns "built" into "verified".
+Status, stated plainly: this page was first written and tested **offline** (fake server over `httpx.MockTransport`, a stub SDK, a fake OCR backend, and a real `ocrmac` run on a generated page). Since then the model has been run live; section 11 records what was checked on 2 November 2026 (where the weights came from, what the servers log, and live runs of the reading path).
 
 ## 1. What the server is (from its README)
 
@@ -10,7 +10,7 @@ Status, stated plainly: everything here was built and tested **offline** (fake s
 |---|---|
 | OpenAI-compatible at `http://llm-host:8080/v1`, reachable only over Tailscale | `GLDB_LLM_BASE_URL`; the machine running the app must be on the same tailnet |
 | `Authorization: Bearer <key>`; keys come from the Telegram bot (`/newkey [name] [days]`) | `GLDB_LLM_API_KEY`; keys expire (default 30 days) |
-| Model name `qwen3.8-27b` (Q5_K_M GGUF on llama-server, `--jinja`) | `GLDB_LLM_MODEL_CHEAP` = `GLDB_LLM_MODEL_STRONG` = `qwen3.8-27b` |
+| Model name `qwen3.8-27b` (`Qwen3.8-27B-UD-Q5_K_M.gguf` from Unsloth, a mixed-precision "dynamic" quantisation, on llama-server, `--jinja`; section 11) | `GLDB_LLM_MODEL_CHEAP` = `GLDB_LLM_MODEL_STRONG` = `qwen3.8-27b` |
 | **No vision projector**: text only | `GLDB_LLM_SUPPORTS_VISION=false`; scans are read by local OCR (section 4) |
 | **One request at a time**, others queue | `GLDB_LLM_MAX_CONCURRENCY=1` (section 5) |
 | Thinking is **on** by default for API calls (reasoning in `reasoning_content`) | `GLDB_LLM_ENABLE_THINKING` (section 3) |
@@ -162,14 +162,55 @@ The dollar ceiling cannot be bypassed by a price that is missing. A model that i
 
 ## 9. Privacy
 
-Page text (and, with `GLDB_CLASSIFIER_MODE` `llm`/`cascade`, minimised text) is sent over the tailnet to the owner's own machine, over plain HTTP inside Tailscale's WireGuard tunnel. It is never sent to a third party: no hosted model sees it, and the OCR runs on this machine with Apple's on-device Vision framework. Things to know, from the server's README: the gateway sends the owner a Telegram alert naming the calling device when a call arrives while the service is stopped or with an expired key (at most one per device every five minutes), so even the health probes of the scripts can produce one; the raw key travels through Telegram once, so delete that message after copying it; and packets for the Tailscale IP may reach the Mac over the LAN, where they still need a valid key. What the server itself logs or retains about prompt content is not documented in its README and has not been checked here.
+Page text (and, with `GLDB_CLASSIFIER_MODE` `llm`/`cascade`, minimised text) is sent over the tailnet to the owner's own machine, over plain HTTP inside Tailscale's WireGuard tunnel. It is never sent to a third party: no hosted model sees it, and the OCR runs on this machine with Apple's on-device Vision framework. Things to know, from the server's README: the gateway sends the owner a Telegram alert naming the calling device when a call arrives while the service is stopped or with an expired key (at most one per device every five minutes), so even the health probes of the scripts can produce one; the raw key travels through Telegram once, so delete that message after copying it; and packets for the Tailscale IP may reach the Mac over the LAN, where they still need a valid key. What the servers log about prompt content was checked on 2 November 2026 and differs by server: the gateway and llama-server keep no prompt text, but LM Studio's own server writes every request and response in full (section 11.2).
 
 ## 10. Honest limits
 
-* **Not verified live.** The API shape (extra body, tool-call parsing, 503 and `Retry-After`) is tested against faithful fakes and the real `openai` SDK over a mock transport, not against llama-server. Run the smoke test first; if the tool call shape differs, the text-fallback parser is the safety net.
+* **Verified live only in part.** The API shape (extra body, tool-call parsing, 503 and `Retry-After`) was first tested against faithful fakes. It has since been exercised live through LM Studio's server (section 11.3), but not through the gateway and llama-server pair with its API key. Run the smoke test against that pair before relying on it.
 * **27B is not a frontier model.** Whether it copies numbers exactly across a 22-row page, and whether it resists injection, is exactly what `llm_eval.py` measures; do not assume. Thinking on may help accuracy and certainly costs time.
 * **Scans depend on Apple Vision.** Not measured here on the `scan_lq` and `photo` renders (the generated scans carry noise and perspective). Vision gives line boxes, so word-level highlights on a scan are approximate; digits misread by OCR are caught by verification only where the model disagrees with them.
 * **The OCR is macOS-only** (and needs the optional extra). On Linux or in CI there is no local OCR: scans become "not read" pages, flagged and uncounted in coverage, never faked.
 * **Single machine, single request.** If the Mac sleeps, is rebooted without login (LaunchAgents start at login), or runs a GPU job (the model unloads after 30 minutes idle), the first request can be slow while the model loads.
 * **The key expires** (30 days by default) and a 401 is not retried; `/extend gldb 30` in Telegram prolongs it.
 * **Scores from the model are not calibrated probabilities** (as with any hosted model, see classification.md); they are stored under the classifier name `llm:qwen3.8-27b`.
+
+## 11. Verification record, 2 November 2026
+
+What was checked on the owner's Mac, by whom and how. Everything below used fictitious documents.
+
+### 11.1 Where the model weights came from
+
+| Question | Answer |
+|---|---|
+| Which file runs? | `~/.lmstudio/models/unsloth/Qwen3.8-27B-GGUF/Qwen3.8-27B-UD-Q5_K_M.gguf` (19,771,509,664 bytes, downloaded 21 October 2026), used by LM Studio and by `start-llama.sh` |
+| Who made it? | Unsloth (`unsloth/Qwen3.8-27B-GGUF` on Hugging Face), a third-party quantiser of the official `Qwen/Qwen3.8-27B`. Qwen publishes the BF16 safetensors only; there is no official GGUF, so the file cannot be matched to the release by hash |
+| Licence | Apache 2.0, on the official model card, on the Unsloth card and in the GGUF header |
+| Is the download intact? | The SHA-256 of the local file, `2de73110cb254cbf09b54b717578dadff12ef1194e7271527e68202f39ba4bfd`, equals the hash Hugging Face publishes for that file, and the size matches |
+| Is it the same model as the official release? | The header matches the official `config.json` (64 layers plus 1 prediction layer, hidden size 5120, feed-forward 17408, 24 attention and 4 key-value heads, head size 256, vocabulary 248,320, context 262,144, full attention every 4th layer). Sampled weights match too: rows of 8 tensors (embeddings, output head, feed-forward and attention-output matrices in layers 0, 3, 40 and 63) were fetched from the official shards by HTTP range request and compared with the dequantised GGUF. Cosine similarity was 0.996 to 0.9998, with relative error about 2% (Q6_K), 4% (Q5_K) and 7 to 9% (Q4_K), as those quantisations produce. A deliberate mismatch (a different layer's tensor) gave cosine about 0 and error about 140%, so the test can tell. |
+| What this cannot show | It samples 8 of 866 tensors. A change confined to other tensors would not be seen. Full equivalence would need a re-quantisation from the official weights with the same recipe, which cannot be reproduced because the importance-matrix file (`imatrix_unsloth.gguf`) is Unsloth's and its calibration text is not inspected here |
+| Is it "Q5_K_M"? | Only in the file-type field. The tensors are a mix (Q4_K, IQ4_XS, Q5_K, Q6_K, Q8_0 and F32), Unsloth's "UD" recipe, not the standard llama.cpp Q5_K_M recipe. Quote it as "UD-Q5_K_M" |
+| The chat template | Not byte-identical to the official `chat_template.jinja` (9,993 against 8,952 characters). The whole difference was read: it is Unsloth's declared "developer role, merged system messages, tool calling" fixes (system and developer messages merged, stricter checks on tool-call arguments, the effort level "high" mapped to "xhigh"). No added instruction text and no URL. The template is code that shapes every prompt, so pin it with the weights |
+| Vision | The official model has a vision tower and Unsloth publishes `mmproj-BF16.gguf` and `mmproj-F16.gguf`; the GGUF that runs here is text-only, so no page image is ever sent to it |
+
+Re-run the check after any re-download: `shasum -a 256` of the file against the hash above, and the Hugging Face file listing for the repository.
+
+### 11.2 What the servers log about prompts
+
+| Server | What is written | Where | Note |
+|---|---|---|---|
+| Gateway, port 8080 (`gateway.py`) | Nothing: its access log method is empty | none | Bound to loopback and the tailnet address; calls need an API key |
+| llama-server, port 8081 (behind the gateway) | Start-up messages and per-call timings and token counts. No prompt or response text (no match for document words, `messages` or `content` in the log) | `local-llm/server/logs/llama-server.log`, mode 600 | |
+| LM Studio's server, port 1234 | **Every request body (system prompt and document text) and every generated response, in full**, at DEBUG level | `~/.lmstudio/server-logs/YYYY-MM/`, about 34 MB since 21 October, none deleted | Files are mode 644 inside a home folder readable by the group `staff`. All data so far was fictitious |
+
+Consequence: use the gateway and llama-server pair for anything that is not fictitious, or turn request logging off in LM Studio and delete its server logs first. Do not point the application at port 1234 with real customer data.
+
+### 11.3 Live runs of the reading path
+
+Settings for both runs: Tesseract reads the page images on the machine, `qwen3.8-27b` turns the text into fields through LM Studio's OpenAI-compatible server, thinking off, one request at a time, the model-based checks off, no cache. Cost $0.
+
+| Run | Result |
+|---|---|
+| 20 invoice images from a public set made by someone else (single pages) | About 46 seconds an image. Document type the same as with Claude Haiku on 20 of 20; the same medium or high flag outcome on 20 of 20; invoice number read correctly on 4 of the 8 read as invoices, as with Haiku |
+| One scanned KYC bundle (`kyc-clean`, 17 pages, high-quality scans, seed 9201) | 22 minutes 25 seconds in all, of which extraction 22 minutes; 18 model calls, 45,081 prompt tokens and 59,346 completion tokens (about 45 tokens a second). Page types 17 of 17. Table cells 13 of 13. Fields 60 of 84 (71%). The case was marked partial and raised two high `x_ownership_vs_registry` flags on a clean bundle: false alarms from misread ownership data |
+
+So the reading path works end to end and costs nothing, but on this bundle it is slow and clearly less accurate than the hosted model, and it is one bundle. The earlier claim in section 6 that the text path is adequate rests on digital pages only. Run `llm_eval.py` and a larger local sweep before treating the local model as a replacement for Haiku on scans.
