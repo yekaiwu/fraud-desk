@@ -122,7 +122,19 @@ Reading accuracy by scan quality (fresh seed 9103, 15 clean bundles, 467 pages, 
 | low-quality scan (`scan_lq`) | 875 (1.3%) | 29 | 33 |
 | phone photo (`photo`) | 10,995 (16.4%) | 1,045 | 725 |
 
-Only the high-quality scans have been run through the full pipeline. Low-quality scans lose about 30 times as many amounts and dates, so more arithmetic checks will misfire there until the second reading and the page-image re-read have been measured on them. On photos Tesseract is not usable (about one word in six is wrong, and over a thousand amounts): photographed documents need the model to read the image, and that path has not been measured on photos.
+Only the high-quality scans have been run through the full pipeline. Low-quality scans lose about 30 times as many amounts and dates, so more arithmetic checks will misfire there until the second reading and the page-image re-read have been measured on them.
+
+**Phone photos, a follow-up (2 Nov 2026, free, same 467 pages, Tesseract alone).** The 16.4% above is for the photos the generator ships: the page is shrunk onto a 1240 x 1754 canvas with a 6% desk border (about 130 dpi), then blurred, noised and compressed at JPEG quality 70. A real phone photo of an A4 page has two to three times that resolution, so the shipped photos are probably harsher than real ones. The same pages were re-made at phone resolution (2480 x 3508) and read again. The word figures are comparable with the table above; the amount and date counts use a slightly different token pattern, so compare them only with each other (column "Amounts / dates", of 8,053 and 2,071 in the page text).
+
+| Condition | Words missed | Amounts / dates missed | Statement pages with a wrong amount |
+|---|---|---|---|
+| shipped photo, as is | 10,995 (16.4%) | 1,067 / 506 | 55% |
+| shipped photo, page found and straightened, lighting evened out | 2,959 (4.4%) | 223 / 147 | 35% |
+| phone resolution, the same blur, noise and JPEG quality as the shipped photo | 5,970 (8.9%) | 579 / 166 | 38% |
+| phone resolution, milder (blur 1.0, noise 4, quality 88; our guess at a sharp phone camera) | 1,191 (1.8%) | 214 / 22 | 28% |
+| the same, with the page straightened and the lighting evened out | 230 (0.34%) | 32 / 5 | 5% |
+
+So the 16% is mostly resolution and compression. At phone resolution with a straightening step the word miss rate (0.34%) matches the high-quality scans, and amounts are wrong at about the level of the low-quality scans (32 against 29). Limits, plainly: the straightening step lives only in the test script (`photo_test.py`, not in the product); it works because the synthetic photo has a dark desk and a clean page outline, which real photos often lack (shadows, curled paper, glare, fingers, cluttered backgrounds); the "milder" damage is our assumption, not a measurement of any camera; and Tesseract alone says nothing about the whole pipeline, which has not been run on photos. A statement page has about 27 amounts on average here, so even a wrong-amount rate of 0.4% puts a wrong amount on 5% of pages, and each one triggers the page-image re-read.
 
 ## 6. Pricing
 
