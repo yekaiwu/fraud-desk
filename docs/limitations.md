@@ -216,15 +216,16 @@ What the run also showed, unfixed: of the 70 validation images, 55 were read as 
 
 **Local model.** Qwen3.8-27B on the Mac's GPU (text only, behind LM Studio) matched Haiku on 20 validation invoices: the same document type on 20 of 20, the same invoice number on 4 of the 8 read as invoices, the same flag outcome. 46 seconds an image, no cost. Too few images to claim equal accuracy.
 
-**Scans on a fresh seed (9201, high-quality scans, Tesseract plus Haiku, the new second-reading rule).**
+**Scans on two fresh seeds (9201 and 9202, high-quality scans, Tesseract plus Haiku, the current second-reading rule, each run once).**
 
 | | Result |
 |---|---|
-| Clean scanned bundles with a medium or high rule-based flag the digital render did not raise | 1 of 15 (6.7%, 1 to 30%) |
-| Clean scanned bundles with a model-based flag | 0 of 15 |
-| Tampered scans where the expected rule fired (T01, T10, T58, T59) | 38 of 40 (95%, 83 to 99%) |
-| Spend | $6.92 for 55 scanned cases |
+| Clean scanned bundles with a medium or high rule-based flag the digital render did not raise | 3 of 75 (4.0%, 1.4 to 11.1%): 1 of 15 on seed 9201, 2 of 60 on seed 9202 |
+| Clean scanned bundles with a model-based flag | 0 of 75 |
+| The same rate pooled with the three earlier fresh seeds (older code) | 8 of 150 (5.3%, 2.7 to 10.2%) |
+| Tampered scans where the expected rule fired (T01, T10, T58, T59; seed 9201) | 38 of 40 (95%, 84 to 99%); pooled with the earlier seeds 83 of 88 |
+| Spend | $6.85 for 55 cases on seed 9201 and $4.97 for 60 cases on seed 9202 (about $0.09 a clean scanned bundle) |
 
-This is in line with the earlier held-out figures (3 of 45 false alarms; 45 of 48 tampered caught); it neither confirms an improvement nor shows a regression, and 15 clean bundles cannot show a false-alarm rate under 10%.
+The false alarms were `x_directors` once, `inv_ids` once and `passport_mrz` once. The rate is under the 10% target with the top of the interval at 10%; it is a good result, not a proven one. Only high-quality scans and four edit types were tried.
 
 **Phone photos.** On 60 simulated phone photos Tesseract missed 15.6% of the words as shot and 5.3% after `ingest/flatten.py`; the simulated photos have a dark desk and a clean outline. End to end, on 15 clean simulated photo bundles (Tesseract plus Haiku, same bundles both times), 8 had a medium or high false alarm with straightening (53%, 30 to 75%) and 6 without (40%, 20 to 64%); every one of the 30 cases was marked partial. The difference is not significant, but the word-level gain did not turn into fewer false alarms, so `GLDB_OCR_STRAIGHTEN` is off by default. A likely reason (not tested): the OCR repairs and row checks were tuned on unstraightened Tesseract output. The conclusion that matters more: clean phone photos still raise a false alarm on about half the bundles, so a photographed statement should be treated as needing human reading, not as a screened case.
