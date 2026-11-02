@@ -113,7 +113,7 @@ A new password or session secret signs everybody out. A new proxy secret needs *
 - Anyone who can sign in can upload, review and delete cases. There are no roles.
 - Rate limits and the job cap are in memory in one process; they reset on restart.
 - The client address comes from `X-Forwarded-For`. If your front passes a client-supplied header through, an attacker can pick the address the per-address limits key on; the global login backstop and the job cap still bound the damage.
-- No TLS between your front and Next (loopback). Uploaded documents are stored under the data directory without application-level encryption; at rest they rely on the volume's own encryption (`GET /monitoring` reports it where the platform allows: FileVault on macOS). SQLite, one process; jobs are not durable across restarts.
+- No TLS between your front and Next (loopback). With `GLDB_ENCRYPT_AT_REST=off` (the default) uploaded documents and case data are stored under the data directory in plain form and rely on the volume's own encryption (`GET /monitoring` reports it where the platform allows: FileVault on macOS). With `GLDB_ENCRYPT_AT_REST=on` the application encrypts them itself ("Encryption at rest" below); the volume's encryption is then a second layer. SQLite, one process; jobs are not durable across restarts.
 - Everything extracted from a document is untrusted text from the person being checked; the tool never auto-approves or auto-rejects.
 
 ## 10. Pre-flight checklist
@@ -128,6 +128,16 @@ Before you publish:
 - [ ] The security headers are present: `curl -sI https://<your-host>/login`.
 - [ ] You know how to switch it off, and who has the password.
 - [ ] Reviewers understand that names in the audit log are self-declared.
+- [ ] If the data must be encrypted by the application: `GLDB_ENCRYPT_AT_REST=on`, the key file is mode 600 and **outside** `GLDB_DATA_DIR` and its backups, the key is backed up separately, `encrypt_data.py --apply` has run and `GET /monitoring` shows `encryption_at_rest.status` = `on`.
+
+## Encryption at rest
+
+Full description, threat model and limits: [encryption-at-rest.md](encryption-at-rest.md). In short, for this deployment:
+
+1. Create a key file **outside** the data directory, for example `~/.config/gldb-fraud/encryption.keys`, mode 600, with one line `2026-11:<output of openssl rand -base64 32>`. Back it up separately from the data (a lost key means lost data; there is no recovery).
+2. In `deploy/.env.production` set `GLDB_ENCRYPT_AT_REST=on` and `GLDB_ENCRYPTION_KEY_FILE=/Users/<you>/.config/gldb-fraud/encryption.keys`. The backend refuses to start if the key is missing, unreadable, readable by group or others, or inside the data directory.
+3. For an existing install: stop the backend, **back up the data directory**, run `uv run python backend/scripts/encrypt_data.py` (dry run, counts only), then `--apply`, then start the backend and read `GET /monitoring` (`encryption_at_rest`). Destroy the plaintext backups when you no longer need them.
+4. Keep FileVault on. It is a second layer; this one no longer depends on it.
 
 ## Not on macOS
 
