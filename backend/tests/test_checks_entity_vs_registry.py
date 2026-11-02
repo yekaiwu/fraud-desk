@@ -77,3 +77,23 @@ def test_it_stays_out_of_the_mock_registry_and_a_missing_registry() -> None:
         run(profile("Orchid Logistics Pte Ltd"), registry(source="mock"))
     with pytest.raises(CheckSkipped):
         x_entity_vs_registry(ctx_for([profile()], registry=None))
+
+
+def test_a_certificate_may_carry_the_name_the_company_had_when_it_was_incorporated() -> None:
+    cert = make_doc(
+        "certificate_of_incorporation",
+        id="d1",
+        fields={"company_name": "Old Name Pte Ltd", "uen": UEN, "incorporation_date": "2019-05-06"},
+    )
+    assert run(cert, registry()) == []  # renamed since; only the profile states the current name
+
+
+def test_the_owner_and_director_checks_do_not_judge_a_live_entity() -> None:
+    from app.checks.kyc import x_directors, x_ownership_vs_registry
+    from tests.test_checks_kyc_fixtures import company_profile_doc
+
+    ctx = ctx_for([company_profile_doc()], registry=registry())  # shareholders and officers unknown
+    with pytest.raises(CheckSkipped):
+        x_ownership_vs_registry(ctx)
+    with pytest.raises(CheckSkipped):
+        x_directors(ctx)

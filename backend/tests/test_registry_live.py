@@ -110,3 +110,19 @@ def test_the_mock_file_wins_and_the_live_entity_is_added_otherwise() -> None:
     both = rl.with_live_entity(mock, "197200078R", "Singapore Airlines", date(2026, 11, 2), lookup)
     assert both is not None and both.lookup("197200078R").source == "acra"  # type: ignore[union-attr]
     assert both.lookup("201912345A") is not None and both.as_of == date(2026, 11, 2)
+
+
+def test_a_client_error_is_not_retried() -> None:
+    seen: list[str] = []
+    with pytest.raises(rl.RegistryUnavailable):
+        rl.AcraLookup(client=client({}, seen, status=404)).lookup("197200078R", "S")
+    assert len(seen) == 1
+
+
+def test_the_other_letters_are_asked_together_and_the_first_hit_wins() -> None:
+    seen: list[str] = []
+    c = client({rl.DATASETS["Q"]: [{**ROW, "uen": "197200078R"}]}, seen)
+    entity = rl.AcraLookup(client=c).lookup(
+        "197200078R", "Singapore Airlines"
+    )  # S first, found in Q
+    assert entity is not None and len(seen) == len(rl.DATASETS)

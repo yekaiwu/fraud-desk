@@ -62,3 +62,12 @@ def test_no_page_outline_means_no_change() -> None:
 
 def test_garbage_bytes_do_not_raise() -> None:
     assert not flatten(b"not an image").changed
+
+
+def test_a_bright_region_that_is_not_page_shaped_is_left_alone() -> None:
+    img = np.full((1000, 1000, 3), 30, np.uint8)
+    cv2.rectangle(
+        img, (100, 100), (900, 560), (240, 240, 240), -1
+    )  # 800 x 460: a table, not a page
+    cv2.putText(img, "x", (300, 300), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 5)
+    assert not flatten(cv2.imencode(".png", img)[1].tobytes()).changed

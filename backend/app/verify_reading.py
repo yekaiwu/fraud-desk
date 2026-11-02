@@ -13,7 +13,7 @@ the score or the queue. If the second reading cannot be made (budget, error) not
 warning says so.
 
 A flag is set aside only when the second reading *contradicts* it: the other reader found the same
-documents and the check did not fire on them. When the other reader did not find a document the flag
+documents, the check ran on them and did not fire. When the other reader did not find a document the flag
 names (it classified it differently, or could not read it), the second reading says nothing, so the flag
 stays and is counted as inconclusive. Model-based (``sem_``) flags go through the same test, with the
 model-based checks switched on in the shadow run, because a misread counterparty name makes a
@@ -72,8 +72,12 @@ def candidates(ctx: CaseContext) -> list[Flag]:
 
 
 def shadow_saw_documents(case: Case, shadow: Case, flag: Flag) -> bool:
-    """Whether the second reading found every document the flag names, as the same kind of document.
-    Only then does its silence contradict the flag; otherwise it is simply a different failure to read."""
+    """Whether the second reading could have raised this flag: it found every document the flag
+    names, as the same kind of document, and the check itself ran (not skipped for a field the other
+    reader missed, not errored). Only then does its silence contradict the flag; otherwise it is simply
+    a different failure to read."""
+    if not any(r.rule == flag.rule and r.status == "ran" for r in shadow.check_runs):
+        return False
     seen = {(d.file_id, d.doc_type) for d in shadow.documents if d.status in ("ok", "partial")}
     for doc_id in flag.document_ids:
         doc = next((d for d in case.documents if d.id == doc_id), None)

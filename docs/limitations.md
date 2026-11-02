@@ -186,3 +186,13 @@ Known open items for the semantic checks. These are stated here so that nobody r
 | Live model | Path works, 33/35 fields on 3 pages | Accuracy, tampers, long statements |
 | Scan false alarms | Down to 0 with oracle text | Real OCR still flags 3/3; share due to reassembly alone |
 | Semantic signals | Model-read labels, aliases and declared-against-shown fit beat the rules on our own data (0.96, 0.94, 0.82); the entity check is not adopted (fairness gap 0.00 to 0.33) | Real customer text; a second model; fairness beyond small probes; whether the fit baseline of 0 holds under the KYC rules; dev tables for labels and entities that cannot be reproduced from the shipped dev files; open review findings (section 11) |
+
+## 11. Changes of 2 November 2026, and what they do not prove
+
+Five changes went in together; none has been measured on real documents (sections 3 and 5 still apply).
+
+- **The second reading drops a flag only on contradiction.** It used to drop any flag the other reader did not reproduce, which also removed true flags when the other reader had not found the document (3 of 14 payer-mismatch detections on one seed). Now the other reader must have found the same documents and the check must have run and stayed silent. The cost: more scan flags survive, so the false-alarm rate on scans can only go up, not down; it has to be measured (section 12 when run). Model-based flags now go through the same test. A model is not deterministic, so its silence is weaker evidence than a rule's silence, and a true model-based flag can be set aside (it stays on the case as information).
+- **Phone photos are straightened before a local OCR reads them** (`ingest/flatten.py`). Measured only on simulated photos. It gives up (reads the picture as it is) on anything that does not look like a page outline, so a cluttered or white background simply gets no benefit.
+- **A live company register lookup** (`GLDB_REGISTRY_LIVE`, off by default). It checks the name on a company profile, the incorporation date and whether the company is live. It does not check who owns or runs the company, and it cannot tell a genuine document about the wrong company from the right one. The open data is rate limited and lags the official register.
+- **Signature integrity** (`pdf_signature_invalid`). Catches an edit inside a signed PDF. A forger who removes the signature or prints to a new PDF leaves nothing for it. A signature the library cannot assess is reported as "not analysed", never as tampering.
+- **A benchmark on invoices someone else made** (`backend/scripts/ext_eval/independent_invoices.py`). The public data are synthetic invoices, so this tests other layouts and fonts, not real paperwork.

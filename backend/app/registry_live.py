@@ -19,6 +19,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -68,11 +69,16 @@ BACKOFF_S = 1.5
 MAX_SCANNED = 27  # datasets asked per lookup, at most
 HIT_TTL_S = 7 * 86400
 MISS_TTL_S = 86400
-TOTAL_BUDGET_S = 30.0  # for one lookup, retries and scans included
+TOTAL_BUDGET_S = 40.0  # for the scan of the other letters
+PARALLEL = 4
 
 
 class RegistryUnavailable(Exception):  # noqa: N818 - a state, not an error class
     """The register could not be asked (network, rate limit, bad answer)."""
+
+
+class _Transient(Exception):  # noqa: N818 - retried, then reported as RegistryUnavailable
+    pass
 
 
 def dataset_order(name_hint: str | None) -> list[str]:
@@ -137,14 +143,18 @@ def _ask(client: httpx.Client, dataset: str, uen: str) -> list[dict[str, Any]]:
     for attempt in range(RETRIES + 1):
         try:
             resp = client.get(API, params=params)
+            if resp.status_code in (400, 404):  # not transient: asking again changes nothing
+                raise RegistryUnavailable(f"register answered {resp.status_code}") from None
             if resp.status_code in (403, 429, 500, 502, 503, 504):
-                raise RegistryUnavailable(f"register answered {resp.status_code}")
+                raise _Transient(f"register answered {resp.status_code}")
             resp.raise_for_status()
             data = resp.json()
             if not data.get("success"):
                 raise RegistryUnavailable("register answered success=false")
             return list(data["result"]["records"])
-        except (httpx.HTTPError, ValueError, KeyError, RegistryUnavailable) as exc:
+        except RegistryUnavailable:
+            raise
+        except (httpx.HTTPError, ValueError, KeyError, _Transient) as exc:
             last = exc
             if attempt < RETRIES:
                 time.sleep(BACKOFF_S * (attempt + 1))
@@ -197,14 +207,29 @@ class AcraLookup:
         own = self._client is None
         client = self._client or httpx.Client(timeout=TIMEOUT_S, headers={"User-Agent": USER_AGENT})
         try:
-            started = time.monotonic()
-            for dataset in dataset_order(name_hint):
-                if time.monotonic() - started > TOTAL_BUDGET_S:
-                    raise RegistryUnavailable("lookup took too long")
-                for rec in _ask(client, dataset, wanted):
-                    if normalise_uen(rec.get("uen")) == wanted:
-                        self._store(wanted, rec, now)
-                        return entity_from_record(rec)
+            order = dataset_order(name_hint)
+
+            def find(dataset: str) -> dict[str, Any] | None:
+                return next(
+                    (
+                        r
+                        for r in _ask(client, dataset, wanted)
+                        if normalise_uen(r.get("uen")) == wanted
+                    ),
+                    None,
+                )
+
+            # the letter of the name first (one call in the usual case), then the rest, a few at a time
+            rec = find(order[0])
+            if rec is None and len(order) > 1:
+                with ThreadPoolExecutor(max_workers=PARALLEL) as pool:
+                    for found in pool.map(find, order[1:], timeout=TOTAL_BUDGET_S):
+                        if found is not None:
+                            rec = found
+                            break
+            if rec is not None:
+                self._store(wanted, rec, now)
+                return entity_from_record(rec)
         finally:
             if own:
                 client.close()

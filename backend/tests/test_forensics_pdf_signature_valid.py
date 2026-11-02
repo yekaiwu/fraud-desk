@@ -75,3 +75,16 @@ def test_an_unsigned_pdf_has_no_problems() -> None:
 def test_garbage_is_a_value_error_not_a_crash() -> None:
     with pytest.raises(ValueError):
         signature_problems(b"%PDF-1.7 not really")
+
+
+def test_a_signature_that_cannot_be_validated_is_a_gap_not_evidence(
+    signed_pdf: bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import pyhanko.sign.validation as v
+
+    def boom(*a, **k):  # noqa: ANN002, ANN003, ANN202
+        raise RuntimeError("unsupported algorithm")
+
+    monkeypatch.setattr(v, "validate_pdf_signature", boom)
+    with pytest.raises(ValueError, match="could not be assessed"):
+        signature_problems(signed_pdf)

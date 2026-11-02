@@ -1116,6 +1116,8 @@ def x_ownership_vs_registry(ctx: CaseContext) -> list[Flag]:
                 ),
             )
         ]
+    if entity.source == "acra":
+        raise CheckSkipped("the open company data lists no shareholders")
     flags: list[Flag] = []
     reg_holders = _reg_holders(entity.shareholders)
     for doc in _docs(ctx, "ownership_chart"):
@@ -1330,6 +1332,8 @@ def x_directors(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912, PLR0915
     entity = ctx.registry.lookup(uen)
     if entity is None:
         raise CheckSkipped("entity absent from registry")
+    if entity.source == "acra":
+        raise CheckSkipped("the open company data lists no directors")
     reg_dirs = [
         _Person(o.name, o.id_number or "", None, None)
         for o in entity.officers
@@ -1744,8 +1748,11 @@ def x_entity_vs_registry(ctx: CaseContext) -> list[Flag]:
     flags: list[Flag] = []
     for doc in docs:
         name_cell = _cell(doc, "company_name")
+        # a certificate of incorporation carries the name the company had when it was incorporated,
+        # which the register no longer holds after a rename; only the profile states the current name
         if (
-            name_cell.value
+            doc.doc_type == "company_profile"
+            and name_cell.value
             and match_company(name_cell.value, entity.entity_name).verdict == "different"
         ):
             flags.append(

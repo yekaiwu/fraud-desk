@@ -78,10 +78,15 @@ def fetch(args: argparse.Namespace) -> int:
 
 def money(text: object) -> Decimal | None:
     cleaned = re.sub(r"[^\d.,-]", "", str(text or ""))
-    if "," in cleaned and "." not in cleaned and re.search(r",\d{2}$", cleaned):
-        cleaned = cleaned.replace(",", ".")
+    last = max(cleaned.rfind("."), cleaned.rfind(","))
+    if last >= 0 and re.fullmatch(
+        r"\d{1,2}", cleaned[last + 1 :] or "x"
+    ):  # the last separator is the decimal point
+        cleaned = re.sub(r"[.,]", "", cleaned[:last]) + "." + cleaned[last + 1 :]
+    else:
+        cleaned = re.sub(r"[.,]", "", cleaned)
     try:
-        return Decimal(cleaned.replace(",", "")) if cleaned else None
+        return Decimal(cleaned) if cleaned else None
     except InvalidOperation:
         return None
 
@@ -101,7 +106,9 @@ def field_hits(case, label: dict) -> tuple[bool, bool]:  # noqa: ANN001
 
 def run(args: argparse.Namespace) -> int:
     labels = json.loads((args.dir / "labels.json").read_text(encoding="utf-8"))
-    images = sorted((args.dir / "images").glob("*.jpeg"))[: args.limit]
+    images = [p for p in sorted((args.dir / "images").glob("*.jpeg")) if p.name in labels][
+        : args.limit
+    ]
     rows = []
     for img in images:
         data_dir = Path(tempfile.mkdtemp(prefix="gldb-ext-"))

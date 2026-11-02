@@ -82,8 +82,19 @@ def find_page_quad(gray: np.ndarray) -> np.ndarray | None:
     return _order(pts) * k
 
 
+MIN_ASPECT, MAX_ASPECT = 1.15, 1.75  # a page is about 1.29 (letter) to 1.41 (A4) either way up
+
+
 def flatten(png: bytes) -> Flattened:
-    """Straighten the page in ``png``; the picture itself when there is nothing to straighten."""
+    """Straighten the page in ``png``; the picture itself, unchanged, whenever there is nothing to
+    straighten or anything about the attempt looks wrong. Never raises: it is an optional help for OCR."""
+    try:
+        return _flatten(png)
+    except (cv2.error, ValueError, np.linalg.LinAlgError, ZeroDivisionError, OverflowError):
+        return Flattened(png=png, changed=False, width_px=1, height_px=1)
+
+
+def _flatten(png: bytes) -> Flattened:
     arr = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
     if arr is None:
         return Flattened(png=png, changed=False, width_px=1, height_px=1)
@@ -93,6 +104,10 @@ def flatten(png: bytes) -> Flattened:
     quad = find_page_quad(gray)
     if quad is None:
         return same
+    if len({tuple(np.round(p)) for p in quad}) < 4 or not cv2.isContourConvex(
+        quad.astype(np.int32)
+    ):
+        return same
     area = cv2.contourArea(quad)
     frame = np.array([[0, 0], [w, 0], [w, h], [0, h]], np.float32)
     tilt = float(np.abs(quad - frame).max()) / max(w, h)
@@ -101,6 +116,11 @@ def flatten(png: bytes) -> Flattened:
     top, bottom = np.linalg.norm(quad[0] - quad[1]), np.linalg.norm(quad[3] - quad[2])
     left, right = np.linalg.norm(quad[0] - quad[3]), np.linalg.norm(quad[1] - quad[2])
     out_w, out_h = int(max(top, bottom)), int(max(left, right))
+    if (
+        min(out_w, out_h) < 50
+        or not MIN_ASPECT <= max(out_w, out_h) / min(out_w, out_h) <= MAX_ASPECT
+    ):
+        return same  # not page-shaped: a bright desk, a card, a crop
     scale = min(1.0, MAX_OUTPUT_SIDE / max(out_w, out_h, 1))
     out_w, out_h = max(8, int(out_w * scale)), max(8, int(out_h * scale))
     matrix = cv2.getPerspectiveTransform(

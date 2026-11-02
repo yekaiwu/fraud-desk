@@ -8,7 +8,7 @@ import pytest
 
 from app import verify_reading as vr
 from app.core.config import Settings
-from app.core.models import Flag
+from app.core.models import CheckRun, Flag
 from app.core.testing import make_ctx, make_doc
 
 
@@ -49,7 +49,10 @@ def scans_everywhere(monkeypatch: pytest.MonkeyPatch) -> None:
 def shadow_with(ctx, flags: list[Flag]):  # noqa: ANN001, ANN202
     shadow = ctx.case.model_copy(deep=True)
     shadow.flags = flags
-    shadow.check_runs = []
+    rules = {(f.rule, f.stage) for f in [*ctx.case.flags, *flags]}
+    shadow.check_runs = [
+        CheckRun(rule=rule, stage=stage, status="ran") for rule, stage in sorted(rules)
+    ]
     return shadow, []
 
 
@@ -161,3 +164,18 @@ def test_a_model_based_flag_needs_the_second_reading_too(monkeypatch: pytest.Mon
     by_id = {f.id: f for f in ctx.case.flags}
     assert out["unconfirmed_flags"] == 1 and len(seen[0]) == 2
     assert by_id["a"].severity == "info" and by_id["b"].severity == "medium"
+
+
+def test_a_check_the_other_reader_skipped_is_inconclusive(monkeypatch: pytest.MonkeyPatch) -> None:
+    ctx = ctx_with([flag("a", "bs_totals", ["d1"])])
+
+    def shadow(c, r, f=None):  # noqa: ANN001, ANN202
+        s, costs = shadow_with(c, [])
+        s.check_runs = [
+            CheckRun(rule="bs_totals", stage="rules", status="skipped", reason="no total")
+        ]
+        return s, costs
+
+    monkeypatch.setattr(vr, "shadow_reading", shadow)
+    out = vr.confirm_scan_flags(ctx)
+    assert ctx.case.flags[0].severity == "high" and out["inconclusive_flags"] == 1

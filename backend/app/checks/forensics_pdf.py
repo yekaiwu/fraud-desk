@@ -828,7 +828,8 @@ def signature_problems(data: bytes) -> list[str]:
 
     Only integrity is judged. Whether the signer's certificate is trusted is not: the tool holds no
     trust roots, and a self-signed or unknown signer is not evidence of editing. Nothing is fetched
-    from the network. A PDF that cannot be parsed raises ``ValueError``."""
+    from the network. A PDF that cannot be parsed, or whose signature could not be assessed (an algorithm pyHanko does
+    not support), raises ``ValueError``: that is a gap in what was checked, not evidence of editing."""
     import io
 
     from pyhanko.pdf_utils.reader import PdfFileReader
@@ -837,6 +838,7 @@ def signature_problems(data: bytes) -> list[str]:
     from pyhanko_certvalidator import ValidationContext
 
     problems: list[str] = []
+    unassessed = 0
     try:
         reader = PdfFileReader(io.BytesIO(data), strict=False)
         signatures = list(reader.embedded_signatures)
@@ -847,8 +849,8 @@ def signature_problems(data: bytes) -> list[str]:
             status = validate_pdf_signature(
                 sig, ValidationContext(trust_roots=[], allow_fetching=False)
             )
-        except Exception as exc:  # noqa: BLE001
-            problems.append(f"signature {i} could not be validated ({type(exc).__name__})")
+        except Exception:  # noqa: BLE001 - an unsupported algorithm is not evidence of editing
+            unassessed += 1
             continue
         if not status.intact:
             problems.append(f"signature {i}: the signed bytes no longer match its digest")
@@ -856,6 +858,8 @@ def signature_problems(data: bytes) -> list[str]:
             problems.append(
                 f"signature {i}: later revisions change content beyond what signing allows"
             )
+    if unassessed and not problems:
+        raise ValueError("signature could not be assessed")  # "not analysed", never a flag
     return problems
 
 
