@@ -55,6 +55,29 @@ TITLES = frozenset(
     }
 )  # fmt: skip
 SUFFIXES = frozenset({"jr", "sr", "ii", "iii", "iv", "phd"})
+# Known spellings of one surname that are two or more letters apart (a formal and an anglicised
+# form, or a regional respelling), each group with its canonical form first. Rules for this table
+# (tests/test_names_variants.py): every pair inside a group is >= 2 edits apart, so the table never
+# makes a one-letter-different name acceptable; a group never has two members that are one edit
+# apart; groups share no member. Each group had at least one same-person pair on the DEV split. The
+# remaining risk is the one every alias carries: a deliberate swap to the other spelling (with the
+# same ID number) reads as the same person.
+SURNAME_VARIANTS: tuple[tuple[str, ...], ...] = (
+    ("banerjee", "bandyopadhyay"),
+    ("chatterjee", "chattopadhyay"),
+    ("mukherjee", "mukhopadhyay"),
+    ("ganguly", "gangopadhyay"),
+    ("chakraborty", "chakravarty"),
+    ("bhattacharya", "bhattacharjee"),
+    ("pattanayak", "pattnaik"),
+    ("satapathi", "satpathy"),
+    ("srivastava", "shrivastav"),
+    ("kapoor", "kapur"),
+    ("dixit", "dikshit"),
+    ("saxena", "saksena"),
+    ("lakshman", "laxman"),
+    ("raghavaiah", "raghavayya"),
+)
 TOKEN_ALIASES: dict[str, str] = {
     **dict.fromkeys(
         (
@@ -77,6 +100,7 @@ TOKEN_ALIASES: dict[str, str] = {
     **dict.fromkeys(("abd", "abdul", "abdull"), "abdul"),
     **dict.fromkeys(("nur", "noor"), "nur"),
     **dict.fromkeys(("siti", "st"), "siti"),
+    **{member: group[0] for group in SURNAME_VARIANTS for member in group[1:]},
 }
 
 LEGAL_TOKENS = frozenset(
@@ -95,7 +119,7 @@ GENERIC_COMPANY_WORDS = frozenset(
 TRUNCATION_MIN_CHARS = 12
 INITIAL_MIN_EDIT_LEN = 6
 INITIALS_MAX = 4  # most initials expanded at once ("S. R. Ramaswamy"); 0 switches it off
-MERGE_MAX_TOKEN_LEN = 6
+MERGE_MAX_TOKEN_LEN = 12
 MERGE_MAX_MERGES = 4
 _MERGE_VARIANT_CAP = 200
 
