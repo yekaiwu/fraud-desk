@@ -19,9 +19,11 @@ from typing import Any, Literal
 from pydantic import StrictBool
 
 from app.checks.registry import CheckMeta, get_check
+from app.core.config import Settings
 from app.core.db import Database
 from app.core.errors import ApiError
 from app.core.models import RuleOverride, Strict, clean_text
+from app.semantic.policy import switched_off_by_setting
 
 NAME_MAX = 80
 DESCRIPTION_MAX = 400
@@ -108,10 +110,14 @@ def clean_reason(value: str | None) -> str:
     return reason
 
 
-def rule_item(meta: CheckMeta, override: RuleOverride | None) -> dict[str, Any]:
+def rule_item(
+    meta: CheckMeta, override: RuleOverride | None, settings: Settings | None = None
+) -> dict[str, Any]:
     """One catalogue item: the code definition (``severity`` stays the code default) plus the
-    effective settings."""
-    return {
+    effective settings. A model-derived check with a switch of its own that is off (the name-linking
+    check by default) is listed with ``enabled`` false and says why in ``setting_off``."""
+    setting_off = switched_off_by_setting(settings, meta.rule) if settings is not None else None
+    item = {
         "rule": meta.rule,
         "stage": meta.stage,
         "severity": meta.severity,
@@ -123,9 +129,12 @@ def rule_item(meta: CheckMeta, override: RuleOverride | None) -> dict[str, Any]:
         "version": meta.version,
         "default_severity": meta.severity,
         "effective_severity": (override.severity if override else None) or meta.severity,
-        "enabled": override.enabled if override else True,
+        "enabled": (override.enabled if override else True) and setting_off is None,
         "override": override.model_dump() if override else None,
     }
+    if setting_off is not None:  # left out otherwise: every other item is exactly as before
+        item["setting_off"] = setting_off
+    return item
 
 
 def known_rule(rule: str) -> CheckMeta:

@@ -27,7 +27,7 @@ Specs for the GLDB document-fraud analysis tool. Source plan: the master plan (n
 - [encryption-at-rest.md](encryption-at-rest.md): application-level AES-256-GCM encryption of stored files, page renders, case data, review entries and the response cache: settings, what is and is not encrypted, key management and backup (key loss is data loss), the migration and rotation tool, threat model and honest limits.
 - [ai-incidents.md](ai-incidents.md): what `GET /monitoring` watches and its thresholds, alert delivery (webhook, e-mail, Telegram, file), acknowledgement and the silence check, the 5.23 readiness checklist, the named accountable owner, the AI incident log and the contain, investigate, fix process.
 - [agents.md](agents.md): the review team (four specialists, a challenger that may lower a judgement flag only by quoting the documents, and a case officer that writes the summary), what each can change, switches and cost.
-- [semantic-signals.md](semantic-signals.md): the layer, on whenever a model is configured and switchable with `GLDB_SEMANTIC`, of model-derived checks that must quote the extracted data: the six invariants, the claim verifier, severity cap and fast-lane rules, how to turn it on, the two models and what each is for, and the measured local-model latency.
+- [semantic-signals.md](semantic-signals.md): the layer, on whenever a model is configured and switchable with `GLDB_SEMANTIC` (the name-linking check has its own switch, `GLDB_SEMANTIC_ENTITY`, off by default), of model-derived checks that must quote the extracted data: the six invariants, the claim verifier, severity cap and fast-lane rules, how to turn it on, the two models and what each is for, and the measured local-model latency.
 
 ## Work tracking
 

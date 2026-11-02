@@ -31,7 +31,12 @@ from app.core.models import (
     Strict,
     clean_text,
 )
-from app.semantic.policy import cap_severity, is_semantic_rule, semantic_enabled
+from app.semantic.policy import (
+    cap_severity,
+    is_semantic_rule,
+    semantic_enabled,
+    switched_off_by_setting,
+)
 
 BUILTIN_MODULES = ("app.core.builtin_checks",)
 SKIP_MODULES = {"registry"}
@@ -238,6 +243,18 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
         gap = requirement_gap(meta, ctx)
         if gap is not None:
             runs.append(CheckRun(rule=meta.rule, stage=stage, status="skipped", reason=gap))
+            continue
+        off_by_setting = switched_off_by_setting(ctx.settings, meta.rule)
+        if off_by_setting is not None:  # its own setting, not an officer's override
+            runs.append(
+                CheckRun(
+                    rule=meta.rule,
+                    stage=stage,
+                    status="skipped",
+                    reason=off_by_setting,
+                    code=SWITCHED_OFF,
+                )
+            )
             continue
         override = ctx.overrides.get(meta.rule)
         if override is not None and not override.enabled:

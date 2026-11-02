@@ -6,7 +6,7 @@ Status: the shared base (switch, claim schema, evidence verifier, call wrapper, 
 
 The rules in [check-catalogue.md](check-catalogue.md) compare values: sums, dates, registry fields, name strings. They cannot read meaning. A transaction described as a crypto top-up on the statement of a wholesale electronics firm, or a description that is a paraphrase of the declared business, is invisible to a string matcher. A language model can read it, but a model can also be wrong, be talked into things by the document it reads, and say things that are not in the document.
 
-So model-derived signals are a separate layer with stricter rules than the deterministic checks. They are **on whenever a model is configured** (and off with the fake backend), they can only **add** attention (never remove it), they must **quote the extracted data** for everything they say, and a model failure is shown as "not checked", never as "fine". The deterministic checks do not depend on any of it.
+So model-derived signals are a separate layer with stricter rules than the deterministic checks. They are **on whenever a model is configured** (and off with the fake backend), except the name-linking check `sem_entity_link`, which is **off by default** (own switch `GLDB_SEMANTIC_ENTITY`, section 3) because it fails the fairness invariant below. They can only **add** attention (never remove it), they must **quote the extracted data** for everything they say, and a model failure is shown as "not checked", never as "fine". The deterministic checks do not depend on any of it.
 
 ## 2. The six invariants
 
@@ -17,14 +17,22 @@ So model-derived signals are a separate layer with stricter rules than the deter
 | 3 | Capped. A model-derived flag is at most `medium`. It never moves a case into the fast lane and never lowers a score. A failed, timed-out or malformed call marks the check as not run (coverage down, case partial), never as passed. | `semantic/policy.py` (`cap_severity`) applied in `semantic/claims.py`, `semantic/flags.py`, `semantic/registry.py` and again in `checks.registry.run_stage_checks` (so a catalogue override cannot lift it either); `queue.py` (fast-lane rules, section 6); `semantic/call.py` (`SemanticNotRun`, section 5). |
 | 4 | All document text is untrusted. | Document text is rendered by `semantic/render.py` into the `user` message inside `wrap_untrusted` delimiters whose nonce is a hash of the enclosed text; instructions live in `system` and never contain document text; the system prompt says the delimited text is data. Semantic canaries are in `backend/tests/test_semantic_canaries.py` and `_eval/canaries.py` (section 8). |
 | 5 | Deterministic where the backend allows. Temperature 0, prompt hash and model name in the cache key, prompts registered with `register_prompt` (so they are hashed into the provenance record). | `semantic/call.py` registers the prompt on every call and puts `sem<version>:<prompt sha>` in `cache_extra`; the clients add the model name, the full request hash and `t0`. Caveat in section 9. |
-| 6 | Fairness. The existing name-group slice is rerun with the features on; the flag-rate disparity across name groups must not increase. | Measured by the feature work and reported in section 10; not enforced by the base. |
+| 6 | Fairness. The existing name-group slice is rerun with the features on; the flag-rate disparity across name groups must not increase. | Measured by the feature work and reported in section 10; not enforced by the base. The one check that failed it, `sem_entity_link`, is switched off by default (`GLDB_SEMANTIC_ENTITY`, section 3 and the ENTITY section), until the gap is closed and the bank agrees. |
 
 ## 3. How to turn it on or off
 
 ```
 GLDB_SEMANTIC=              # empty = on when a model is configured, off with the fake backend; on | off, true/false/1/0 are accepted
 GLDB_SEMANTIC_MAX_CLAIMS=8  # claims kept per model call; more are dropped and counted
+GLDB_SEMANTIC_ENTITY=off    # off (default) | on. The name-linking check sem_entity_link only; needs GLDB_SEMANTIC on as well
 ```
+
+**The name-linking check is off by default.** `sem_entity_link` failed invariant 6 (the gap in low-flag rates between name groups went from 0.00 to 0.33 in the probe, see the ENTITY section and [limitations.md](limitations.md) section 11), so `GLDB_SEMANTIC=on` does not turn it on; `GLDB_SEMANTIC_ENTITY=on` does, and only while `GLDB_SEMANTIC` is on too (the global switch stays the master). It stays off until the gap is closed and the bank agrees; the bank, not this tool, defines what is fair and which attributes are protected. How a switched-off check shows:
+
+* Its check run is `skipped` with code `switched_off` and the reason "Switched off by setting GLDB_SEMANTIC_ENTITY=off (the default)...", recorded only on cases that have a bank statement or invoice (where it would apply). No model call is made. It is not an error (the case is not made partial) and not a pass.
+* Coverage is unchanged: a skipped semantic run never entered the ratio (`counts_in_coverage`), and the fast-lane coverage bar already leaves semantic runs out. Nothing else about the other semantic checks changes.
+* The provenance settings hash lists `semantic_entity` whenever `GLDB_SEMANTIC` is on (as `off` or `on`), so a run with the check off does not share a hash with an older run in which it ran. With `GLDB_SEMANTIC` off the hash is unchanged.
+* The check catalogue (`GET /rules`) lists it with `enabled: false` and a `setting_off` text.
 
 The semantic checks use whatever model the app is already configured to use (`GLDB_LLM_BACKEND`); nothing about them picks a backend of its own. A fake backend with no fixtures answers nothing, so with `GLDB_SEMANTIC=on` and no real model every semantic check is recorded as errored and the case is partial. That is the intended, visible behaviour.
 
@@ -220,7 +228,7 @@ Each question is one model call per case, with a small ordinal answer instead of
 | `sem_income_fit` | Is the declared amount plausible for the job the source-of-funds text names? | declaration `declared_amount` | declaration field `origin_description` | a declaration with a description and an amount |
 | `sem_coherence_fit` | Do the counterparties on the statement fit the declared principal activity? | profile `principal_activity` | a statement `transactions` row, column `description` | a company profile with an activity, and at least 3 statement lines with a description from an account that is not known to be someone else's |
 
-All three are registered at stage `crossdoc`, severity `medium` (the cap), and only when `GLDB_SEMANTIC=on`. A case without the needed fields gets `CheckSkipped` (a normal skip; it does not enter the coverage ratio); a failed, timed-out or malformed call is `SemanticNotRun` (an errored check: coverage down, the case partial).
+All three are registered at stage `crossdoc`, severity `medium` (the cap), and only when `GLDB_SEMANTIC=on`. (The name-linking check of the next section additionally needs `GLDB_SEMANTIC_ENTITY=on`.) A case without the needed fields gets `CheckSkipped` (a normal skip; it does not enter the coverage ratio); a failed, timed-out or malformed call is `SemanticNotRun` (an errored check: coverage down, the case partial).
 
 ### The answer and what becomes a flag
 
@@ -301,6 +309,8 @@ Only the frozen row is a measurement of the final code; R3 and R3b ran with the 
 **Open risks found in tuning.** The model sometimes cites a wrong document id when several statements are shown (1 of the 5 T57 bundles); such a claim is dropped and counted, never shown. The income question rests on the model's idea of Singapore pay levels, and its borderline cases sit exactly where the data was built to be hard (4 to 5 times the plausible maximum). The citation behaviour depends on the model: a model that leaves out `field` unless the schema requires it may behave differently on Haiku.
 
 ## ENTITY: counterparty and entity adjudication (feature section)
+
+**Status: off by default** (`GLDB_SEMANTIC_ENTITY=off`, section 3). It meets its accuracy criteria and fails the fairness invariant; it stays off until the gap is closed and the bank agrees. Everything below describes the check when it is switched on.
 
 Code: `backend/app/semantic/entity.py` (logic), `backend/app/semantic/checks/entity.py` (the check `sem_entity_link`, stage `crossdoc`, applies to `bank_statement` and `invoice`). Tests: `backend/tests/test_semantic_entity.py`. Prompt: purpose `semantic:entity_adjudication` (registered through `register_prompt` on the first call, hashed into the cache key).
 

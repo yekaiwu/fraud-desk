@@ -29,7 +29,7 @@ router = APIRouter(tags=["rules"], route_class=ApiRoute)
 @router.get("/rules")
 def list_rules(db: DbDep, settings: SettingsDep) -> dict[str, Any]:
     overrides = db.rule_overrides()
-    return {"rules": [rule_item(m, overrides.get(m.rule)) for m in all_checks(settings)]}
+    return {"rules": [rule_item(m, overrides.get(m.rule), settings) for m in all_checks(settings)]}
 
 
 @router.get("/rules/changes")

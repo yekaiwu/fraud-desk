@@ -272,9 +272,93 @@ def cases_docs() -> list[Document]:
 
 
 def run_check(llm: FakeLLMClient | None, *docs: Document):  # noqa: ANN202
-    ctx = case(*(docs or cases_docs()), settings=settings_on(), llm=llm or scripted({}))
+    ctx = case(
+        *(docs or cases_docs()), settings=settings_on(semantic_entity="on"), llm=llm or scripted({})
+    )
     run_stage_checks(ctx, "crossdoc")
     return ctx
+
+
+# ------------------------------------------------- its own switch, off by default
+
+
+def test_the_name_linking_check_has_its_own_switch_which_is_off_by_default(
+    monkeypatch: Any,
+) -> None:
+    from app.core.config import Settings
+
+    for key in ("GLDB_SEMANTIC", "GLDB_SEMANTIC_ENTITY"):
+        monkeypatch.delenv(key, raising=False)
+    assert Settings(_env_file=None).semantic_entity == "off"
+    assert settings_on().semantic_entity == "off"  # GLDB_SEMANTIC on does not turn it on
+    for raw, want in (("on", "on"), ("TRUE", "on"), ("1", "on"), ("off", "off"), ("", "off")):
+        monkeypatch.setenv("GLDB_SEMANTIC_ENTITY", raw)
+        assert Settings(_env_file=None).semantic_entity == want
+    monkeypatch.setenv("GLDB_SEMANTIC_ENTITY", "maybe")
+    with pytest.raises(ValueError):
+        Settings(_env_file=None)
+
+
+def test_the_switch_is_in_the_settings_hash_only_while_semantic_is_on() -> None:
+    from app.core.config import Settings
+
+    off = Settings(_env_file=None).result_settings()
+    assert not any(k.startswith("semantic") for k in off)  # the hash of a plain run is unchanged
+    assert Settings(_env_file=None, semantic_entity="on").result_settings() == off
+    assert settings_on().result_settings()["semantic_entity"] == "off"
+    on = settings_on(semantic_entity="on").result_settings()
+    assert on["semantic_entity"] == "on" and on != settings_on().result_settings()
+
+
+def test_switched_off_the_check_is_a_skip_with_the_switched_off_code_and_no_model_call() -> None:
+    llm = scripted({"NORTHGATE ENGRG": "same_entity"})
+    ctx = case(*cases_docs(), settings=settings_on(), llm=llm)
+    run_stage_checks(ctx, "crossdoc")
+    (run_,) = [r for r in ctx.case.check_runs if r.rule == RULE]
+    assert run_.status == "skipped" and run_.code == "switched_off" and run_.flags == 0
+    assert "GLDB_SEMANTIC_ENTITY" in (run_.reason or "") and "off" in (run_.reason or "")
+    assert llm.calls == []  # nothing was sent to a model
+    assert not [f for f in ctx.case.flags if f.rule == RULE]
+
+
+def test_a_switched_off_name_linking_check_changes_neither_coverage_nor_partial() -> None:
+    off = case(*cases_docs(), settings=settings_on(), llm=scripted({}))
+    run_stage(off)
+    assert off.case.coverage is not None and off.case.score is not None
+    assert RULE not in {s["rule"] for s in off.case.coverage.skipped}  # not counted as unrun
+    assert not any(RULE in r for r in off.case.score.partial_reasons)
+    plain = case(*cases_docs(), llm=scripted({}))  # GLDB_SEMANTIC off: the check is not there
+    run_stage(plain)
+    assert plain.case.coverage is not None
+    assert (off.case.coverage.applicable, off.case.coverage.ran, off.case.coverage.ratio) == (
+        plain.case.coverage.applicable,
+        plain.case.coverage.ran,
+        plain.case.coverage.ratio,
+    )
+    assert off.case.score.partial == plain.case.score.partial
+
+
+def test_the_check_needs_both_switches_and_the_global_one_stays_the_master() -> None:
+    from app.core.config import Settings
+
+    llm = scripted({})
+    only_entity = Settings(_env_file=None, llm_backend="fake", semantic="off", semantic_entity="on")
+    ctx = case(*cases_docs(), settings=only_entity, llm=llm)
+    run_stage_checks(ctx, "crossdoc")
+    assert RULE not in {r.rule for r in ctx.case.check_runs} and llm.calls == []
+    both = run_check(scripted({}))
+    assert next(r for r in both.case.check_runs if r.rule == RULE).status == "ran"
+
+
+def test_the_catalogue_lists_the_switched_off_check_as_not_enabled_and_says_why() -> None:
+    from app.catalogue import rule_item
+
+    meta = next(m for m in all_checks(settings_on()) if m.rule == RULE)
+    off_item = rule_item(meta, None, settings_on())
+    assert off_item["enabled"] is False and "GLDB_SEMANTIC_ENTITY" in off_item["setting_off"]
+    on_item = rule_item(meta, None, settings_on(semantic_entity="on"))
+    assert on_item["enabled"] is True and "setting_off" not in on_item
+    assert "setting_off" not in rule_item(meta, None)
 
 
 def test_verdicts_become_fixed_severity_flags_and_different_shows_nothing() -> None:
@@ -436,7 +520,7 @@ def counts(llm: FakeLLMClient, *docs: Document) -> tuple[Any, dict[str, int]]:
         statement("FAST NORTHGATE ENGRG"),
         contract(),
         *docs,
-        settings=settings_on(),
+        settings=settings_on(semantic_entity="on"),
         llm=llm,
     )
     run_stage_checks(ctx, "crossdoc")

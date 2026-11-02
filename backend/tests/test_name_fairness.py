@@ -179,4 +179,97 @@ def test_markdown_report_lists_every_group_and_split(synthetic: dict) -> None:
     for g in GROUPS:
         assert g in text
     assert "Synthetic DEV" in text and "Synthetic TEST" in text
-    assert "old matcher" in text and "[0." in text
+    assert "baseline" in text and "[0." in text and "Disparity" in text
+
+
+# ---------------------------------------------------------------- pair sets do not depend on app.names
+
+
+def test_pair_sets_are_fixed_by_the_frozen_baseline_not_by_the_matcher_under_test() -> None:
+    """The earlier classes of both splits are byte-identical to the ones every published table was
+    measured on; a new alias rule in app.names cannot remove a fake it would accept."""
+    import hashlib
+
+    expected = {"dev": "650c6602e1f704bb", "test": "456e845450957c5d"}
+    for split, want in expected.items():
+        rows = [p for p in nf.build_pairs(split) if p.cls not in nf.EXTRA_DIFF_CLASSES]
+        text = "\n".join(f"{p.group}|{p.cls}|{p.a}|{p.b}|{p.same_person}" for p in rows)
+        assert hashlib.sha256(text.encode()).hexdigest()[:16] == want, split
+
+
+def test_the_baseline_matcher_is_the_documented_one() -> None:
+    assert nf.accepts_baseline("Hemant Laxman Gokhale", "H.L.Gokhale")
+    assert not nf.accepts_baseline("Suresh s/o Raman", "Sulesh s/o Raman")
+    # baseline does not know the rules added since (joined long names, surname variants)
+    assert not nf.accepts_baseline("Brajakishore Tripathy", "Braja Kishore Tripathy")
+    assert nf.accepts_new("Brajakishore Tripathy", "Braja Kishore Tripathy")
+    assert not nf.accepts_baseline("Shahid Kapoor", "Shahid Kapur")
+    assert nf.accepts_new("Shahid Kapoor", "Shahid Kapur")
+
+
+def test_initials_sibling_is_a_different_person_written_as_initials() -> None:
+    sib = [p for p in nf.build_pairs("dev") if p.cls == "initials_sibling"]
+    assert len(sib) >= 150 and not any(p.same_person for p in sib)
+    assert {p.group for p in sib} >= {"western_order", "malay_patronymic", "indian_patronymic"}
+
+
+# ---------------------------------------------------------------- disparity and categories
+
+
+def test_disparity_is_max_minus_min_with_a_deterministic_interval() -> None:
+    groups = {"a": [(0, 1)] * 100, "b": [(1, 1)] * 10 + [(0, 1)] * 90}
+    d = nf.disparity(groups)
+    assert d["point"] == pytest.approx(0.10)
+    assert d["max_group"] == "b" and d["min_group"] == "a"
+    assert 0 < d["lo"] <= d["point"] + 0.1 and d["hi"] >= d["point"]
+    assert nf.disparity(groups) == d  # fixed seed
+    zero = nf.disparity({"a": [(0, 1)] * 50, "b": [(0, 1)] * 50})
+    assert zero["point"] == 0 and zero["hi"] == 0 and zero["max_wilson_hi"] > 0.05
+
+
+def test_disparity_resamples_persons_not_pairs_when_a_person_has_several_aliases() -> None:
+    clustered = {"a": [(0, 5)] * 20, "b": [(5, 5)] * 4 + [(0, 5)] * 16}
+    singles = {"a": [(0, 1)] * 100, "b": [(1, 1)] * 20 + [(0, 1)] * 80}
+    assert nf.disparity(clustered)["point"] == pytest.approx(0.2)
+    # same rates; the interval is wider because 20 persons carry the evidence, not 100 pairs
+    wide = nf.disparity(clustered)
+    narrow = nf.disparity(singles)
+    assert wide["hi"] - wide["lo"] > narrow["hi"] - narrow["lo"]
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "category"),
+    [
+        ("Krushnaprasad Basu", "Krushna Prasad Basu", "spacing_or_order"),
+        ("Zaleha Kamarudin", "Zaleha Kamaruddin", "one_letter_variant"),
+        ("Shahid Kapoor", "Shahid Kapur", "documented_variant"),
+        ("Vinoba Bhave", "Acharya Vinoba", "honorific_only"),
+        ("Sadanand Bakre", "S. K. Bakre", "initials_unaligned"),
+        ("Zoya Khan", "Sana Khan", "shares_family_name_only"),
+        ("Arjun Kapoor", "Arjun Khan", "shares_first_name_only"),
+        ("Reena Dutta", "Reena Datta", "one_letter_variant"),
+        ("Srikant Gautam", "Sreekant Gautam", "spelling_variant"),
+        ("Gautam Raju", "Goutham Raju", "spelling_variant"),
+    ],
+)
+def test_alias_categories(a: str, b: str, category: str) -> None:
+    from scripts._eval import name_alias_categories as ac
+
+    assert ac.categorise(a, b) == category
+    assert ac.bucket_of(category) == ("a" if category in ac.A_CATEGORIES else "b")
+
+
+def test_natural_collisions_pair_only_distinct_people_in_one_split() -> None:
+    rows = [
+        {"qid": "Q1", "country": "India", "label_en": "Asha Kumar", "alt_en": "A. Kumar",
+         "pair_type": "x", "split": "dev"},
+        {"qid": "Q2", "country": "India", "label_en": "Ravi Kumar", "alt_en": "R. Kumar",
+         "pair_type": "x", "split": "dev"},
+        {"qid": "Q3", "country": "India", "label_en": "Mina Kumar", "alt_en": "M. Kumar",
+         "pair_type": "x", "split": "test"},
+    ]  # fmt: skip
+    pairs = nf.natural_collisions(rows, "dev")
+    assert pairs  # Kumar is shared by the two items
+    assert all({a.split()[-1], b.split()[-1]} == {"Kumar"} for a, b in pairs)
+    assert not any("Mina" in a or "Mina" in b for a, b in pairs)  # other split
+    assert not any(a.startswith("Asha") and b.startswith("A.") for a, b in pairs)  # same person

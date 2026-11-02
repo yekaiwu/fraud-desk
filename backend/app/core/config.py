@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     # applicable, every result is byte-identical.
     semantic: Literal["off", "on"] | None = None
     semantic_max_claims: int = 8  # claims kept per model call (more are dropped and counted)
+    # The model-based name-linking check (sem_entity_link) has its own switch, off by default: it
+    # fails the fairness invariant in docs/semantic-signals.md (invariant 6) and stays off until
+    # the gap is closed and the bank agrees. It needs ``semantic`` to be on as well; ``semantic``
+    # on does not turn it on.
+    semantic_entity: Literal["off", "on"] = "off"
 
     # modes
     extractor_mode: Literal["text_layer", "llm", "cascade"] = "cascade"
@@ -198,6 +203,19 @@ class Settings(BaseSettings):
             if low == "":
                 return None
             if low in ("0", "false", "no", "off"):
+                return "off"
+        return v
+
+    @field_validator("semantic_entity", mode="before")
+    @classmethod
+    def _semantic_entity_switch(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            return "on" if v else "off"
+        if isinstance(v, str):
+            low = v.strip().lower()
+            if low in ("1", "true", "yes", "on"):
+                return "on"
+            if low in ("", "0", "false", "no", "off"):
                 return "off"
         return v
 
@@ -402,6 +420,9 @@ class Settings(BaseSettings):
         if self.semantic != "off":  # listed only when on: the hash of every other run is unchanged
             out["semantic"] = self.semantic
             out["semantic_max_claims"] = str(self.semantic_max_claims)
+            # always stated while semantic is on, so a run with the name-linking check off cannot
+            # share a settings hash with an older run in which it ran
+            out["semantic_entity"] = self.semantic_entity
         if self.llm_reasoning_effort:
             out["llm_reasoning_effort"] = self.llm_reasoning_effort
         if not self.llm_supports_vision:

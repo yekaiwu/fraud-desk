@@ -1,0 +1,4927 @@
+{
+ "version": 1,
+ "note": "Fictitious names (synthetic) and public Wikidata labels (CC0). Drawn from DEV only. See backend/scripts/_eval/name_fairness_fixture.py.",
+ "synthetic": [
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Adrian Zimmerman",
+   "b": "Adrian Zymmerman",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Sabrina Fontaine",
+   "b": "Sabrina Funtaime",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Martin Ibarra",
+   "b": "Martin Iparra",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Felix Novak",
+   "b": "Felix Noveg",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Sophia Underwood",
+   "b": "Sophya Underwood",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Stefan Lancaster",
+   "b": "Stefan Lancester",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Bernard Abernathy",
+   "b": "Bernard Apernethy",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Josephine Abernathy",
+   "b": "Josephine Abernethy",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Martin Hollingsworth",
+   "b": "Martin Hollimgswortf",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Felix Pereira",
+   "b": "Felix Peraira",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Monica Okafor",
+   "b": "Momyca Okafor",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "near_spelling",
+   "a": "Julian Zimmerman",
+   "b": "Juliam Zimmerman",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_family",
+   "a": "Simon Underwood",
+   "b": "Quentin Underwood",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_family",
+   "a": "Bianca Thornton",
+   "b": "Clara Thornton",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_family",
+   "a": "Bernard Castellano",
+   "b": "Warren Castellano",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_family",
+   "a": "Sophia Fontaine",
+   "b": "Olivia Fontaine",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_family",
+   "a": "Felix Brandt",
+   "b": "Nathan Brandt",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_family",
+   "a": "Olivia Castellano",
+   "b": "Marianne Castellano",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_given",
+   "a": "Tessa Ashworth",
+   "b": "Tessa Castellano",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_given",
+   "a": "Martin Rutherford",
+   "b": "Martin Underwood",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_given",
+   "a": "Theodore Fontaine",
+   "b": "Theodore Underwood",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_given",
+   "a": "Elena Abernathy",
+   "b": "Elena Novak",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_given",
+   "a": "Conrad Vasquez",
+   "b": "Conrad Hollingsworth",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "shared_given",
+   "a": "Warren Moreau",
+   "b": "Warren Brandt",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "initials_sibling",
+   "a": "Simon Underwood",
+   "b": "Q. Underwood",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "initials_sibling",
+   "a": "Bianca Thornton",
+   "b": "C. Thornton",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "initials_sibling",
+   "a": "Bernard Castellano",
+   "b": "W. Castellano",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "initials_sibling",
+   "a": "Sophia Fontaine",
+   "b": "O. Fontaine",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "initials_sibling",
+   "a": "Felix Brandt",
+   "b": "N. Brandt",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "initials_sibling",
+   "a": "Olivia Castellano",
+   "b": "M. Castellano",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Martin Eriksen",
+   "b": "ERIKSEN, Martin",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Marianne Thornton",
+   "b": "Marianne Thornton",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Theodore Vasquez",
+   "b": "Vasquez Theodore",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Julian Vasquez",
+   "b": "JULIAN VASQUEZ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Hannah Zimmerman",
+   "b": "Zimmerman Hannah",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Bernard Valdez",
+   "b": "Valdez Bernard",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Adrian Ashworth",
+   "b": "ADRIAN ASHWORTH",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Sophia Lancaster",
+   "b": "Sophia Lancaster",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Theodore Ibarra",
+   "b": "Theodore Ibarra",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Conrad Lindqvist",
+   "b": "CONRAD LINDQVIST",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Sophia Vasquez",
+   "b": "SOPHIA VASQUEZ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Nathan Castellano",
+   "b": "CASTELLANO, Nathan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Stefan Fontaine",
+   "b": "STEFAN FONTAINE",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Monica Lindqvist",
+   "b": "Lindqvist Monica",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Stefan Vasquez",
+   "b": "Vasquez Stefan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Nathan Whitfield",
+   "b": "Whitfield Nathan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Natalia Castellano",
+   "b": "Castellano Natalia",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Felix Hollingsworth",
+   "b": "Hollingsworth Felix",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Warren Hollingsworth",
+   "b": "HOLLINGSWORTH, Warren",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "surface",
+   "a": "Hannah Underwood",
+   "b": "UNDERWOOD, Hannah",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "western_order",
+   "cls": "typo",
+   "a": "Katrina Underwood",
+   "b": "Katrina Underwoot",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "typo",
+   "a": "Wendy Vasquez",
+   "b": "Wandy Vasquez",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "typo",
+   "a": "Adrian Lindqvist",
+   "b": "Adrian Lindqvyst",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "typo",
+   "a": "Monica Moreau",
+   "b": "Monica Moreao",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "typo",
+   "a": "Simon Fontaine",
+   "b": "Simun Fontaine",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "western_order",
+   "cls": "typo",
+   "a": "Bernard Ibarra",
+   "b": "Belnard Ibarra",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Chua Kok Leong",
+   "b": "Chua Kok Leomk",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Yeo Shu Ting",
+   "b": "Yeo Shu Timg",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Lim Chee Wei",
+   "b": "Lin Chee Wei",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Chew Soon Leong",
+   "b": "Cfew Soon Leong",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Toh Shu Ling",
+   "b": "Tof Shu Ling",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Wong Jian Wei",
+   "b": "Wong Jian Wai",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Lim Eng Huat",
+   "b": "Lin Eng Huat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Wong Shu Hoon",
+   "b": "Wong Sfu Hoon",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Sim Yong Leong",
+   "b": "Sim Yomg Leong",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Kang Kai Aun",
+   "b": "Kank Kai Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Yong Ai Hwee",
+   "b": "Yonk Ai Hwee",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "near_spelling",
+   "a": "Gan Yong Wei",
+   "b": "Gan Yomk Wei",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_family",
+   "a": "Low Jian Leong",
+   "b": "Low Hong Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_family",
+   "a": "Wong Bee Hwee",
+   "b": "Wong Bee Ling",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_family",
+   "a": "Kang Soon Aun",
+   "b": "Kang Yong Leong",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_family",
+   "a": "Pang Chee Aun",
+   "b": "Pang Kai Huat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_family",
+   "a": "Ho Ai Shan",
+   "b": "Ho Bee Kim",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_family",
+   "a": "Wong Kai Huat",
+   "b": "Wong Yong Huat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_given",
+   "a": "Chew Jian Aun",
+   "b": "Ho Jian Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_given",
+   "a": "Wong Ai Ling",
+   "b": "Lim Ai Ling",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_given",
+   "a": "Foo Yong Aun",
+   "b": "Wong Yong Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_given",
+   "a": "Mok Wei Aun",
+   "b": "Sim Wei Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_given",
+   "a": "Gan Yan Ting",
+   "b": "Sim Yan Ting",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "shared_given",
+   "a": "Leong Soon Kiat",
+   "b": "Chua Soon Kiat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "initials_sibling",
+   "a": "Low Jian Leong",
+   "b": "Low H. A.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "initials_sibling",
+   "a": "Wong Bee Hwee",
+   "b": "Wong B. L.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "initials_sibling",
+   "a": "Kang Soon Aun",
+   "b": "Kang Y. L.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "initials_sibling",
+   "a": "Pang Chee Aun",
+   "b": "Pang K. H.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "initials_sibling",
+   "a": "Ho Ai Shan",
+   "b": "Ho B. K.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "initials_sibling",
+   "a": "Wong Kai Huat",
+   "b": "Wong Y. H.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Low Yong Aun",
+   "b": "Yong-Aun Low",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Chee Li Hoon",
+   "b": "CHEE Li Hoon",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Quek Yong Aun",
+   "b": "Yong Aun Quek",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Wee Eng Kiat",
+   "b": "Eng Kiat Wee",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Loh Wei Hwee",
+   "b": "Loh Weihwee",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Yong Kai Leong",
+   "b": "Yong Kai Leong",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Mok Kai Kiat",
+   "b": "MOK Kai Kiat",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Thng Bee Hoon",
+   "b": "Bee Hoon Thng",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Leong Eng Huat",
+   "b": "LEONG Eng Huat",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Tan Jian Huat",
+   "b": "Tan Jianhuat",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Mok Wei Hoon",
+   "b": "MOK WEI HOON",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Chua Wei Wei",
+   "b": "Wei-Wei Chua",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Yee Kai Huat",
+   "b": "YEE KAI HUAT",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Tan Wei Ting",
+   "b": "Wei-Ting Tan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Kang Kok Leong",
+   "b": "KANG KOK LEONG",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Toh Eng Kiat",
+   "b": "Eng-Kiat Toh",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Yeo Lay Hwee",
+   "b": "Yeo Lay Hwee",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Leong Yong Leong",
+   "b": "Yong Leong Leong",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Fong Yong Wei",
+   "b": "Yong Wei Fong",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "surface",
+   "a": "Low Li Ling",
+   "b": "Low Li Ling",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "chinese_order",
+   "cls": "typo",
+   "a": "Ang Kok Aun",
+   "b": "Ang Kok Aon",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "typo",
+   "a": "Kang Kok Aun",
+   "b": "Kang Kok Aum",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "typo",
+   "a": "Ho Teck Wei",
+   "b": "Ho Teck Wey",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "typo",
+   "a": "Boey Wei Kim",
+   "b": "Boei Wei Kim",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "typo",
+   "a": "Chan Wei Fen",
+   "b": "Cfan Wei Fen",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "chinese_order",
+   "cls": "typo",
+   "a": "Yeo Soon Wei",
+   "b": "Yeo Soon Wai",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Abdul Kamal bin Ismail",
+   "b": "Aptul Kamal bin Ismail",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Nurul Mardhiah binte Ahmad",
+   "b": "Nurul Martfiah binte Ahmad",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Danial bin Taib",
+   "b": "Denial bin Taib",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Zainal bin Salleh",
+   "b": "Zeinar bin Salleh",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Siti Intan binte Bakar",
+   "b": "Siti Intem binte Bakar",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Mohd Idris bin Tahir",
+   "b": "Mohd Itris bin Tahir",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Ahmad Luqman bin Yusof",
+   "b": "Ahmat Luqman bin Yusof",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Nur Khairunnisa binti Rahmat",
+   "b": "Nur Khairunniza binti Rahmat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Mohd Roslan bin Mansor",
+   "b": "Mohd Roslan bin Mensor",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Abdul Amirul bin Ismail",
+   "b": "Abdul Amyrul bin Ismail",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Siti Maryam binte Usman",
+   "b": "Siti Maryam binte Usnam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "near_spelling",
+   "a": "Ahmad Idris bin Hashim",
+   "b": "Ahmad Itris bin Hashim",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_family",
+   "a": "Muhammad Tarmizi bin Hashim",
+   "b": "Mohd Fadzil bin Hashim",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_family",
+   "a": "Balqis binte Karim",
+   "b": "Nur Huda binte Karim",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_family",
+   "a": "Mohd Idris bin Mansor",
+   "b": "Muhammad Roslan bin Mansor",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_family",
+   "a": "Nurul Aliyah binte Tahir",
+   "b": "Latifah binti Tahir",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_family",
+   "a": "Muhammad Farhan bin Jamil",
+   "b": "Mohd Kamal bin Jamil",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_family",
+   "a": "Nurul Balqis binte Hassan",
+   "b": "Nurul Aliyah binti Hassan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_given",
+   "a": "Nazri bin Hassan",
+   "b": "Nazri bin Yusof",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_given",
+   "a": "Siti Intan binti Nordin",
+   "b": "Siti Intan binti Salleh",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_given",
+   "a": "Abdul Zulkifli bin Daud",
+   "b": "Abdul Zulkifli bin Hassan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_given",
+   "a": "Muhammad Roslan bin Nordin",
+   "b": "Muhammad Roslan bin Rashid",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_given",
+   "a": "Nur Huda binti Taib",
+   "b": "Nur Huda binti Latif",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "shared_given",
+   "a": "Mohd Tarmizi bin Karim",
+   "b": "Mohd Tarmizi bin Bakar",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "father_son",
+   "a": "Muhammad Nazri bin Yusof",
+   "b": "Yusof bin Nazri",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "father_son",
+   "a": "Nurul Latifah binti Kassim",
+   "b": "Kassim binti Latifah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "father_son",
+   "a": "Mohd Nazri bin Rashid",
+   "b": "Rashid bin Nazri",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "father_son",
+   "a": "Mohd Zaidi bin Usman",
+   "b": "Usman bin Zaidi",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "father_son",
+   "a": "Nur Zarina binti Jamil",
+   "b": "Jamil binti Zarina",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "father_son",
+   "a": "Irfan bin Hassan",
+   "b": "Hassan bin Irfan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "initials_sibling",
+   "a": "Muhammad Tarmizi bin Hashim",
+   "b": "M. F. bin Hashim",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "initials_sibling",
+   "a": "Balqis binte Karim",
+   "b": "N. H. binte Karim",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "initials_sibling",
+   "a": "Mohd Idris bin Mansor",
+   "b": "M. R. bin Mansor",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "initials_sibling",
+   "a": "Nurul Aliyah binte Tahir",
+   "b": "L. binti Tahir",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "initials_sibling",
+   "a": "Muhammad Farhan bin Jamil",
+   "b": "M. K. bin Jamil",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "initials_sibling",
+   "a": "Nurul Balqis binte Hassan",
+   "b": "N. A. binti Hassan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Abdul Saiful bin Latif",
+   "b": "Abdul Saiful Latif",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Nurul Rohana binti Rahim",
+   "b": "Nurul Rohana Rahim",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Ahmad Saiful bin Usman",
+   "b": "Ahmad Saiful Usman",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Mohd Idris bin Ismail",
+   "b": "MOHD IDRIS BIN ISMAIL",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Noor Mardhiah binte Bakar",
+   "b": "Noor Mardhiah Bakar",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Muhammad Irfan bin Puteh",
+   "b": "MUHAMMAD IRFAN BIN PUTEH",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Ahmad Sufian bin Nordin",
+   "b": "AHMAD SUFIAN BIN NORDIN",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Nur Latifah binti Nordin",
+   "b": "Nur Latifah Nordin",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Ahmad Amirul bin Puteh",
+   "b": "Ahmad Amirul Puteh",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Abdul Luqman bin Ghani",
+   "b": "ABDUL LUQMAN BIN GHANI",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Nur Amira binti Ahmad",
+   "b": "Nur Amira Ahmad",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Muhammad Zulkifli bin Hassan",
+   "b": "Muhammad Zulkifli b. Hassan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Sufian bin Lazim",
+   "b": "Sufian b. Lazim",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Siti Aliyah binti Rahmat",
+   "b": "Siti Aliyah binti Rahmat",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Kamal bin Jamil",
+   "b": "KAMAL BIN JAMIL",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Muhammad Irfan bin Ghani",
+   "b": "Mohd Irfan b. Ghani",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Siti Maryam binte Latif",
+   "b": "SITI MARYAM BINTE LATIF",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Kamal bin Mansor",
+   "b": "KAMAL BIN MANSOR",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Amirul bin Jamil",
+   "b": "AMIRUL BIN JAMIL",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "surface",
+   "a": "Nur Sabrina binte Bakar",
+   "b": "Nur Sabrina bte Bakar",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Danial bin Ghani",
+   "b": "Muhamad Danial bin Ghani",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Kamarul bin Jaafar",
+   "b": "Mohamed Kamarul bin Jaafar",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Abdul Farhan bin Zakaria",
+   "b": "Abd Farhan bin Zakaria",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Roslan bin Daud",
+   "b": "Mohamed Roslan bin Daud",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Zaidi bin Zakaria",
+   "b": "Mohd Zaidi bin Zakaria",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Zulkifli bin Bakar",
+   "b": "Mohamed Zulkifli bin Bakar",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Abdul Saiful bin Mansor",
+   "b": "Abd Saiful bin Mansor",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Abdul Kamal bin Hassan",
+   "b": "Abd Kamal bin Hassan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Rashid bin Ismail",
+   "b": "Muhamad Rashid bin Ismail",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Roslan bin Hashim",
+   "b": "Muhamad Roslan bin Hashim",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Abdul Kamarul bin Yusof",
+   "b": "Abd Kamarul bin Yusof",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Farhan bin Hassan",
+   "b": "Muhamad Farhan bin Hassan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Abdul Sufian bin Salleh",
+   "b": "Abd Sufian bin Salleh",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Nur Dayana binti Lazim",
+   "b": "Noor Dayana binti Lazim",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Idris bin Ismail",
+   "b": "Muhamad Idris bin Ismail",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Yazid bin Nordin",
+   "b": "Mohamad Yazid bin Nordin",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Zainal bin Jamil",
+   "b": "Muhd Zainal bin Jamil",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Abdul Samsudin bin Latif",
+   "b": "Abdull Samsudin bin Latif",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Muhammad Tarmizi bin Zakaria",
+   "b": "Muhamad Tarmizi bin Zakaria",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "alias",
+   "a": "Abdul Amirul bin Jamil",
+   "b": "Abd Amirul bin Jamil",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "typo",
+   "a": "Muhammad Rashid bin Taib",
+   "b": "Muhammad Rashid bin Tayb",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "typo",
+   "a": "Noor Hidayah binti Salleh",
+   "b": "Noor Hidayah binti Salreh",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "typo",
+   "a": "Mohd Rizal bin Daud",
+   "b": "Mofd Rizal bin Daud",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "typo",
+   "a": "Nur Sabrina binti Latif",
+   "b": "Nur Sabrina binti Letif",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "typo",
+   "a": "Ahmad Amirul bin Kassim",
+   "b": "Ahmat Amirul bin Kassim",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "malay_patronymic",
+   "cls": "typo",
+   "a": "Abdul Farhan bin Nordin",
+   "b": "Abdur Farhan bin Nordin",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Mahesh s/o Krishnan",
+   "b": "Mahesh s/o Krishnam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Uma d/o Muthu",
+   "b": "Una d/o Muthu",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Sanjay s/o Karuppiah",
+   "b": "Sangey s/o Karuppiah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Mahesh s/o Haridas",
+   "b": "Mafesh s/o Haridas",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Kavitha d/o Anbalagan",
+   "b": "Kavitha d/o Anbaragan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Udaya s/o Haridas",
+   "b": "Udaia s/o Haridas",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Devan s/o Krishnan",
+   "b": "Devan s/o Krishnam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Tamilselvi d/o Letchumanan",
+   "b": "Tamilselvi d/o Letcfumanan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Devan s/o Kandasamy",
+   "b": "Dewan s/o Kandasamy",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Kishore s/o Singh",
+   "b": "Kishore s/o Simgh",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Sumathi d/o Kandasamy",
+   "b": "Sumadhi d/o Kandasamy",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "near_spelling",
+   "a": "Harish s/o Muthu",
+   "b": "Harisf s/o Muthu",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_family",
+   "a": "Suresh s/o Sivalingam",
+   "b": "Mahesh s/o Sivalingam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_family",
+   "a": "Jayanthi d/o Sivalingam",
+   "b": "Tamilselvi d/o Sivalingam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_family",
+   "a": "Harish s/o Karuppiah",
+   "b": "Mohan s/o Karuppiah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_family",
+   "a": "Deepa d/o Karuppiah",
+   "b": "Priya d/o Karuppiah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_family",
+   "a": "Pradeep s/o Nathan",
+   "b": "Ilango s/o Nathan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_family",
+   "a": "Ganesh s/o Jayakumar",
+   "b": "Gopinath s/o Jayakumar",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_given",
+   "a": "Vignesh s/o Muthu",
+   "b": "Vignesh s/o Sivalingam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_given",
+   "a": "Geetha d/o Nathan",
+   "b": "Geetha d/o Karuppiah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_given",
+   "a": "Senthil s/o Singh",
+   "b": "Senthil s/o Haridas",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_given",
+   "a": "Gunalan s/o Sivalingam",
+   "b": "Gunalan s/o Nathan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_given",
+   "a": "Padma d/o Sivalingam",
+   "b": "Padma d/o Karuppiah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "shared_given",
+   "a": "Gunalan s/o Subramaniam",
+   "b": "Gunalan s/o Selvaraj",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "father_son",
+   "a": "Suresh s/o Anbalagan",
+   "b": "Anbalagan s/o Suresh",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "father_son",
+   "a": "Uma d/o Karuppiah",
+   "b": "Karuppiah d/o Uma",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "father_son",
+   "a": "Elango s/o Ethirajan",
+   "b": "Ethirajan s/o Elango",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "father_son",
+   "a": "Yogesh s/o Krishnan",
+   "b": "Krishnan s/o Yogesh",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "father_son",
+   "a": "Anita d/o Jayakumar",
+   "b": "Jayakumar d/o Anita",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "father_son",
+   "a": "Sanjay s/o Letchumanan",
+   "b": "Letchumanan s/o Sanjay",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "initials_sibling",
+   "a": "Suresh s/o Sivalingam",
+   "b": "M. s/o Sivalingam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "initials_sibling",
+   "a": "Jayanthi d/o Sivalingam",
+   "b": "T. d/o Sivalingam",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "initials_sibling",
+   "a": "Harish s/o Karuppiah",
+   "b": "M. s/o Karuppiah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "initials_sibling",
+   "a": "Deepa d/o Karuppiah",
+   "b": "P. d/o Karuppiah",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "initials_sibling",
+   "a": "Pradeep s/o Nathan",
+   "b": "I. s/o Nathan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "initials_sibling",
+   "a": "Ganesh s/o Jayakumar",
+   "b": "G. s/o Jayakumar",
+   "same": false,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Kishore s/o Kandasamy",
+   "b": "Kishore Kandasamy",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Vidya d/o Anbalagan",
+   "b": "Vidya d/o Anbalagan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Thiru s/o Letchumanan",
+   "b": "Letchumanan Thiru",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Devan s/o Nathan",
+   "b": "Devan Nathan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Deepa d/o Sivalingam",
+   "b": "Deepa Sivalingam",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Ganesh s/o Sivalingam",
+   "b": "Ganesh Sivalingam",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Gunalan s/o Karuppiah",
+   "b": "Gunalan Karuppiah",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Uma d/o Jayakumar",
+   "b": "Jayakumar Uma",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Elango s/o Sivalingam",
+   "b": "Elango Sivalingam",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Dinesh s/o Jayakumar",
+   "b": "Jayakumar Dinesh",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Hema d/o Sivalingam",
+   "b": "HEMA D/O SIVALINGAM",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Udaya s/o Krishnan",
+   "b": "Udaya s/o Krishnan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Kishore s/o Krishnan",
+   "b": "Kishore Krishnan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Deepa d/o Singh",
+   "b": "Singh Deepa",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Gopinath s/o Anbalagan",
+   "b": "Anbalagan Gopinath",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Senthil s/o Anbalagan",
+   "b": "Senthil s/o Anbalagan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Lakshmi d/o Subramaniam",
+   "b": "LAKSHMI D/O SUBRAMANIAM",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Ganesh s/o Selvaraj",
+   "b": "Selvaraj Ganesh",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Gopinath s/o Kandasamy",
+   "b": "GOPINATH S/O KANDASAMY",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "surface",
+   "a": "Anita d/o Kandasamy",
+   "b": "ANITA D/O KANDASAMY",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "typo",
+   "a": "Gopinath s/o Krishnan",
+   "b": "Gopinath s/o Krisfnan",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "typo",
+   "a": "Anita d/o Ethirajan",
+   "b": "Anita d/o Ethirajam",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "typo",
+   "a": "Vijay s/o Singh",
+   "b": "Vigay s/o Singh",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "typo",
+   "a": "Anita d/o Anbalagan",
+   "b": "Anita d/o Anbaragan",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "typo",
+   "a": "Harish s/o Sivalingam",
+   "b": "Harish s/o Sivaringam",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "indian_patronymic",
+   "cls": "typo",
+   "a": "Vijay s/o Anbalagan",
+   "b": "Vigay s/o Anbalagan",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Sutrini",
+   "b": "Sutrimi",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Kusika",
+   "b": "Kuzike",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Gunika",
+   "b": "Gumika",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Fikati",
+   "b": "Figeti",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Surianto",
+   "b": "Suriamto",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Surdewa",
+   "b": "Suldewa",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Fikjaya",
+   "b": "Fikjaia",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Tekwati",
+   "b": "Tegwati",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Winianto",
+   "b": "Winiemto",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Surika",
+   "b": "Surike",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Sutdewa",
+   "b": "Soddewa",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "near_spelling",
+   "a": "Rusika",
+   "b": "Rosyka",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Tekwati",
+   "b": "TEKWATI",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Surika",
+   "b": "SURIKA",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Ekoman",
+   "b": " Ekoman ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Gunjaya",
+   "b": "GUNJAYA",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Winati",
+   "b": " Winati ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Surianto",
+   "b": "Surianto",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Gunsari",
+   "b": "GUNSARI",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Surrini",
+   "b": "SURRINI",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Tekati",
+   "b": " Tekati ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Gunwati",
+   "b": " Gunwati ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Rahika",
+   "b": " Rahika ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Fikika",
+   "b": " Fikika ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Sursari",
+   "b": "Sursari",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Fikman",
+   "b": " Fikman ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Surianto",
+   "b": " Surianto ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Kusyadi",
+   "b": "Kusyadi",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Sutsari",
+   "b": " Sutsari ",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Surianto",
+   "b": "SURIANTO",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Surianto",
+   "b": "Surianto",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "surface",
+   "a": "Rahman",
+   "b": "Rahman",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "mononym",
+   "cls": "typo",
+   "a": "Rusdewa",
+   "b": "Rusdawa",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "typo",
+   "a": "Fikati",
+   "b": "Fykati",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "typo",
+   "a": "Sutika",
+   "b": "Sutiga",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "typo",
+   "a": "Tekrini",
+   "b": "Tekriny",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "typo",
+   "a": "Rahati",
+   "b": "Rehati",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "mononym",
+   "cls": "typo",
+   "a": "Surika",
+   "b": "Suryka",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Mr Sim Wei Leong",
+   "b": "Mr Sim Wei Laomg",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Prof Leong Bee Ting",
+   "b": "Prof Leonk Bee Ting",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Dr Lim Eng Wei",
+   "b": "Dr Lim Emg Wei",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Prof Tan Hong Kiat",
+   "b": "Prof Tan Hong Kiet",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Mdm Quek Li Fen",
+   "b": "Mdm Quek Li Fan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Prof Yong Kai Huat",
+   "b": "Prof Yumg Kai Huat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Mr Leong Wei Wei",
+   "b": "Mr Leong Wei Wai",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Datin Seri Ang Ai Shan",
+   "b": "Datin Seri Amg Ai Shan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Mr Quek Soon Aun",
+   "b": "Mr Quek Soom Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Dr Gan Teck Kiat",
+   "b": "Dr Gan Teck Kyad",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Mdm Leong Shu Shan",
+   "b": "Mdm Leong Sfu Shan",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "near_spelling",
+   "a": "Datuk Seri Boey Yong Huat",
+   "b": "Datuk Seri Boey Yonk Huat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_family",
+   "a": "Mr Chew Wei Aun",
+   "b": "Mr Chew Wei Kiat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_family",
+   "a": "Datin Seri Low Yan Fen",
+   "b": "Datin Seri Low Ai Ting",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_family",
+   "a": "Prof Yong Soon Kiat",
+   "b": "Prof Yong Kai Huat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_family",
+   "a": "Mr Chee Soon Aun",
+   "b": "Mr Chee Jian Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_family",
+   "a": "Mdm Chua Yan Ling",
+   "b": "Mdm Chua Yan Kim",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_family",
+   "a": "Datuk Seri Wong Teck Huat",
+   "b": "Datuk Seri Wong Hong Wei",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_given",
+   "a": "Mr Lim Kai Huat",
+   "b": "Mr Wee Kai Huat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_given",
+   "a": "Prof Wee Bee Hoon",
+   "b": "Prof Loh Bee Hoon",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_given",
+   "a": "Dr Quek Yong Aun",
+   "b": "Dr Fong Yong Aun",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_given",
+   "a": "Dr Toh Hong Wei",
+   "b": "Dr Heng Hong Wei",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_given",
+   "a": "Datin Seri Chee Shu Ting",
+   "b": "Datin Seri Yeo Shu Ting",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "shared_given",
+   "a": "Datuk Seri Ang Jian Kiat",
+   "b": "Datuk Seri Foo Jian Kiat",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "initials_sibling",
+   "a": "Mr Chew Wei Aun",
+   "b": "Mr Chew W. K.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "initials_sibling",
+   "a": "Datin Seri Low Yan Fen",
+   "b": "Datin Seri Low A. T.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "initials_sibling",
+   "a": "Prof Yong Soon Kiat",
+   "b": "Prof Yong K. H.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "initials_sibling",
+   "a": "Mr Chee Soon Aun",
+   "b": "Mr Chee J. A.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "initials_sibling",
+   "a": "Mdm Chua Yan Ling",
+   "b": "Mdm Chua Y. K.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "initials_sibling",
+   "a": "Datuk Seri Wong Teck Huat",
+   "b": "Datuk Seri Wong H. W.",
+   "same": false,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Mr Foo Eng Huat",
+   "b": "MR FOO ENG HUAT",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Mdm Ho Wei Kim",
+   "b": "MDM HO WEI KIM",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Datuk Seri Chew Eng Aun",
+   "b": "Datuk Seri Chew Eng Aun",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Prof Chee Teck Leong",
+   "b": "Prof Chee Teck Leong",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Prof Pang Wei Shan",
+   "b": "Datuk Seri Pang Wei Shan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Dr Wong Teck Kiat",
+   "b": "Datuk Seri Wong Teck Kiat",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Datuk Seri Boey Jian Leong",
+   "b": "DATUK SERI BOEY JIAN LEONG",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Dr Chew Lay Ting",
+   "b": "Chew Lay Ting",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Prof Fong Soon Leong",
+   "b": "Mdm Fong Soon Leong",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Dr Chua Teck Leong",
+   "b": "Chua Teck Leong",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Mdm Yong Bee Shan",
+   "b": "Mr Yong Bee Shan",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Mr Loh Wei Wei",
+   "b": "Datuk Seri Loh Wei Wei",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Datuk Seri Low Teck Wei",
+   "b": "Datuk Seri Low Teck Wei",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Datin Seri Loh Ai Shan",
+   "b": "DATIN SERI LOH AI SHAN",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Mr Loh Jian Wei",
+   "b": "Mdm Loh Jian Wei",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Dr Low Soon Huat",
+   "b": "Mdm Low Soon Huat",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Prof Lim Bee Kim",
+   "b": "PROF LIM BEE KIM",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Dr Wong Hong Wei",
+   "b": "Dr Wong Hong Wei",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Mr Sim Jian Leong",
+   "b": "MR SIM JIAN LEONG",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "surface",
+   "a": "Dr Yee Shu Ling",
+   "b": "Mdm Yee Shu Ling",
+   "same": true,
+   "baseline_accepts": true
+  },
+  {
+   "group": "titles",
+   "cls": "typo",
+   "a": "Dr Wong Jian Aun",
+   "b": "Dr Wong Jian Aon",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "typo",
+   "a": "Prof Sim Ai Ting",
+   "b": "Prof Sim Ai Timg",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "typo",
+   "a": "Prof Gan Teck Kiat",
+   "b": "Prof Gam Teck Kiat",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "typo",
+   "a": "Mr Chua Wei Huat",
+   "b": "Mr Chua Wei Huet",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "typo",
+   "a": "Datin Seri Koh Bee Shan",
+   "b": "Datin Seri Koh Bae Shan",
+   "same": true,
+   "baseline_accepts": false
+  },
+  {
+   "group": "titles",
+   "cls": "typo",
+   "a": "Mr Wee Jian Huat",
+   "b": "Mr Wee Jian Huet",
+   "same": true,
+   "baseline_accepts": false
+  }
+ ],
+ "aliases": [
+  {
+   "country": "India",
+   "a": "Aamir Khan",
+   "b": "Aamir Hussain Khan",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Adam Sinclair",
+   "b": "Adam Antony Sinclair",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Ageti Pareekshita Sharma",
+   "b": "Ogeti Parikshit Sharma",
+   "category": "spelling_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Akbar Ali Khan",
+   "b": "Nawab Akbar Ali Khan",
+   "category": "honorific_only",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Amaan Ali Khan",
+   "b": "Amaan Ali Bangash",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Angajala Rajasekhar",
+   "b": "A. Rajasekhar",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Archana Sharma",
+   "b": "Sharma, Archana",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Ardeshir Tarapore",
+   "b": "Lieutenant Colonel Ardeshir Tarapore",
+   "category": "honorific_only",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Ashwini Kumar Ghosh",
+   "b": "Aswini Kumar Ghosh",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Ayodhya Prasad",
+   "b": "Ayodhya Prasad Sharma",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "B. C. Patil",
+   "b": "B.C. Patil",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "B. K. Tikader",
+   "b": "Benoy Krishna Tikader",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Budhi Kunderan",
+   "b": "Budhisagar Krishnappa Kunderan",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "C. Pullaiah",
+   "b": "Chittajallu Pullaiah",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Daggubati Purandeswari",
+   "b": "D. Purandeswari",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Dasu Trivikrama Rao",
+   "b": "D.T.Rao",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Diana Edulji",
+   "b": "Diana Fram Edulji",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "G. Sankara Pillai",
+   "b": "Gopala Pillai Sankara Pillai",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Ghantasala Venkateswara Rao",
+   "b": "Ghantasala Venkateswararao",
+   "category": "spacing_or_order",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Gireesh Puthenchery",
+   "b": "Girish Puthenchery",
+   "category": "spelling_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Gonnabattula Chiranjeevi",
+   "b": "Gonnabattula Kanakaraju Chiranjeevi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Gopalaswami Parthasarathy",
+   "b": "Gopalaswami Parthasarathi",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Gunturu Seshendra Sarma",
+   "b": "Seshendra Sarm",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Gurdial Singh",
+   "b": "Gurdial Singh Rahi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Gyanendra Pandey",
+   "b": "Gyan Pandey",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Gyanendra Pandey",
+   "b": "Gyanendra Kedarnath Pandey",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Jagat Singh",
+   "b": "Prince Jagat Singh of Jaipur",
+   "category": "honorific_only",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Jehangir Sabavala",
+   "b": "Jehangir Sabawala",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "L. R. Eswari",
+   "b": "L R Eswari",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Lala Amarnath",
+   "b": "Lala Amarnath Bhardwaj",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Mahmoud Bushehri",
+   "b": "Mahmud Bushehri",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Man Sood",
+   "b": "Man Mohan Sood",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Maneka Gandhi",
+   "b": "Maneka Sanjay Gandhi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Manilal gandhi",
+   "b": "Manilal Mohandas Gandhi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Narayan Rane",
+   "b": "Narayan Tatu Rane",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Nilesh Sable",
+   "b": "Dr. Nilesh Sable",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "P. C. Prakash",
+   "b": "Pathmadai Chander Prakash",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "P.R. Shashank",
+   "b": "P. R. Shashank",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Pattipati Ramaiah Naidu",
+   "b": "Dr. Ramaiah Naidu",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Paul Kalanithi",
+   "b": "Paul Sudhir Arul Kalanithi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Raja Bhoja (Raja Bhoja I)",
+   "b": "King Bhoja of Dhārā",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Ritika Bhopalkar",
+   "b": "Ritika Arun Bhopalkar",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "S. D. S. Yadava",
+   "b": "Shiv Dayal Singh Yadava",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Sanchita Padukone",
+   "b": "Sanchitha Padukone",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Sarojini Mahishi",
+   "b": "Sarojini Bindurao Mahishi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Satyadeep Mishra",
+   "b": "Satyadeep Misra",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Shekh Adam Abuwala",
+   "b": "Sheikh Adam Abuwala",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Shrichand Kriplani",
+   "b": "Shrichand Kripalani",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Sunil Khandbahale",
+   "b": "Sunil Shivaji Khandbahale",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "T. A. Razzaq",
+   "b": "T. A. Razaq",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Taraka Ratna",
+   "b": "Nandamuri Taraka Ratna",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Ubagaraswani Bernadotte",
+   "b": "Oubagaraswami Bernadotte",
+   "category": "spelling_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "V. V. Chari",
+   "b": "Varadarajan Chari",
+   "category": "initials_unaligned",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Varun Gandhi",
+   "b": "Feroze Varun Gandhi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Vijaydan Detha",
+   "b": "Vijay Dan Detha",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Vinoba Bhave",
+   "b": "Acharya Vinoba",
+   "category": "honorific_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Vivek Borkar",
+   "b": "Vivek Shripad Borkar",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Wendell Rodricks",
+   "b": "Wendell Augustine Rodricks",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "India",
+   "a": "Yashwant Shripad Tambe",
+   "b": "YS Tambe",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "India",
+   "a": "Yo Yo Honey Singh",
+   "b": "Hirdesh Singh",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Abdul Hamid Pawanteh",
+   "b": "Abdul Hamid bin Pawanteh",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Abdul Latif Romly",
+   "b": "Abdul Latif bin Romly",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Akmal Noradzmi",
+   "b": "Akmal Noradzmi Abd Rahim",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Azhar Apandi",
+   "b": "Muhammad Azhar bin Mohd Apandi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Aziz M. Osman",
+   "b": "Abdul Aziz Othman Yusof",
+   "category": "initials_unaligned",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Azrine Effendy Sa'duddin",
+   "b": "Azrine Effendy Saduddin",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "B. S. Rajhans",
+   "b": "Balbir Singh Rajhans",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Beto Kusyairy",
+   "b": "Nur Kusyairy Zakuan bin Osman",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Cat Farish",
+   "b": "Farish bin Ramli",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Che Rashid Che Halim",
+   "b": "Che Rashid bin Che Halim",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Daim Zainuddin",
+   "b": "Tun Daim Zainuddin",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Daniel Bego",
+   "b": "Daniel William Henry Bego",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Dayana Amerda",
+   "b": "Siti Amirah Dayana binti Mohd Amerullah",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Ezrie Shafizie",
+   "b": "Ahmed Ezrie Shafizie bin Sazali",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Fahmi Zainol",
+   "b": "Fahmi bin Zainol",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Fathia Latiff",
+   "b": "Nur Fathia binti Abdul Latiff",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Faudzinaim Badaruddin",
+   "b": "Faudzinaim Hj. Badaruddin",
+   "category": "honorific_only",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Firman Bansir",
+   "b": "Mhd Firman Bansir",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Frank Tsao",
+   "b": "Frank W.K. Tsao",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Gan Teik Chai",
+   "b": "James Gan Teik Chai",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Glenn Packiam",
+   "b": "Glenn Previn Packiam",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Hans Yoong",
+   "b": "Hans Wei Shen Yoong",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Ivan Leow",
+   "b": "Seng Yee Leow",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Jacquelin Ch'ng",
+   "b": "Ch'ng Si Man",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Joanne Quay",
+   "b": "Quay Swee Ling",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "K. Pathmanaban",
+   "b": "Pathmanaban Kunjamboo",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Khairul Anuar Mohamad",
+   "b": "Khairul Anuar bin Mohamad",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Khir Toyo",
+   "b": "Mohamad Khir bin Toyo",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Khyril Muhymeen",
+   "b": "Mohd Khyril Muhymeen Zambri",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "King Angel",
+   "b": "Angel Chooi",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Kingsley Ng Kah Hou",
+   "b": "Kingsley Ng",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Leong Chai Lean",
+   "b": "Leong Choi Lean",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Lim Hun Peaw",
+   "b": "HP Lim",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "M Noor Azam",
+   "b": "Mohamad Noor Azam",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mahathir Mohamad",
+   "b": "Mahathir bin Mohamad",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mahathir Mohamad",
+   "b": "Mahathir bin Muhammad",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Manikavasagam Jegathesan",
+   "b": "Mani Jegathesan",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Marylen Ng Poau Leng",
+   "b": "Ng Poau Leng",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohamed Idris Matsil",
+   "b": "Mohamed Idris Mat Sil",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohammad Abdul Aziz Ismail",
+   "b": "Aziz Ismail",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohammad Izhar Ahmad",
+   "b": "Mohd Izhar Ahmad",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohd Alauddin Mohd Ali",
+   "b": "M. Ali",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohd Alauddin Mohd Ali",
+   "b": "Prof. Emeritus Dr Mohd Alauddin Mohd Ali",
+   "category": "honorific_only",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohd Azniee Taib",
+   "b": "Mohd Azinee Bin Taib",
+   "category": "spelling_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohd Farizal Marlias",
+   "b": "Mohd Farizal bin Marlias",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mohd Osman Mohd Jailu",
+   "b": "Mohd. Osman bin Mohd. Jailu",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Mustaffa Abd Rahman",
+   "b": "Dato' Sri Mustaffa Abd Rahman",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Nabil Ahmad",
+   "b": "Ahmad Nabil bin Ahmad",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Nadia Aqilah",
+   "b": "Nadia Aqilah Bajuri",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Nagaenthran K. Dharmalingam",
+   "b": "Nagaenthran anak lelaki K. Dharmalingam",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Nynaa Harizal",
+   "b": "Nurul Hanynaa binti Harizal",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Othman bin Haji Ross",
+   "b": "B.H. Ross Othman",
+   "category": "honorific_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Pau Jeou Ching",
+   "b": "Ah Pau",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Rahim Othman",
+   "b": "Abdul Rahim bin Othman",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Rusdi Suparman",
+   "b": "Mohd Rusdi Bin Mohd Suparman",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Sukri Mutalib",
+   "b": "Mohamad Sukri Abdul Mutalib",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Ting Chiau-Teng",
+   "b": "Chiau-Teng Ting",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Tracy Lee",
+   "b": "Tracy Lee Mei Leng",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Malaysia",
+   "a": "Tuju K-Clique",
+   "b": "Azree Tuju",
+   "category": "initials_unaligned",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Malaysia",
+   "a": "Wan Mohammad Nor Wan Daud",
+   "b": "Wan Mohd Nor Wan Daud",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Adrian Ang Zi Yang",
+   "b": "Ang Zi Yang, Adrian",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Alex G. Lim",
+   "b": "Alex Lim",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Alyssa Ong Chian Ying",
+   "b": "Alyssa Ong",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Amrin Amin",
+   "b": "Mohamed Amrin bin Mohamed Amin",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Anish Paraam",
+   "b": "Anish Edward Paraam",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Anjana Vasan",
+   "b": "Aniana Vasan",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Ashton Chen Yong Zhao",
+   "b": "Chen Yong Zhao, Ashton",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "B. S. Daya Sagar",
+   "b": "Behara Seshadri Daya Sagar",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Cheong Soo Pieng",
+   "b": "Pieng Cheong Soo",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Cheong Soo Pieng",
+   "b": "Soo Pieng Cheong",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Chua Lam",
+   "b": "Lam Chua",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Danelle Tan",
+   "b": "Danelle Tan Li Ern",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "David Marshall",
+   "b": "David Saul Marshall",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Derek Wong",
+   "b": "Derek Wong Zi Liang",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Devi Wani",
+   "b": "Wani Soekoro",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Ding Lan",
+   "b": "Lan Ding",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Eddy Nor Ali",
+   "b": "Eddynor Ali",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Eugene Tan",
+   "b": "Eugene Tan Kheng Boon",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Fann Wong",
+   "b": "Fann Woon Fong",
+   "category": "shares_first_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "George Yeo",
+   "b": "George Yeo Yong-Boon",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Govindasamy Suppiah",
+   "b": "George Suppiah",
+   "category": "shares_family_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Hong Junyang",
+   "b": "Ang Junyang",
+   "category": "spelling_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Huang Po Ju",
+   "b": "Eric Huang",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "J.Y. Pillay",
+   "b": "J. Y. Pillay",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Jernelle Oh",
+   "b": "Oh Yu Shi",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Jessica Tan",
+   "b": "Jessica Tan Soon Neo",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "John Chia Keng Hock",
+   "b": "Chia Keng Hock",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "John Turnbull Thomson",
+   "b": "John Thomson",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Jolie Lee",
+   "b": "Jolie Kar Yi Lee",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Josh Lim Wen Xuan",
+   "b": "Josh Lim",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Kelvin K. P. Lim",
+   "b": "Lim KKP",
+   "category": "initials_unaligned",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Kelvin Lim Chee Soon",
+   "b": "Lim Chee Soon",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Kendrick Lee Yen Hui",
+   "b": "Lee Yen Hui",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Kimberly Lim",
+   "b": "Kimberly Lim Wei Yan",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Koh Leng Kang",
+   "b": "Donald Koh Leng Kang",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Lilian Tan",
+   "b": "Lillian Tan",
+   "category": "one_letter_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Marcus Loh",
+   "b": "Gregory Marcus Loh",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Michelle Chia",
+   "b": "Michelle Chia Yun Yi",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Mimi Choo",
+   "b": "Mimi Chu",
+   "category": "spelling_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Muhammad Ridhuan",
+   "b": "Muhammad Ridhuan bin Muhammad",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Ong Keng Yong",
+   "b": "Yong, Ong Keng",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Philip Jeyaretnam",
+   "b": "Philip Antony Jeyaretnam",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Priscelia Chan",
+   "b": "Priscelia Chan Shih Mei",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Raymond Lim",
+   "b": "Raymond Lim Siang Keat",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Rayson Huang",
+   "b": "Rayson Lisung Huang",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Robert Ng",
+   "b": "Robert Ng Chee Siong",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Ryan Ng Zin Rei",
+   "b": "Ng Zin Rei",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "S. R. Nathan",
+   "b": "SR Nathan",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Shahfiq Ghani",
+   "b": "Muhammad Shahfiq bin Ghani",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Shou Zi Chew",
+   "b": "Shou Chew",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Soujanya Poria",
+   "b": "S. Poria",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Stephen Hui",
+   "b": "Stephen \"Benz\" Hui Shiu-hung",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Tan Chuan-Jin",
+   "b": "Mr. Tan Chuan-Jin",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Terence Tan Sian Chai",
+   "b": "Tan Sian Chai",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Thean Lip Ping",
+   "b": "L. P. Thean",
+   "category": "initials_aligned",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Waileen Wong",
+   "b": "Waileen Kan",
+   "category": "shares_first_name_only",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Willie Phua",
+   "b": "Phua Tin Tua",
+   "category": "other_name_parts",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Yi Wei Luo",
+   "b": "Luo Yi Wei",
+   "category": "spacing_or_order",
+   "baseline_accepts": true
+  },
+  {
+   "country": "Singapore",
+   "a": "Zanetta Li Yu",
+   "b": "Zanetta Lee Yu",
+   "category": "spelling_variant",
+   "baseline_accepts": false
+  },
+  {
+   "country": "Singapore",
+   "a": "Zaqy Mohamad",
+   "b": "Zaqy ibn Mohamad",
+   "category": "dropped_name_part",
+   "baseline_accepts": true
+  }
+ ],
+ "different_people": [
+  {
+   "a": "Abdul Rahman Palil",
+   "b": "Abdul Rahman Dali",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ahmad Azman",
+   "b": "Azhar Ahmad",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ajit Singh",
+   "b": "Jagjit Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Alex Yam",
+   "b": "Alex Lim",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Allen Ong",
+   "b": "Alex Ong",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Amar Agrawal",
+   "b": "Amar Agarwal",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Amir Kumar",
+   "b": "Amit Kumar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Amit Kumar",
+   "b": "Amit Suman",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Amit Sharma",
+   "b": "Ankit Sharma",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Anant Sharma",
+   "b": "Ankit Sharma",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ananth Kumar",
+   "b": "Anand Kumar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Andy Ong",
+   "b": "Canny Ong",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Anil Kumar",
+   "b": "Amit Kumar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Arijit Singh",
+   "b": "Ajit Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Azman Ismail",
+   "b": "Ismail Saman",
+   "baseline_accepts": false
+  },
+  {
+   "a": "B. C. Patil",
+   "b": "D. B. Patil",
+   "baseline_accepts": false
+  },
+  {
+   "a": "B. N. Sharma",
+   "b": "P. B. Sharma",
+   "baseline_accepts": false
+  },
+  {
+   "a": "C. S. Rao",
+   "b": "S.N. Rao",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Charan Singh",
+   "b": "Dharam Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "D. B. Patil",
+   "b": "M. B. Patil",
+   "baseline_accepts": false
+  },
+  {
+   "a": "H.L.Gokhale",
+   "b": "H. R. Gokhale",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Imam Shah",
+   "b": "Imran Shah",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Imran Shah",
+   "b": "Imran Khan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Irrfan Khan",
+   "b": "Imran Khan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Jagjit Singh",
+   "b": "Jagat Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Jagjit Singh",
+   "b": "Marjit Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "K. R. Narayanan",
+   "b": "M. K. Narayanan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "K. V. Thomas",
+   "b": "R. V. Thomas",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Kasma Daniel",
+   "b": "Esma Daniel",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Kevjn Lim",
+   "b": "Kevin Lim",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Lawrence Khong",
+   "b": "Lawrence Wong",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Mika Singh",
+   "b": "Ikka Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Mohd Mardani",
+   "b": "Muhammad Marbawi",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Munaf Patel",
+   "b": "Mrunal Patel",
+   "baseline_accepts": false
+  },
+  {
+   "a": "N. D. Tiwari",
+   "b": "Y. D. Tiwari",
+   "baseline_accepts": false
+  },
+  {
+   "a": "N. Santhanam",
+   "b": "K. Santhanam",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Peter Lim",
+   "b": "Peter Lee",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Pran Nath",
+   "b": "Nath Pai",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Pratap Singh",
+   "b": "Ratan Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Pravin Amre",
+   "b": "Pravin Tambe",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Radha Ravi",
+   "b": "Ravi Jadhav",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Rafiq Husain",
+   "b": "Tariq Husain",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Razali Ibrahim",
+   "b": "Ramli bin Ibrahim",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ren Ng",
+   "b": "Irene Ng",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Seema Upadhyay",
+   "b": "Hema Upadhyay",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Shashi Kapoor",
+   "b": "Shahid Kapoor",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Sonali Kulkarni",
+   "b": "Sonalee Kulkarni",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Sunil Joshi",
+   "b": "Anil Joshi",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Tan Wei Han",
+   "b": "Tan Jun Wei",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Tarun Kumar",
+   "b": "Arun Kumar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Thoi Singh",
+   "b": "Thoiba Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Tomba Singh",
+   "b": "Thoiba Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Tony Fernandes",
+   "b": "Don Fernandes",
+   "baseline_accepts": false
+  },
+  {
+   "a": "V. Narayanaswami",
+   "b": "V. Narayanasamy",
+   "baseline_accepts": false
+  },
+  {
+   "a": "V. P. Singh",
+   "b": "B. P. Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "V. P. Singh",
+   "b": "R. P. Singh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "V. S. Raghavan",
+   "b": "M. V. Raghavan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Vimal Kumar",
+   "b": "Vaman Kumar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Vimal Kumar",
+   "b": "Vikas Kumar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Vinay Kumar",
+   "b": "Vikas Kumar",
+   "baseline_accepts": false
+  }
+ ],
+ "collisions": [
+  {
+   "a": "Aaron Tan Wei Kiat",
+   "b": "Teow Kiat Tay",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ahmad bin Ibrahim",
+   "b": "Ahmad Ibrahim",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Ahmed Ezrie Shafizie bin Sazali",
+   "b": "Badar Durrez Ahmed",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ajay Singh",
+   "b": "Ajaypal \"Ajay\" Singh Banga",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Alex G. Lim",
+   "b": "Alex Lim",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Alex Lim",
+   "b": "Alex Lim",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Almarhumah Sultanah Zanariah binti Almarhum Tengku Ahmad",
+   "b": "Tengku Ahmad Tajuddin bin Tengku Abdul Jalil",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Amar Asyraf",
+   "b": "Amar Agrawal",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Amar Nath Rai",
+   "b": "Amar Nath",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Anil Kumar",
+   "b": "Anil Kumar Bhalla",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Annamalai Chidambaram Muthiah",
+   "b": "Muthiah Annamalai Chidambaram",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Ashok Kumar",
+   "b": "Krishnagiri Kongu Ashok Kumar",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Ashok Kumar Pradhan",
+   "b": "Ashok Menaria",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Aurobindo Ghosh",
+   "b": "Rituparno Ghosh",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ayan Bhattacharya",
+   "b": "A. Bhattacharya",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Azran Osman Rani",
+   "b": "Iti Rani Samanta",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Bachimanchi Venkata Subrahmanyam Ravi",
+   "b": "Ravi Shankar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Bahadur Prasad Singh",
+   "b": "Bahadur Singh",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Bahadur Singh",
+   "b": "Bahadur Prasad Singh",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Balan K. Nair",
+   "b": "Vinan Gopinathan Nair",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Basanta Ranjan Roy Bidvatballava",
+   "b": "Jaminy-Roy",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Bommali Ravi Shankar",
+   "b": "Ravi Dubey",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Bratyabrata Basu Roy Chowdhury",
+   "b": "B.Roy",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Chee May, Regina Wong",
+   "b": "Chee W",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Chinglensana Singh",
+   "b": "Chinglensana Singh Konsham",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Dalbir Gill",
+   "b": "Gill Tanveer",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Datuk Stephen Teo",
+   "b": "Stephen Ping Teo",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Donald Koh Leng Kang",
+   "b": "Koh Jack Siaw Nguan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Dr Satyapal Singh",
+   "b": "Satyapal Singh",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Eddy Choong Ewe Beng",
+   "b": "Teoh Beng Hock",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Eugene Tan",
+   "b": "Eugene Kheng Boon Tan",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Geeta Das",
+   "b": "Deepak Das",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Geetā Ghosh Roy Chowdhuri",
+   "b": "Bela Roy",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Gloria Rout",
+   "b": "Gloria Lim",
+   "baseline_accepts": false
+  },
+  {
+   "a": "H.E. Dr. Mohamad Maliki bin Osman",
+   "b": "Hasbullah Osman",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Harjeet Singh",
+   "b": "Harjeet Singh Brar also known as Bajakhana",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Hiran Chatterjee",
+   "b": "Tapur Chatterjee",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ibrahim Kesah, Tok Muda Ibrahim Kesah",
+   "b": "Khan Mohammad Ibrahim",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Intan Azura binti Mokhtar",
+   "b": "Mohammad Hairol bin Mokhtar",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Jenā, Monālisā",
+   "b": "Krishna Chandra Jena",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Jin Ong",
+   "b": "Beng Teong Ong",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Joseph Marie Anthony Cordeiro",
+   "b": "Joseph the Prince of Egypt",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Jude Anthany Joseph",
+   "b": "Joseph Yuvaraj Pillay",
+   "baseline_accepts": false
+  },
+  {
+   "a": "K. Balakrishnan",
+   "b": "Panikkassery Keshavan Balakrishnan",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Kai-Ting See",
+   "b": "Chiau-Teng Ting",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Kevin Yew Lee Tan",
+   "b": "Thomas Kevin Durcan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Kiran Damodar Mokashi",
+   "b": "Kiran Mazumdar-Shaw",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Lalit Chandra Goswami",
+   "b": "Babita Lalit Mandlik",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Lok Kavi Ratna",
+   "b": "Nandamuri Taraka Ratna",
+   "baseline_accepts": false
+  },
+  {
+   "a": "M. M. Mani",
+   "b": "M. Mani",
+   "baseline_accepts": true
+  },
+  {
+   "a": "M.M. Mani",
+   "b": "M. Mani",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Mansukhlal Maganlal Jhaveri",
+   "b": "Manilal Maganlal Doctor",
+   "baseline_accepts": false
+  },
+  {
+   "a": "May Wong",
+   "b": "Chee-May Wong",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Mohamad Maliki bin Osman",
+   "b": "Tunku Osman Tunku Mohammad Jewa",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Mohd Sidek bin Hassan",
+   "b": "Mohammad Fadzli Hassan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "N. Mohan Kumar",
+   "b": "Mohan Kapoor",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Nandamuri Taraka Rama Rao",
+   "b": "Nandamuri Tarakaramarao Jr.",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Nandamuri Tarakaramarao",
+   "b": "Nandamuri Taraka Rama Rao",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Nandi Nooka Raju",
+   "b": "T. V. Raju",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Naresh Chandra Sengupta",
+   "b": "Naresh Chandra",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Neithalath Mohan Kumar",
+   "b": "Mohan Kumar",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Norwahidah binti Abdul Wahab",
+   "b": "Abdul Wahab",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Nurul Hanynaa binti Harizal",
+   "b": "Nurul Alyani Binti Jamil",
+   "baseline_accepts": false
+  },
+  {
+   "a": "P. C. Sorcar",
+   "b": "P. C. Sorcar, Jr.",
+   "baseline_accepts": true
+  },
+  {
+   "a": "P. Mohan",
+   "b": "Surender Mohan Pathak",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Pandit Raghunandan Panshikar",
+   "b": "Vijeta Pandit",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Pandit Tarun Bhattacharya",
+   "b": "Pandit Shyam Sunder Surolia",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Peter Chin Fah Kui",
+   "b": "Sam Tan Chin Siong",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Pradeep Kumar Khosla",
+   "b": "Pradeep Kumar",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Prannoy Lal Roy",
+   "b": "Raghbir Lal",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Prashant Raj",
+   "b": "Dabbala Rajagopal \"Raj\" Reddy",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Prashant Raj",
+   "b": "Mahesh Raj Soni",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Pratap Singh",
+   "b": "Rudra Pratap Singh",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Prince Abdul Rahman of Johor",
+   "b": "Prince Abdul Rahman of Johor",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Prof. M. V. Rajeev Gowda",
+   "b": "V. Gowda",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Rahul Dev Burman",
+   "b": "Rahul Dev",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Raj Kiran",
+   "b": "Raj Kumar Pathria",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Ramachandra Datatraya Lele",
+   "b": "M. B. Ramachandra Rao",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Rashid Khan",
+   "b": "Salim Abdul Rashid Khan",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Ryan Low",
+   "b": "Tasha Low",
+   "baseline_accepts": false
+  },
+  {
+   "a": "S. N. Tripathi",
+   "b": "Suryakant Tripathi Nirala",
+   "baseline_accepts": true
+  },
+  {
+   "a": "S. Ravi Varman",
+   "b": "Karanam Ravi Prakash",
+   "baseline_accepts": false
+  },
+  {
+   "a": "S. V. Pillai",
+   "b": "Sardar Vedaratnam Pillai",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Sailendra Nath Manna",
+   "b": "Jogendra Nath Mandal",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Sanjay Manjrekar",
+   "b": "Sanjay Ghose",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Sanjay(Kaka) Patil",
+   "b": "Sanjay Khan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Satya Pal Singh",
+   "b": "Bacchu Pal",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Sharifah Nur Ashira binti Syed Abdul Aziz",
+   "b": "Sharifah Aleya binti Syed Zainal Rashid Al-Yahya",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Sharifah Saadah binti Wan Zainal Abidin",
+   "b": "AmirulHadi Bin Zainal",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Silambarsan Thesingu Rajendar",
+   "b": "T. Rajendar",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Siti Wan Kembang",
+   "b": "Wan Romani Wan Salim",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Sri Aurobindo Ghose",
+   "b": "Sri Reddy",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Subhash Mukhopadhyay",
+   "b": "Subhash Mukherjee",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Surendra Prakash Goel",
+   "b": "Surendra Shivdas Barlingay",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Surilie Gautam Bhatti",
+   "b": "Chidhambaram Muralidharen Gautam",
+   "baseline_accepts": false
+  },
+  {
+   "a": "THE HIMALAYAN MAN",
+   "b": "Man Sood",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Tadepalli Lakshmi Kanta Rao",
+   "b": "Appadvedula Lakshmi Narayan",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Tengku Abdul Hamid bin Tengku Jumat",
+   "b": "Abdul Hamid",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Thurupu Jayaprakash Reddy",
+   "b": "Jayaprakash Reddy",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Tuanku Syed Sirajuddin ibni Almarhum Tuanku Syed Putra Jamalullail",
+   "b": "Raja Chulan ibni Almarhum Sultan Abdullah Muhammad Shah II  Habibullah",
+   "baseline_accepts": false
+  },
+  {
+   "a": "Tunku Abdul Rahman",
+   "b": "Tunku Abdul Rahman Sultan Ismail",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Venkate Gowda Gopala Gowda",
+   "b": "V. Gowda",
+   "baseline_accepts": true
+  },
+  {
+   "a": "Vishnu Shridhar Wakankar",
+   "b": "Vishnu Manchu",
+   "baseline_accepts": false
+  }
+ ],
+ "expect": {
+  "wrong_matches_by_group": {
+   "western_order": 0,
+   "chinese_order": 0,
+   "malay_patronymic": 0,
+   "indian_patronymic": 0,
+   "mononym": 0,
+   "titles": 0
+  },
+  "initials_sibling_accepted_by_group": {
+   "western_order": 0,
+   "chinese_order": 0,
+   "malay_patronymic": 0,
+   "indian_patronymic": 1,
+   "mononym": 0,
+   "titles": 0
+  },
+  "same_person_false_flag_rate_by_group": {
+   "western_order": 0.0,
+   "chinese_order": 0.0,
+   "malay_patronymic": 0.0,
+   "indian_patronymic": 0.0,
+   "mononym": 0.0,
+   "titles": 0.0
+  },
+  "same_person_disparity": 0.0,
+  "alias_not_accepted_by_country": {
+   "India": 21,
+   "Malaysia": 16,
+   "Singapore": 13
+  },
+  "alias_a_not_accepted_by_country": {
+   "India": 1,
+   "Malaysia": 1,
+   "Singapore": 0
+  },
+  "alias_disparity": 0.1333333333333333,
+  "different_people_accepted": 0,
+  "collisions_accepted": 43
+ }
+}
