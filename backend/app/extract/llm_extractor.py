@@ -17,7 +17,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Literal
 
 from pydantic import ValidationError
@@ -495,7 +494,7 @@ class LLMExtractor:
                 ) from exc
         ref = ctx.file(doc.file_id)
         try:
-            image = fn(Path(ctx.file_path(doc.file_id)), ref.mime, page, dpi=dpi)  # type: ignore[misc]
+            image = fn(ctx.file_bytes(doc.file_id), ref.mime, page, dpi=dpi)  # type: ignore[misc]
         except Exception as exc:  # a render problem is local to the page
             raise PageReadError("render_failed", type(exc).__name__) from exc
         png = getattr(image, "png", image)

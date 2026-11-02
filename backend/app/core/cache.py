@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from app.core.crypto import ctx_llm_cache
 from app.core.models import Strict, UsdDecimal, UtcDatetime, utcnow
 
 if TYPE_CHECKING:
@@ -105,7 +106,7 @@ class ResponseCache:
                 self._misses += 1
                 return None
             self._hits += 1
-        value = json.loads(row["value"])
+        value = json.loads(self._db.vault.open_text(row["value"], ctx_llm_cache(key)))
         if value.get("v") != VALUE_FORMAT:
             return None
         return CachedResponse(
@@ -145,9 +146,18 @@ class ResponseCache:
         }
         with self._db.conn() as c:
             c.execute(
-                "INSERT OR REPLACE INTO llm_cache (key, value, created_at, model, purpose) "
-                "VALUES (?,?,?,?,?)",
-                (key, json.dumps(value, ensure_ascii=False), ts(utcnow()), model, purpose),
+                "INSERT OR REPLACE INTO llm_cache (key, value, created_at, model, purpose, "
+                "file_sha256) VALUES (?,?,?,?,?,?)",
+                (
+                    key,
+                    self._db.vault.seal_text(
+                        json.dumps(value, ensure_ascii=False), ctx_llm_cache(key)
+                    ),
+                    ts(utcnow()),
+                    model,
+                    purpose,
+                    file_sha256,
+                ),
             )
 
     def clear(self, *, purpose: str | None = None, model: str | None = None) -> int:

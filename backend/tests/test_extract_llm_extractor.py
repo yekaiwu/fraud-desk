@@ -209,7 +209,7 @@ def test_vision_mode_sends_a_grayscale_image_and_verifies_against_ocr_words(tmp_
     rendered = []
 
     def render(path, mime, page, *, dpi):  # noqa: ANN001, ANN202
-        rendered.append((Path(path).exists(), mime, page, dpi))
+        rendered.append((bool(path), mime, page, dpi))
         return b"\x89PNG-fake"
 
     llm = FakeLLMClient({"extract:bank_statement": per_page(spec)})

@@ -224,6 +224,8 @@ Rules: structured output via one function tool with `tool_choice="auto"`, then v
 
 `GLDB_DATA_DIR` (default `./data`): `gldb.sqlite3`, `files/<sha[:2]>/<sha256>` (content-addressed originals, refcounted by cases), `renders/<sha256>/<page>_<width>.png` (page PNG cache). `core/db.py` creates all tables at startup (idempotent DDL), so later agents never edit it.
 
+With `GLDB_ENCRYPT_AT_REST=on` the originals, the render cache, `cases.body`, `case_versions.body`, `review_entries.body`, `llm_cache.value` and a few smaller columns are AES-256-GCM envelopes (`core/crypto.py`); the file id stays the sha256 of the plaintext. Code never opens a stored path directly: it goes through `FileStore.read` / `CaseContext.file_bytes`. Four plaintext helper columns/tables (`cases.escalated`, `review_entries.status`, `llm_cache.file_sha256`, `case_files`) replace the SQL queries that used to look inside the JSON. See [encryption-at-rest.md](encryption-at-rest.md).
+
 | Table | Columns | Owner of helpers |
 |---|---|---|
 | `cases` | `id` PK, `use_case`, `status`, `version`, `reference`, `applicant_name`, `created_at`, `updated_at`, `score` (int null), `band`, `lane`, `coverage_ratio` (real null), `partial` (0/1), `findings_count`, `high_count`, `decision`, `top_finding`, `body` JSON (full `Case` without `review`) | foundation (`Database`) |

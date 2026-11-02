@@ -30,7 +30,8 @@ def expired_case_ids(db: Database, *, older_than_days: int, now: datetime) -> li
     with db.conn() as c:
         rows = c.execute(
             "SELECT id FROM cases WHERE status IN ('closed', 'error') AND updated_at < ? "
-            "AND json_extract(body, '$.escalated_at') IS NULL ORDER BY updated_at, id",
+            "AND COALESCE(escalated, CASE WHEN json_valid(body) THEN "
+            "json_extract(body, '$.escalated_at') IS NOT NULL END) = 0 ORDER BY updated_at, id",
             (cutoff,),
         ).fetchall()
     return [r["id"] for r in rows]

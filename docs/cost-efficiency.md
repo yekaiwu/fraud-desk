@@ -338,7 +338,7 @@ Unit tests use `FakeLLMClient`, a hand-built `PriceTable`, `make_ctx`, a temp SQ
 - Dollar overshoot bound (in-flight calls) is real; the guard is a ceiling, not an estimate, and does not pre-estimate a call's cost.
 - No single-flight on identical concurrent cache misses; no cross-process cache locking beyond SQLite.
 - Provider prompt caching and provider batch pricing are unmeasured / not built; system prompts are short, so the prompt-cache saving may be negligible.
-- The cache stores page text and extracted values (personal data) next to the case database; protection is deletion on case delete and retention pruning, not encryption.
+- The cache stores page text and extracted values (personal data) next to the case database; protection is deletion on case delete and retention pruning and, with `GLDB_ENCRYPT_AT_REST=on`, AES-256-GCM encryption of every cached value (`llm_cache.value`, bound to its key; see [encryption-at-rest.md](encryption-at-rest.md)). With the setting off (the default) the values are stored as plain JSON.
 - Budget is per run, not per customer or per day; there is no org-wide spend control.
 - The calls limit counts attempts, including schema retries and calls whose response failed, which is conservative; cache hits and local classification are not counted.
 - `cost per correctly handled bundle` depends on placeholder analyst minutes and rate until the timed test supplies them (test-data-and-eval.md M8).

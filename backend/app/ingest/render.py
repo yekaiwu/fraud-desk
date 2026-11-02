@@ -18,6 +18,7 @@ import pymupdf
 from PIL import Image
 from pydantic import ConfigDict
 
+from app.core.crypto import Vault, ctx_render
 from app.core.models import Strict
 from app.ingest.images import declared_dpi, open_image, upright
 
@@ -43,8 +44,15 @@ class RenderedImage(Strict):
         return cx + x * cw, cy + y * ch, w * cw, h * ch
 
 
-def _open_pdf(path: Path) -> pymupdf.Document:
-    doc = pymupdf.open(path)
+Source = Path | bytes  # a file on disk (tests, tools) or the plaintext bytes (the application)
+
+
+def _open_pdf(source: Source) -> pymupdf.Document:
+    doc = (
+        pymupdf.open(stream=source, filetype="pdf")
+        if isinstance(source, bytes)
+        else pymupdf.open(source)
+    )
     if doc.needs_pass and not doc.authenticate(""):
         doc.close()
         raise ValueError("encrypted_pdf: password required")
@@ -84,7 +92,7 @@ def _find_crop(gray: Image.Image, crop_margins: bool) -> tuple[Image.Image, tupl
 
 
 def render_for_model(
-    path: Path, mime: str, page: int, *, dpi: int, crop_margins: bool = True
+    path: Source, mime: str, page: int, *, dpi: int, crop_margins: bool = True
 ) -> RenderedImage:
     """Grayscale PNG at ``dpi``, longest side at most 2200 px (never upscaled), blank margins
     cropped when that removes at least 10 % of the page."""
@@ -129,7 +137,9 @@ def render_for_model(
 # ----------------------------------------------------------------------------- UI render
 
 
-def _atomic_write(target: Path, data: bytes) -> None:
+def _atomic_write(target: Path, data: bytes, vault: Vault | None = None) -> None:
+    if vault is not None:
+        data = vault.seal(data, ctx_render(target.parent.name, target.name))
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_name(f".{target.name}.{uuid.uuid4().hex[:8]}.tmp")
     try:
@@ -140,7 +150,7 @@ def _atomic_write(target: Path, data: bytes) -> None:
 
 
 def render_page_png(
-    path: Path,
+    path: Source,
     sha256: str,
     mime: str,
     page: int,
@@ -148,8 +158,12 @@ def render_page_png(
     width_px: int | None = None,
     renders_dir: Path,
     render_dpi: int | None = None,
+    vault: Vault | None = None,
 ) -> Path:
     """UI render cached at ``<renders_dir>/<sha256>/<page>_<width>.png`` (atomic write).
+
+    With an enabled ``vault`` the cached file is encrypted (read it back with
+    ``FileStore.get_render``); the application's own page endpoint caches through the store instead.
 
     ``width_px`` is clamped to 200..2000; ``None`` means ``GLDB_RENDER_DPI`` applied to the page's
     physical width. ``ValueError`` for a bad hash or page number (the API turns it into a 404/422).
@@ -189,7 +203,7 @@ def render_page_png(
         buf = io.BytesIO()
         img.convert("RGB").resize((width, height), Image.Resampling.LANCZOS).save(buf, "PNG")
         data = buf.getvalue()
-    _atomic_write(target, data)
+    _atomic_write(target, data, vault)
     return target
 
 

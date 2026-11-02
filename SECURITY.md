@@ -12,7 +12,7 @@ The backend (`backend/app`), the frontend gate and proxy (`frontend/src/proxy.ts
 
 ## Known limits (not vulnerabilities)
 
-One shared login with self-declared reviewer names; in-memory rate limits; unencrypted storage under `data/`; no roles. These are documented and by design for a demo.
+One shared login with self-declared reviewer names; in-memory rate limits; storage under `data/` that is unencrypted unless `GLDB_ENCRYPT_AT_REST=on` (see `docs/encryption-at-rest.md`); no roles. These are documented and by design for a demo.
 
 ## Secrets
 

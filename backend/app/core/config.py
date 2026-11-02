@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     db_path: str | None = None
     registry_path: Path = Path("./samples/registry.json")
+    # Application-level encryption at rest (docs/encryption-at-rest.md). "on" encrypts every new
+    # write (files, page renders, case bodies, review entries, response cache) with AES-256-GCM and
+    # needs a key; start-up fails without one. Keys: "id:base64(32 bytes)", comma separated, the
+    # FIRST is the active one, all can decrypt (rotation). The key file must be mode 0600 and
+    # outside the data directory. Reading works with keys configured whatever the mode.
+    encrypt_at_rest: Literal["off", "on"] = "off"
+    encryption_keys: SecretStr = SecretStr("")
+    encryption_key_file: str = ""  # a path; empty = none
     # Ask Singapore's open ACRA dataset about an applicant UEN that the registry file does not hold
     # (app/registry_live.py). Off by default: it makes a network call per new UEN.
     registry_live: bool = False
@@ -260,6 +268,12 @@ class Settings(BaseSettings):
         return self.llm_api_key.get_secret_value()
 
     @property
+    def encryption_keys_value(self) -> str:
+        """The key list, only for ``app.core.crypto``. Never log it."""
+        keys = self.encryption_keys  # model_copy(update=...) can leave a plain str here
+        return keys if isinstance(keys, str) else keys.get_secret_value()
+
+    @property
     def anthropic_api_key_value(self) -> str:
         """The paid Anthropic key, only for ``AnthropicLLMClient``. Never log it."""
         return self.anthropic_api_key.get_secret_value()
@@ -284,6 +298,24 @@ class Settings(BaseSettings):
         if problems:
             raise SettingsError("LLM backend 'anthropic': " + "; ".join(problems))
 
+    def validate_encryption(self) -> None:
+        """``GLDB_ENCRYPT_AT_REST=on`` needs a usable key; it never falls back to plaintext. A key
+        file inside the data directory is refused (the key must not travel with the data)."""
+        from app.core.crypto import CryptoConfigError, vault_from_settings
+
+        if self.encryption_key_file.strip():
+            key_file = Path(self.encryption_key_file).expanduser().resolve()
+            data_dir = Path(self.data_dir).expanduser().resolve()
+            if key_file == data_dir or data_dir in key_file.parents:
+                raise SettingsError(
+                    "GLDB_ENCRYPTION_KEY_FILE is inside GLDB_DATA_DIR: the key must live outside "
+                    "the data directory and outside its backups"
+                )
+        try:
+            vault_from_settings(self)
+        except CryptoConfigError as exc:
+            raise SettingsError(f"encryption at rest: {exc}") from None
+
     def validate_startup(self) -> None:
         """Fail fast on a configuration that cannot work (architecture.md section 10)."""
         if self.effective_llm_backend() == "anthropic":
@@ -303,6 +335,7 @@ class Settings(BaseSettings):
                     "LLM backend 'openai' needs these settings, which are empty: "
                     + ", ".join(missing)
                 )
+        self.validate_encryption()
         problems = []
         if self.max_pages_per_case <= 0:
             problems.append("GLDB_MAX_PAGES_PER_CASE must be > 0")

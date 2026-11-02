@@ -26,6 +26,7 @@ from typing import Any
 
 import httpx
 
+from app.core.crypto import DecryptionError, Vault, ctx_registry, plaintext_vault
 from app.core.registry import MockRegistry, RegistryEntity
 from app.core.textnorm import normalise_uen
 
@@ -162,9 +163,15 @@ def _ask(client: httpx.Client, dataset: str, uen: str) -> list[dict[str, Any]]:
 
 
 class AcraLookup:
-    def __init__(self, cache_dir: Path | None = None, client: httpx.Client | None = None):
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        client: httpx.Client | None = None,
+        vault: Vault | None = None,
+    ):
         self.cache_dir = cache_dir
         self._client = client
+        self._vault = vault if vault is not None else plaintext_vault()
 
     def _path(self, uen: str) -> Path | None:
         if self.cache_dir is None or not re.fullmatch(r"[0-9A-Z]{9,10}", uen):
@@ -176,14 +183,15 @@ class AcraLookup:
         if path is None or not path.is_file():
             return False, None
         try:
-            blob = json.loads(path.read_text(encoding="utf-8"))
+            raw = self._vault.open(path.read_bytes(), ctx_registry(uen))
+            blob = json.loads(raw.decode("utf-8"))
             record = blob["record"]
             ttl = HIT_TTL_S if record else MISS_TTL_S
             if now - float(blob["at"]) > ttl:
                 return False, None
             return True, entity_from_record(record) if record else None
-        except (OSError, ValueError, KeyError, TypeError):
-            return False, None
+        except (OSError, ValueError, KeyError, TypeError, DecryptionError):
+            return False, None  # unreadable or undecryptable cache entry: ask the register again
 
     def _store(self, uen: str, record: dict[str, Any] | None, now: float) -> None:
         path = self._path(uen)
@@ -191,7 +199,8 @@ class AcraLookup:
             return
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"at": now, "record": record}), encoding="utf-8")
+            payload = json.dumps({"at": now, "record": record}).encode("utf-8")
+            path.write_bytes(self._vault.seal(payload, ctx_registry(uen)))
         except OSError:
             log.warning("could not cache the register answer for a UEN")
 

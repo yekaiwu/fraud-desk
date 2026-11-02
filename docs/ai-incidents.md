@@ -18,7 +18,7 @@ Over the cases updated in the last `GLDB_MONITOR_WINDOW_DAYS` (default 7), compa
 | `daily_spend_ratio` | 80% of the daily cap | model spend today against `GLDB_MAX_USD_PER_DAY` |
 | `rule_drift` | 25 points | the largest change in how often one rule fires, this window against the last |
 
-With fewer than `GLDB_MONITOR_MIN_CASES` (default 10) cases in a window the answer is `unknown`, never an all-clear. The response also reports whether the data volume is encrypted (`disk_encryption`: FileVault on macOS, otherwise "unknown" and the platform's control applies) and today's spend against the cap. The thresholds are in `.env.example`; change them in the environment, not in code.
+With fewer than `GLDB_MONITOR_MIN_CASES` (default 10) cases in a window the answer is `unknown`, never an all-clear. The response also reports whether the data volume is encrypted (`disk_encryption`: FileVault on macOS, otherwise "unknown" and the platform's control applies), whether the application encrypts what it stores (`encryption_at_rest`: mode, active key id, whether a bounded sample of stored items is all encrypted, and a plain statement when it is off; see [encryption-at-rest.md](encryption-at-rest.md)) and today's spend against the cap. The thresholds are in `.env.example`; change them in the environment, not in code.
 
 `GET /monitoring` only reads. Telling someone is the next section; the review log's rule-effectiveness page (`GET /rules/effectiveness`) shows how reviewers decided on each rule.
 

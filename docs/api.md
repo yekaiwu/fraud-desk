@@ -70,7 +70,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | DELETE | `/cases/{id}` | delete a case and its data | 7.2 |
 | POST | `/admin/retention/purge` | purge cases older than retention | 7.2 |
 | GET | `/me` | the signed-in account the proxy vouched for, or null | 5.9 |
-| GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption | 5.23 |
+| GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption, application encryption at rest | 5.23 |
 | GET | `/monitoring/incidents` | the AI incident log, newest first | 5.23 |
 | POST | `/monitoring/incidents` | report (or resolve) an AI incident; severity medium or high is also announced through the alert sinks | 5.23 |
 | POST | `/monitoring/incidents/{id}/acknowledge` | note that someone has seen an open incident, optionally assigning it; open / resolved is unchanged | 5.23 |

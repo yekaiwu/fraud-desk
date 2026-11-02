@@ -66,7 +66,7 @@ def _check_render_size(width: int, height: float) -> None:
         raise ValueError("page too large to render")
 
 
-def render_page_png(path: Path, mime: str, page: int, width: int) -> bytes:
+def render_page_png(path: Path | bytes, mime: str, page: int, width: int) -> bytes:
     """PNG of one page, ``width`` px wide. PDF via PyMuPDF; images are re-encoded after
     ``ImageOps.exif_transpose`` so region fractions line up with the oriented image.
 
@@ -77,7 +77,11 @@ def render_page_png(path: Path, mime: str, page: int, width: int) -> bytes:
         import pymupdf
 
         try:
-            doc = pymupdf.open(str(path))
+            doc = (
+                pymupdf.open(stream=path, filetype="pdf")
+                if isinstance(path, bytes)
+                else pymupdf.open(str(path))
+            )
         except Exception as exc:  # noqa: BLE001 - corrupt file
             raise ValueError(f"unreadable PDF: {type(exc).__name__}") from exc
         try:
@@ -97,7 +101,7 @@ def render_page_png(path: Path, mime: str, page: int, width: int) -> bytes:
     from PIL import Image, ImageOps
 
     try:
-        with Image.open(path) as raw:
+        with Image.open(io.BytesIO(path) if isinstance(path, bytes) else path) as raw:
             img = ImageOps.exif_transpose(raw)
             img.load()
     except Exception as exc:  # noqa: BLE001
@@ -365,10 +369,11 @@ def build_page_images(
         if ref is None:
             continue
         try:
-            path = db.files.path_for(ref["sha256"])
-            if not path.is_file():
+            if not db.files.exists(ref["sha256"]):
                 continue
-            png = render_page_png(path, ref["mime"], page, PACK_IMAGE_MAX_WIDTH)
+            png = render_page_png(
+                db.files.read(ref["sha256"]), ref["mime"], page, PACK_IMAGE_MAX_WIDTH
+            )
         except (LookupError, ValueError, OSError):
             continue
         with Image.open(io.BytesIO(png)) as base:

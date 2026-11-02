@@ -14,11 +14,12 @@ from typing import Any
 from app.core.cache import ResponseCache
 from app.core.config import Settings
 from app.core.costs import CostMeter
+from app.core.crypto import vault_from_settings
 from app.core.fingerprints import FingerprintHit, FingerprintStore
 from app.core.llm import LLMClient
 from app.core.models import Applicant, Case, Document, FileRef, RuleOverride, UseCase, Word
 from app.core.registry import MockRegistry
-from app.core.storage import FileStore
+from app.core.storage import FileSource, FileStore
 from app.core.textlayout import layout_text
 
 __all__ = ["CaseContext", "FingerprintHit", "FingerprintStore", "natural_key"]
@@ -78,9 +79,24 @@ class CaseContext:
                 return f
         raise KeyError(file_id)
 
+    def file_store(self) -> FileStore:
+        """The content-addressed store, with the vault the settings ask for."""
+        return FileStore(self.settings.data_dir, vault_from_settings(self.settings))
+
     def file_path(self, file_id: str) -> Path:
-        """Content-addressed original on disk (``<data_dir>/files/<sha[:2]>/<sha256>``)."""
-        return FileStore(self.settings.data_dir).path_for(self.file(file_id).sha256)
+        """WHERE the content-addressed original lives (``<data_dir>/files/<sha[:2]>/<sha256>``).
+
+        With encryption at rest on, the bytes there are an encrypted envelope: never open this
+        path to read the file. Use :meth:`file_bytes` or :meth:`file_source`."""
+        return self.file_store().path_for(self.file(file_id).sha256)
+
+    def file_bytes(self, file_id: str) -> bytes:
+        """The original file's plaintext bytes (decrypted when encryption at rest is on)."""
+        return self.file_store().read(self.file(file_id).sha256)
+
+    def file_source(self, file_id: str) -> FileSource:
+        """Hashable handle on the original (``.read()`` gives the bytes); safe as a cache key."""
+        return self.file_store().source(self.file(file_id).sha256)
 
     def page_text(self, file_id: str, page: int) -> str:
         """Words of the page in reading order ('' when there is no text layer)."""

@@ -1,7 +1,7 @@
 """PDF forensics (docs/forensics.md sections 3, 4.2 to 4.4; plan 4.5).
 
 Hint generator, not a verdict: a check that finds nothing means "no signal found", never
-"authentic". Everything here reads the raw file (``ctx.file_path``), ``FileRef.pdf_meta`` and the
+"authentic". Everything here reads the raw file (``ctx.file_bytes``, decrypted when encryption at rest is on), ``FileRef.pdf_meta`` and the
 document list; it never reads extracted cell values, never writes, never calls a model and never
 uses the wall clock ("today" is ``ctx.today``).
 
@@ -27,7 +27,6 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta, timezone
-from pathlib import Path
 from typing import Literal, NamedTuple
 
 import numpy as np
@@ -39,6 +38,7 @@ from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
 from app.core.models import Document, FileRef, Flag, Region, Severity
 from app.core.money import parse_money
+from app.core.storage import FileSource
 
 # --------------------------------------------------------------------------------------
 # Constants (thresholds are starting guesses, recalibrated from the eval; forensics.md section 8)
@@ -322,7 +322,7 @@ def _docs_for_page(ctx: CaseContext, file_id: str, page: int) -> list[Document]:
 
 
 def _read_bytes(ctx: CaseContext, file_id: str) -> bytes:
-    return Path(ctx.file_path(file_id)).read_bytes()
+    return ctx.file_bytes(file_id)
 
 
 def _notice(
@@ -358,11 +358,11 @@ _XMP_KEYS = ("xmp:CreatorTool", "pdf:Producer", "xmp:CreateDate", "xmp:ModifyDat
 
 
 @functools.lru_cache(maxsize=32)
-def _xmp_values(sha256: str, path: str) -> tuple[tuple[str, str], ...]:
+def _xmp_values(sha256: str, src: FileSource) -> tuple[tuple[str, str], ...]:
     """XMP tool and date fields of one file; empty on any error (XMP errors are ignored)."""
     out: list[tuple[str, str]] = []
     try:
-        with pikepdf.open(path) as pdf:
+        with pikepdf.open(io.BytesIO(src.read())) as pdf:
             meta = pdf.open_metadata(set_pikepdf_as_editor=False, update_docinfo=False)
             for key in _XMP_KEYS:
                 try:
@@ -378,7 +378,7 @@ def _xmp_values(sha256: str, path: str) -> tuple[tuple[str, str], ...]:
 
 def _xmp(ctx: CaseContext, f: FileRef) -> dict[str, str]:
     try:
-        return dict(_xmp_values(f.sha256, str(ctx.file_path(f.id))))
+        return dict(_xmp_values(f.sha256, ctx.file_source(f.id)))
     except Exception:  # noqa: BLE001
         return {}
 
@@ -1455,10 +1455,10 @@ def _corroborate(groups: Sequence[list[_Cand]]) -> list[_Cand]:
 
 @functools.lru_cache(maxsize=32)
 def _text_analysis(
-    sha256: str, path: str, file_id: str, pages: tuple[int, ...], total: int, rotated: int
+    sha256: str, src: FileSource, file_id: str, pages: tuple[int, ...], total: int, rotated: int
 ) -> _TextAnalysis:
     """One shared analysis per file for the three text-layer rules (order-independent)."""
-    doc = pymupdf.open(path)
+    doc = pymupdf.open(stream=src.read(), filetype="pdf")
     tvr_all: list[_Cand] = []
     fso_all: list[_Cand] = []
     fonts: list[_FontPage] = []
@@ -1526,9 +1526,7 @@ def _analyses(
             )
             continue
         try:
-            analysis = _text_analysis(
-                f.sha256, str(ctx.file_path(f.id)), f.id, pages, total, rotated
-            )
+            analysis = _text_analysis(f.sha256, ctx.file_source(f.id), f.id, pages, total, rotated)
         except Exception:  # noqa: BLE001
             failed.append(f.id)
             continue
@@ -1716,7 +1714,7 @@ def _sibling_region(
 ) -> Region | None:
     try:
         region = _family_boxes(
-            f.sha256, str(ctx.file_path(f.id)), f.id, fp.page, tuple(_fkey(n) for n in odd)
+            f.sha256, ctx.file_source(f.id), f.id, fp.page, tuple(_fkey(n) for n in odd)
         )
     except Exception:  # noqa: BLE001
         return None
@@ -1727,9 +1725,9 @@ def _sibling_region(
 
 @functools.lru_cache(maxsize=64)
 def _family_boxes(
-    sha256: str, path: str, file_id: str, page: int, families: tuple[str, ...]
+    sha256: str, src: FileSource, file_id: str, page: int, families: tuple[str, ...]
 ) -> Region | None:
-    doc = pymupdf.open(path)
+    doc = pymupdf.open(stream=src.read(), filetype="pdf")
     try:
         pg = doc[page - 1]
         spans = _collect_spans(pg)
@@ -1759,7 +1757,7 @@ def _font_mix_region(ctx: CaseContext, f: FileRef, fp: _FontPage, limit: int) ->
     if not surplus:
         return None
     try:
-        region = _family_boxes(f.sha256, str(ctx.file_path(f.id)), f.id, fp.page, surplus)
+        region = _family_boxes(f.sha256, ctx.file_source(f.id), f.id, fp.page, surplus)
     except Exception:  # noqa: BLE001
         return None
     if region is None or _region_area(region) > REGION_MAX_AREA:

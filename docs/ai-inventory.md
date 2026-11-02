@@ -53,7 +53,7 @@ Proposed ratings, which the bank's own risk team must confirm (4.11, 4.13): **in
 | Impact on customers and bank decisions | Informs approve / refer / reject; a missed forgery can cause loss, a false flag can delay a customer | No automation; ranking; second approver; mandatory reasons (`backend/app/review.py`) |
 | Reliance and automation bias | Analysts may trust a low score | Coverage beside the score; "silence is not safety"; not-checked list (`backend/app/pack.py::not_checked_documents`) |
 | Complexity and opacity | Deterministic rules plus an LLM used only for extraction | Rules explain themselves; model output is cross-checked against the text layer |
-| Data sensitivity | Personal data and customer information | Fictitious demo data; minimisation; retention; pseudonymised logs (`backend/app/retention.py`, `backend/app/audit.py`) |
+| Data sensitivity | Personal data and customer information | Fictitious demo data; minimisation; retention; pseudonymised logs; optional application-level encryption at rest (`backend/app/retention.py`, `backend/app/audit.py`, `backend/app/core/crypto.py`, `docs/encryption-at-rest.md`) |
 | Reversibility | Decisions are human and logged; case versions kept | Audit log and review log |
 | Scale | Small compliance team, digital-only bank | Ranked queue; cost telemetry (`backend/app/core/costs.py`) |
 

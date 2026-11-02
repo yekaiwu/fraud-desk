@@ -131,6 +131,7 @@ def create_app(
     if db is None:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         db = Database(settings.database_path, data_dir=settings.data_dir)
+    db.bind_settings(settings)  # a database handed in follows the settings too
     db.init_schema()
     recovered = db.recover_interrupted_jobs()
     if recovered:

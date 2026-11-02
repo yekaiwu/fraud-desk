@@ -22,6 +22,7 @@ from app.core.cache import ResponseCache
 from app.core.config import Settings
 from app.core.context import CaseContext
 from app.core.costs import BudgetLimits, CostMeter, DailySpend, LLMBudgetExceeded, PriceTable
+from app.core.crypto import vault_from_settings
 from app.core.db import Database, JobRecord
 from app.core.fingerprints import (
     SqliteFingerprintStore,
@@ -293,7 +294,9 @@ def attach_live_entity(ctx: CaseContext) -> None:
             uen,
             ctx.case.applicant.name,
             ctx.today,
-            AcraLookup(ctx.settings.data_dir / "registry-cache"),
+            AcraLookup(
+                ctx.settings.data_dir / "registry-cache", vault=vault_from_settings(ctx.settings)
+            ),
         )
     except RegistryUnavailable as exc:
         log.warning("live registry unavailable for %s: %s", ctx.case.id, exc)
@@ -324,6 +327,7 @@ def run_pipeline(
     registry: MockRegistry | None = None,
     on_stage: Callable[[StageRecord], None] | None = None,
 ) -> Case:
+    db.bind_settings(settings)  # the database follows GLDB_ENCRYPT_AT_REST whoever built it
     case = db.load_case(case_id)
     if looks_analysed(case):
         case = prepare_rerun(db, case_id)  # version + 1, old version snapshotted
@@ -451,6 +455,7 @@ class JobRunner:
         llm: LLMClient | None = None,
         registry: MockRegistry | None = None,
     ):
+        db.bind_settings(settings)
         self.db = db
         self.settings = settings
         self.llm = llm

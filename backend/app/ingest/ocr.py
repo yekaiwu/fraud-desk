@@ -127,7 +127,7 @@ def _local_ocr(ctx: CaseContext, file_id: str, page: int, backend) -> tuple[list
     """Words of one page read by a local OCR backend (no model call, no cost, no budget)."""
     file = ctx.file(file_id)
     dpi = max(ctx.settings.vision_dpi, MIN_LOCAL_OCR_DPI)
-    rendered = render_for_model(ctx.file_path(file_id), file.mime, page, dpi=dpi)
+    rendered = render_for_model(ctx.file_bytes(file_id), file.mime, page, dpi=dpi)
     png, to_image = rendered.png, None
     if ctx.settings.ocr_straighten and file.mime.startswith("image/"):
         from app.ingest.flatten import flatten
@@ -160,7 +160,7 @@ def ocr_page_ex(ctx: CaseContext, file_id: str, page: int) -> tuple[list[Word], 
         return _local_ocr(ctx, file_id, page, backend)
     file = ctx.file(file_id)
     rendered = render_for_model(
-        ctx.file_path(file_id), file.mime, page, dpi=ctx.settings.vision_dpi
+        ctx.file_bytes(file_id), file.mime, page, dpi=ctx.settings.vision_dpi
     )
     request = LLMRequest(
         purpose=PURPOSE,

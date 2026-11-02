@@ -134,6 +134,7 @@ def shadow_reading(
         }
     )
     db = Database(":memory:", data_dir=ctx.settings.data_dir)
+    db.bind_settings(ctx.settings)
     db.init_schema()
     db.create_case(shadow)
     cache = ResponseCache(db, enabled=settings.cache_enabled)

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import re
-import uuid
 from typing import Annotated
 from urllib.parse import quote
 
@@ -62,15 +60,13 @@ def page_image(
     if _etag_matches(request.headers.get("if-none-match"), etag):
         return Response(status_code=304, headers=headers)
     store = db.files
-    source = store.path_for(ref.sha256)
-    if not source.is_file():
+    if not store.exists(ref.sha256):
         raise not_found("file", id=ref.id)
-    cached = store.renders_dir / ref.sha256 / f"{page}_{w}.png"
-    if cached.is_file():
-        data = cached.read_bytes()
-    else:
+    render_name = f"{page}_{w}.png"
+    data = store.get_render(ref.sha256, render_name)
+    if data is None:
         try:
-            data = render_page_png(source, ref.mime, page, w)
+            data = render_page_png(store.read(ref.sha256), ref.mime, page, w)
         except LookupError as exc:
             raise not_found("page", file_id=ref.id, page=page) from exc
         except ValueError as exc:
@@ -80,13 +76,7 @@ def page_image(
                 "The page could not be read.",
                 {"kind": "page", "file_id": ref.id, "page": page, "reason": "unreadable"},
             ) from exc
-        cached.parent.mkdir(parents=True, exist_ok=True)
-        tmp = cached.with_name(f".{cached.name}.{uuid.uuid4().hex[:8]}.tmp")
-        try:
-            tmp.write_bytes(data)
-            os.replace(tmp, cached)
-        finally:
-            tmp.unlink(missing_ok=True)
+        store.put_render(ref.sha256, render_name, data)
     return Response(data, media_type="image/png", headers=headers)
 
 
@@ -101,8 +91,7 @@ def download_file(case_id: str, file_id: str, request: Request, db: DbDep) -> Re
     ref = next((f for f in case.files if f.id == file_id), None)
     if ref is None:
         raise not_found("file", id=file_id)
-    path = db.files.path_for(ref.sha256)
-    if not path.is_file():
+    if not db.files.exists(ref.sha256):
         raise not_found("file", id=file_id)
     audit_for(request).write(
         actor=ANONYMOUS,
@@ -111,7 +100,7 @@ def download_file(case_id: str, file_id: str, request: Request, db: DbDep) -> Re
         detail={"file_sha256": ref.sha256},
     )
     return Response(
-        path.read_bytes(),
+        db.files.read(ref.sha256),
         media_type=ref.mime,
         headers={"Content-Disposition": _content_disposition(ref.name)},
     )

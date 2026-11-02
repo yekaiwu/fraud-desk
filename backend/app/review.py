@@ -229,7 +229,8 @@ def pending_counts(db: Database, rows: Sequence[sqlite3.Row]) -> dict[str, int]:
         found = c.execute(
             "SELECT case_id, case_version FROM review_entries WHERE case_id IN ("
             + marks
-            + ") AND json_extract(body, '$.status') = 'pending_second_approval'",
+            + ") AND COALESCE(status, CASE WHEN json_valid(body) THEN "
+            "json_extract(body, '$.status') END) = 'pending_second_approval'",
             ids,
         ).fetchall()
     for r in found:
@@ -280,7 +281,7 @@ def _not_found(kind: str, **details: Any) -> ReviewError:
 def load_entries(db: Database, case_id: str, *, version: int | None = None) -> list[ReviewEntry]:
     """Review entries of a case, oldest first (insertion order); ``version=None`` = every version.
     Raises a 404 ``ReviewError`` for an unknown case."""
-    sql = "SELECT body FROM review_entries WHERE case_id = ?"
+    sql = "SELECT id, body FROM review_entries WHERE case_id = ?"
     params: list[Any] = [case_id]
     if version is not None:
         sql += " AND case_version = ?"
@@ -289,7 +290,7 @@ def load_entries(db: Database, case_id: str, *, version: int | None = None) -> l
         if c.execute("SELECT 1 FROM cases WHERE id = ?", (case_id,)).fetchone() is None:
             raise _not_found("case", id=case_id)
         rows = c.execute(sql + " ORDER BY rowid", params).fetchall()
-    return [ReviewEntry.model_validate_json(r["body"]) for r in rows]
+    return [ReviewEntry.model_validate_json(db.open_review_body(r["id"], r["body"])) for r in rows]
 
 
 def version_history(db: Database, case_id: str) -> list[dict[str, Any]]:
@@ -307,11 +308,15 @@ def version_history(db: Database, case_id: str) -> list[dict[str, Any]]:
             )
         }
     current_version = live["version"]
-    current_body = json.loads(live["body"])
+    current_body = json.loads(db.open_case_body(case_id, live["body"]))
     added = {f.get("added_in_version", 1) for f in current_body.get("files", [])}
     out: list[dict[str, Any]] = []
     for v in sorted({*snaps, current_version}):
-        body = current_body if v == current_version else json.loads(snaps[v]["body"])
+        body = (
+            current_body
+            if v == current_version
+            else json.loads(db.open_version_body(case_id, v, snaps[v]["body"]))
+        )
         score = body.get("score") or {}
         created = snaps[v]["created_at"] if v in snaps else body.get("updated_at")
         out.append(
@@ -395,14 +400,15 @@ class ReviewService:
                     c, req, case, dispositions, reviewer, reason, now
                 )
             c.execute(
-                "INSERT INTO review_entries (id, case_id, case_version, created_at, body) "
-                "VALUES (?,?,?,?,?)",
+                "INSERT INTO review_entries (id, case_id, case_version, created_at, body, status) "
+                "VALUES (?,?,?,?,?,?)",
                 (
                     f"{case_id}/{entry.id}",
                     case_id,
                     entry.case_version,
                     ts(now),
-                    entry.model_dump_json(),
+                    self.db.seal_review_body(f"{case_id}/{entry.id}", entry.model_dump_json()),
+                    entry.status,
                 ),
             )
             audit_detail.update(
@@ -543,9 +549,14 @@ class ReviewService:
         updated = target.model_copy(update={"status": new_status})
         # the one permitted UPDATE of review_entries: the status of a pending entry
         c.execute(
-            "UPDATE review_entries SET body = ? WHERE id = ? AND "
-            "json_extract(body, '$.status') = 'pending_second_approval'",
-            (updated.model_dump_json(), f"{case.id}/{target.id}"),
+            "UPDATE review_entries SET body = ?, status = ? WHERE id = ? AND "
+            "COALESCE(status, CASE WHEN json_valid(body) THEN json_extract(body, '$.status') END) "
+            "= 'pending_second_approval'",
+            (
+                self.db.seal_review_body(f"{case.id}/{target.id}", updated.model_dump_json()),
+                updated.status,
+                f"{case.id}/{target.id}",
+            ),
         )
         detail = {
             "entry_id": entry.id,
@@ -623,25 +634,26 @@ class ReviewService:
 
     # -- plumbing --------------------------------------------------------------------------
 
-    @staticmethod
-    def _read(c: sqlite3.Connection, case_id: str) -> tuple[Case, list[ReviewEntry]]:
+    def _read(self, c: sqlite3.Connection, case_id: str) -> tuple[Case, list[ReviewEntry]]:
         row = c.execute("SELECT body FROM cases WHERE id = ?", (case_id,)).fetchone()
         if row is None:
             raise _not_found("case", id=case_id)
-        case = Case.model_validate_json(row["body"])
+        case = Case.model_validate_json(self.db.open_case_body(case_id, row["body"]))
         rows = c.execute(
-            "SELECT body FROM review_entries WHERE case_id = ? ORDER BY rowid", (case_id,)
+            "SELECT id, body FROM review_entries WHERE case_id = ? ORDER BY rowid", (case_id,)
         ).fetchall()
-        return case, [ReviewEntry.model_validate_json(r["body"]) for r in rows]
+        return case, [
+            ReviewEntry.model_validate_json(self.db.open_review_body(r["id"], r["body"]))
+            for r in rows
+        ]
 
-    @staticmethod
-    def _write_case(c: sqlite3.Connection, case: Case) -> None:
+    def _write_case(self, c: sqlite3.Connection, case: Case) -> None:
         # the same columns Database.save_case maintains, on the caller's connection
-        cols = Database._denormalised(case)
+        cols = self.db.columns(case)
         assignments = ", ".join(k + " = ?" for k in cols)
         c.execute(
             "UPDATE cases SET " + assignments + ", body = ? WHERE id = ?",
-            [*cols.values(), Database._body(case), case.id],
+            [*cols.values(), self.db._seal_case(case, Database._body(case)), case.id],
         )
 
     def _audit_rejected(
