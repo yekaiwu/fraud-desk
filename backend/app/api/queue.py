@@ -15,7 +15,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Query, Request
 
 from app.api._common import DbDep, get_clock, parse_csv
-from app.core.db import SORTS, CaseFilters
+from app.core.db import SORTS, CaseFilters, Database
 from app.core.models import Coverage, QueueItem
 from app.review import pending_counts
 
@@ -30,11 +30,16 @@ MAX_PAGE_SIZE = 100
 
 
 def build_queue_item(
-    row: sqlite3.Row, *, now: datetime, pending_second_approvals: int = 0
+    row: sqlite3.Row,
+    *,
+    now: datetime,
+    pending_second_approvals: int = 0,
+    db: Database | None = None,
 ) -> QueueItem:
     """One queue row. Scalars come from the denormalised columns; coverage and the file count come
     from the stored body. A case still ``processing`` has no score, lane, coverage or top line."""
-    body = json.loads(row["body"])
+    text = row["body"] if db is None else db.open_case_body(row["id"], row["body"])
+    body = json.loads(text)
     processing = row["status"] == "processing"
     cov = body.get("coverage")
     coverage = None
@@ -55,7 +60,11 @@ def build_queue_item(
         band=None if processing else row["band"],
         coverage=coverage,
         lane=None if processing else row["lane"],
-        top_finding=None if processing else row["top_finding"],
+        top_finding=None
+        if processing
+        else (
+            row["top_finding"] if db is None else db.open_top_finding(row["id"], row["top_finding"])
+        ),
         findings_count=row["findings_count"],
         high_count=row["high_count"],
         partial=bool(row["partial"]),
@@ -96,9 +105,9 @@ def list_cases(
     now = get_clock(request)()
     pending = pending_counts(db, rows)
     items = [
-        build_queue_item(r, now=now, pending_second_approvals=pending.get(r["id"], 0)).model_dump(
-            mode="json"
-        )
+        build_queue_item(
+            r, now=now, pending_second_approvals=pending.get(r["id"], 0), db=db
+        ).model_dump(mode="json")
         for r in rows
     ]
     return {

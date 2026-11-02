@@ -19,6 +19,16 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from app.core.crypto import (
+    Vault,
+    ctx_case,
+    ctx_case_version,
+    ctx_llm_cache,
+    ctx_review,
+    ctx_top_finding,
+    plaintext_vault,
+    vault_from_settings,
+)
 from app.core.models import (
     Case,
     ReviewEntry,
@@ -51,7 +61,8 @@ CREATE TABLE IF NOT EXISTS cases (
     high_count INTEGER NOT NULL DEFAULT 0,
     decision TEXT,
     top_finding TEXT,
-    body TEXT NOT NULL
+    body TEXT NOT NULL,
+    escalated INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_cases_status ON cases (status);
 CREATE INDEX IF NOT EXISTS idx_cases_created ON cases (created_at);
@@ -82,7 +93,8 @@ CREATE TABLE IF NOT EXISTS review_entries (
     case_id TEXT NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
     case_version INTEGER NOT NULL,
     created_at TEXT NOT NULL,
-    body TEXT NOT NULL
+    body TEXT NOT NULL,
+    status TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_review_case ON review_entries (case_id, case_version);
 
@@ -167,8 +179,18 @@ CREATE TABLE IF NOT EXISTS llm_cache (
     value TEXT NOT NULL,
     created_at TEXT NOT NULL,
     model TEXT NOT NULL,
-    purpose TEXT NOT NULL
+    purpose TEXT NOT NULL,
+    file_sha256 TEXT
 );
+
+-- Which stored files a case (any of its versions) refers to. The case body may be encrypted, so
+-- "is this file still used by another case" cannot be asked of the JSON any more; it is asked here.
+CREATE TABLE IF NOT EXISTS case_files (
+    case_id TEXT NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
+    sha256 TEXT NOT NULL,
+    PRIMARY KEY (case_id, sha256)
+);
+CREATE INDEX IF NOT EXISTS idx_case_files_sha ON case_files (sha256);
 
 CREATE TABLE IF NOT EXISTS daily_spend (
     day TEXT PRIMARY KEY,
@@ -242,8 +264,35 @@ def _like_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+# columns added after the first release: (table, column, type). ``init_schema`` adds what is missing.
+_ADDED_COLUMNS = (
+    ("cases", "escalated", "INTEGER"),
+    ("review_entries", "status", "TEXT"),
+    ("llm_cache", "file_sha256", "TEXT"),
+)
+
+# json_each over a body only when it is plain JSON (an encrypted body is not, and json_each(NULL)
+# yields no rows), so these queries keep working for legacy plaintext rows and never raise.
+_PLAIN_FILES = "json_each(CASE WHEN json_valid({t}.body) THEN {t}.body END, '$.files')"
+
+
+def _body_shas(text: str) -> set[str]:
+    try:
+        files = json.loads(text).get("files", [])
+    except (ValueError, AttributeError):
+        return set()
+    return {f["sha256"] for f in files if isinstance(f, dict) and f.get("sha256")}
+
+
 class Database:
-    def __init__(self, path: str | Path = MEMORY, *, data_dir: Path | str | None = None):
+    def __init__(
+        self,
+        path: str | Path = MEMORY,
+        *,
+        data_dir: Path | str | None = None,
+        vault: Vault | None = None,
+    ):
+        self.vault: Vault = vault if vault is not None else plaintext_vault()
         self.path = str(path)
         self._memory = self.path == MEMORY
         self._lock = threading.RLock()
@@ -272,6 +321,8 @@ class Database:
         if path != MEMORY:
             c.execute("PRAGMA journal_mode=WAL")
             c.execute("PRAGMA busy_timeout=30000")
+            # deleted and overwritten content is zeroed, not left in free pages (delete-case, purge)
+            c.execute("PRAGMA secure_delete=ON")
         return c
 
     @contextmanager
@@ -300,6 +351,77 @@ class Database:
     def init_schema(self) -> None:
         with self.conn() as c:
             c.executescript(SCHEMA)
+            for table, column, kind in _ADDED_COLUMNS:
+                have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
+                if column not in have:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_llm_cache_file ON llm_cache (file_sha256)")
+            self._backfill_plain(c)
+
+    @staticmethod
+    def _backfill_plain(c: sqlite3.Connection) -> None:
+        """Fill the plaintext helper columns of rows written before they existed (plain JSON only;
+        ``reindex`` does the same for encrypted rows)."""
+        c.execute(
+            "UPDATE cases SET escalated = (json_extract(body, '$.escalated_at') IS NOT NULL) "
+            "WHERE escalated IS NULL AND json_valid(body)"
+        )
+        c.execute(
+            "UPDATE review_entries SET status = json_extract(body, '$.status') "
+            "WHERE status IS NULL AND json_valid(body)"
+        )
+        c.execute(
+            "UPDATE llm_cache SET file_sha256 = json_extract(value, '$.file_sha256') "
+            "WHERE file_sha256 IS NULL AND json_valid(value)"
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO case_files (case_id, sha256) "
+            "SELECT cases.id, json_extract(j.value, '$.sha256') FROM cases, "
+            + _PLAIN_FILES.format(t="cases")
+            + " AS j WHERE json_extract(j.value, '$.sha256') IS NOT NULL"
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO case_files (case_id, sha256) "
+            "SELECT v.case_id, json_extract(j.value, '$.sha256') FROM case_versions v, "
+            + _PLAIN_FILES.format(t="v")
+            + " AS j WHERE json_extract(j.value, '$.sha256') IS NOT NULL"
+        )
+
+    def reindex(self) -> dict[str, int]:
+        """Rebuild the plaintext helper columns/tables from the (decrypted) rows: ``cases.escalated``,
+        ``review_entries.status``, ``llm_cache.file_sha256`` and ``case_files``. Idempotent. Used by
+        ``scripts/encrypt_data.py`` and after restoring a backup."""
+        counts = {"cases": 0, "review_entries": 0, "llm_cache": 0, "case_files": 0}
+        with self.conn() as c:
+            for r in c.execute("SELECT id, body FROM cases").fetchall():
+                body = self.open_case_body(r["id"], r["body"])
+                c.execute(
+                    "UPDATE cases SET escalated = ? WHERE id = ?",
+                    (int(json.loads(body).get("escalated_at") is not None), r["id"]),
+                )
+                counts["cases"] += 1
+                shas = _body_shas(body)
+                for v in c.execute(
+                    "SELECT version, body FROM case_versions WHERE case_id = ?", (r["id"],)
+                ).fetchall():
+                    shas |= _body_shas(self.open_version_body(r["id"], v["version"], v["body"]))
+                c.executemany(
+                    "INSERT OR IGNORE INTO case_files (case_id, sha256) VALUES (?,?)",
+                    [(r["id"], sha) for sha in sorted(shas)],
+                )
+                counts["case_files"] += len(shas)
+            for r in c.execute("SELECT id, body FROM review_entries").fetchall():
+                status = json.loads(self.open_review_body(r["id"], r["body"])).get("status")
+                c.execute("UPDATE review_entries SET status = ? WHERE id = ?", (status, r["id"]))
+                counts["review_entries"] += 1
+            for r in c.execute("SELECT key, value FROM llm_cache").fetchall():
+                value = self.vault.open_text(r["value"], ctx_llm_cache(r["key"]))
+                c.execute(
+                    "UPDATE llm_cache SET file_sha256 = ? WHERE key = ?",
+                    (json.loads(value).get("file_sha256"), r["key"]),
+                )
+                counts["llm_cache"] += 1
+        return counts
 
     @property
     def files(self) -> FileStore:
@@ -307,8 +429,47 @@ class Database:
         if self._files is None:
             if self._data_dir is None:
                 self._data_dir = Path(tempfile.mkdtemp(prefix="gldb-data-"))
-            self._files = FileStore(self._data_dir)
+            self._files = FileStore(self._data_dir, self.vault)
         return self._files
+
+    def use_vault(self, vault: Vault) -> None:
+        """Adopt ``vault`` (a no-op when it is the one in use). Called where the database meets the
+        settings (``bind_settings``), so a database built without a vault can never write plaintext
+        while the settings say encryption is on."""
+        if vault is self.vault:
+            return
+        self.vault = vault
+        if self._files is not None:
+            self._files.vault = vault
+
+    def bind_settings(self, settings: Any) -> None:
+        """Make this database follow ``settings.encrypt_at_rest`` and the configured keys."""
+        wanted = vault_from_settings(settings)
+        if wanted.enabled or wanted.has_keys or not self.vault.enabled:
+            self.use_vault(wanted)
+
+    # -- sealing helpers (the context binds a ciphertext to its record) ----------------------
+
+    def open_case_body(self, case_id: str, text: str) -> str:
+        return self.vault.open_text(text, ctx_case(case_id))
+
+    def open_version_body(self, case_id: str, version: int, text: str) -> str:
+        return self.vault.open_text(text, ctx_case_version(case_id, version))
+
+    def seal_review_body(self, row_id: str, text: str) -> str:
+        return self.vault.seal_text(text, ctx_review(row_id))
+
+    def open_review_body(self, row_id: str, text: str) -> str:
+        return self.vault.open_text(text, ctx_review(row_id))
+
+    def _seal_case(self, case: Case, text: str) -> str:
+        return self.vault.seal_text(text, ctx_case(case.id))
+
+    def _add_file_refs(self, c: sqlite3.Connection, case: Case) -> None:
+        c.executemany(
+            "INSERT OR IGNORE INTO case_files (case_id, sha256) VALUES (?,?)",
+            [(case.id, f.sha256) for f in case.files],
+        )
 
     # ----------------------------------------------------------------------------------
     # cases
@@ -317,6 +478,20 @@ class Database:
     @staticmethod
     def _body(case: Case) -> str:
         return case.model_dump_json(exclude={"review"})
+
+    def columns(self, case: Case) -> dict[str, Any]:
+        """The denormalised columns for ``case``. ``top_finding`` is the first sentence of a flag's
+        explanation, which can quote the document, so it is encrypted with the rest (it is only ever
+        shown, never searched or sorted)."""
+        cols = self._denormalised(case)
+        if cols["top_finding"] is not None:
+            cols["top_finding"] = self.vault.seal_text(
+                cols["top_finding"], ctx_top_finding(case.id)
+            )
+        return cols
+
+    def open_top_finding(self, case_id: str, text: str | None) -> str | None:
+        return None if text is None else self.vault.open_text(text, ctx_top_finding(case_id))
 
     @staticmethod
     def _denormalised(case: Case) -> dict[str, Any]:
@@ -338,15 +513,17 @@ class Database:
             "high_count": sum(1 for f in case.findings if f.severity == "high"),
             "decision": case.decision,
             "top_finding": case.top_finding,
+            "escalated": int(case.escalated_at is not None),
         }
 
     def create_case(self, case: Case) -> None:
-        cols = self._denormalised(case)
+        cols = self.columns(case)
         names = ["id", *cols, "body"]
-        values = [case.id, *cols.values(), self._body(case)]
+        values = [case.id, *cols.values(), self._seal_case(case, self._body(case))]
         marks = ",".join("?" for _ in names)
         with self.conn() as c:
             c.execute("INSERT INTO cases (" + ",".join(names) + ") VALUES (" + marks + ")", values)
+            self._add_file_refs(c, case)
 
     def save_case(self, case: Case, *, snapshot_version: bool = False, touch: bool = True) -> None:
         """Persist the case and refresh the denormalised columns.
@@ -356,21 +533,27 @@ class Database:
         """
         if touch:
             case.updated_at = utcnow()
-        cols = self._denormalised(case)
+        cols = self.columns(case)
         body = self._body(case)
         assignments = ", ".join(k + " = ?" for k in cols)
         with self.conn() as c:
             cur = c.execute(
                 "UPDATE cases SET " + assignments + ", body = ? WHERE id = ?",
-                [*cols.values(), body, case.id],
+                [*cols.values(), self._seal_case(case, body), case.id],
             )
             if cur.rowcount == 0:
                 raise CaseNotFound(case.id)
+            self._add_file_refs(c, case)
             if snapshot_version:
                 c.execute(
                     "INSERT OR REPLACE INTO case_versions (case_id, version, created_at, body) "
                     "VALUES (?,?,?,?)",
-                    (case.id, case.version, ts(utcnow()), body),
+                    (
+                        case.id,
+                        case.version,
+                        ts(utcnow()),
+                        self.vault.seal_text(body, ctx_case_version(case.id, case.version)),
+                    ),
                 )
 
     def case_exists(self, case_id: str) -> bool:
@@ -387,7 +570,7 @@ class Database:
             row = c.execute("SELECT body, version FROM cases WHERE id = ?", (case_id,)).fetchone()
             if row is None:
                 raise CaseNotFound(case_id)
-            body, current = row["body"], row["version"]
+            body, current = self.open_case_body(case_id, row["body"]), row["version"]
             if version is not None and version != current:
                 vrow = c.execute(
                     "SELECT body FROM case_versions WHERE case_id = ? AND version = ?",
@@ -395,15 +578,18 @@ class Database:
                 ).fetchone()
                 if vrow is None:
                     raise CaseNotFound(f"{case_id} v{version}")
-                body = vrow["body"]
+                body = self.open_version_body(case_id, version, vrow["body"])
             loaded_version = current if version is None else version
             reviews = c.execute(
-                "SELECT body FROM review_entries WHERE case_id = ? AND case_version = ? "
+                "SELECT id, body FROM review_entries WHERE case_id = ? AND case_version = ? "
                 "ORDER BY created_at, rowid",
                 (case_id, loaded_version),
             ).fetchall()
         case = Case.model_validate_json(body)
-        case.review = [ReviewEntry.model_validate_json(r["body"]) for r in reviews]
+        case.review = [
+            ReviewEntry.model_validate_json(self.open_review_body(r["id"], r["body"]))
+            for r in reviews
+        ]
         return case
 
     def list_versions(self, case_id: str) -> list[dict[str, Any]]:
@@ -503,19 +689,16 @@ class Database:
             row = c.execute("SELECT id FROM cases WHERE id = ?", (case_id,)).fetchone()
             if row is None:
                 raise CaseNotFound(case_id)
-            shas: set[str] = set()
+            shas: set[str] = {
+                r["sha256"]
+                for r in c.execute("SELECT sha256 FROM case_files WHERE case_id = ?", (case_id,))
+            }
+            for r in c.execute("SELECT body FROM cases WHERE id = ?", (case_id,)):
+                shas |= _body_shas(self.open_case_body(case_id, r["body"]))
             for r in c.execute(
-                "SELECT j.value AS f FROM cases, json_each(cases.body, '$.files') AS j "
-                "WHERE cases.id = ?",
-                (case_id,),
+                "SELECT version, body FROM case_versions WHERE case_id = ?", (case_id,)
             ):
-                shas.add(json.loads(r["f"])["sha256"])
-            for r in c.execute(
-                "SELECT j.value AS f FROM case_versions v, json_each(v.body, '$.files') AS j "
-                "WHERE v.case_id = ?",
-                (case_id,),
-            ):
-                shas.add(json.loads(r["f"])["sha256"])
+                shas |= _body_shas(self.open_version_body(case_id, r["version"], r["body"]))
             versions = c.execute(
                 "SELECT COUNT(*) FROM case_versions WHERE case_id = ?", (case_id,)
             ).fetchone()[0]
@@ -524,6 +707,7 @@ class Database:
             c.execute("DELETE FROM jobs WHERE case_id = ?", (case_id,))
             c.execute("DELETE FROM case_versions WHERE case_id = ?", (case_id,))
             c.execute("DELETE FROM fingerprints WHERE case_id = ?", (case_id,))
+            c.execute("DELETE FROM case_files WHERE case_id = ?", (case_id,))
             c.execute("DELETE FROM cases WHERE id = ?", (case_id,))
 
             freed: list[str] = []
@@ -531,13 +715,18 @@ class Database:
             for sha in sorted(shas):
                 still_used = (
                     c.execute(
-                        "SELECT 1 FROM cases, json_each(cases.body, '$.files') AS j "
-                        "WHERE json_extract(j.value, '$.sha256') = ? LIMIT 1",
+                        "SELECT 1 FROM case_files WHERE sha256 = ? LIMIT 1", (sha,)
+                    ).fetchone()
+                    or c.execute(
+                        "SELECT 1 FROM cases, "
+                        + _PLAIN_FILES.format(t="cases")
+                        + " AS j WHERE json_extract(j.value, '$.sha256') = ? LIMIT 1",
                         (sha,),
                     ).fetchone()
                     or c.execute(
-                        "SELECT 1 FROM case_versions v, json_each(v.body, '$.files') AS j "
-                        "WHERE json_extract(j.value, '$.sha256') = ? LIMIT 1",
+                        "SELECT 1 FROM case_versions v, "
+                        + _PLAIN_FILES.format(t="v")
+                        + " AS j WHERE json_extract(j.value, '$.sha256') = ? LIMIT 1",
                         (sha,),
                     ).fetchone()
                 )
@@ -545,8 +734,9 @@ class Database:
                     continue
                 freed.append(sha)
                 cur = c.execute(
-                    "DELETE FROM llm_cache WHERE json_extract(value, '$.file_sha256') = ?",
-                    (sha,),
+                    "DELETE FROM llm_cache WHERE file_sha256 = ? OR "
+                    "(CASE WHEN json_valid(value) THEN json_extract(value, '$.file_sha256') END) = ?",
+                    (sha, sha),
                 )
                 cache_removed += cur.rowcount
         for sha in freed:
@@ -561,6 +751,25 @@ class Database:
     # ----------------------------------------------------------------------------------
     # jobs
     # ----------------------------------------------------------------------------------
+
+    def _job_from_row(self, r: sqlite3.Row) -> JobRecord:
+        error = r["error"]
+        return JobRecord(
+            id=r["id"],
+            case_id=r["case_id"],
+            kind=r["kind"],
+            state=r["state"],
+            created_at=datetime.fromisoformat(r["created_at"]),
+            started_at=datetime.fromisoformat(r["started_at"]) if r["started_at"] else None,
+            finished_at=datetime.fromisoformat(r["finished_at"]) if r["finished_at"] else None,
+            error=None if error is None else self.vault.open_text(error, f"job:{r['id']}:error"),
+            stages=[
+                StageRecord.model_validate(s)
+                for s in json.loads(
+                    self.vault.open_text(r["stages"] or "[]", f"job:{r['id']}:stages")
+                )
+            ],
+        )
 
     def create_job(self, case_id: str, kind: Literal["analyse", "rerun"] = "analyse") -> JobRecord:
         job = JobRecord(id=new_job_id(), case_id=case_id, kind=kind, created_at=utcnow())
@@ -594,10 +803,14 @@ class Database:
             params.append(ts(finished_at))
         if error is not None:
             sets.append("error = ?")
-            params.append(error)
+            params.append(self.vault.seal_text(error, f"job:{job_id}:error"))
         if stages is not None:
             sets.append("stages = ?")
-            params.append(json.dumps([s.model_dump(mode="json") for s in stages]))
+            params.append(
+                self.vault.seal_text(
+                    json.dumps([s.model_dump(mode="json") for s in stages]), f"job:{job_id}:stages"
+                )
+            )
         if not sets:
             return
         with self.conn() as c:
@@ -606,7 +819,7 @@ class Database:
     def get_job(self, job_id: str) -> JobRecord | None:
         with self.conn() as c:
             r = c.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
-        return None if r is None else _job_from_row(r)
+        return None if r is None else self._job_from_row(r)
 
     def latest_job(self, case_id: str) -> JobRecord | None:
         with self.conn() as c:
@@ -614,7 +827,7 @@ class Database:
                 "SELECT * FROM jobs WHERE case_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
                 (case_id,),
             ).fetchone()
-        return None if r is None else _job_from_row(r)
+        return None if r is None else self._job_from_row(r)
 
     def recover_interrupted_jobs(self) -> list[str]:
         """Jobs left ``queued``/``running`` at startup become ``failed("interrupted")`` and their
@@ -756,18 +969,4 @@ def _override_from_row(r: sqlite3.Row) -> RuleOverride:
         updated_at=r["updated_at"],
         reason=r["reason"],
         revision=r["revision"],
-    )
-
-
-def _job_from_row(r: sqlite3.Row) -> JobRecord:
-    return JobRecord(
-        id=r["id"],
-        case_id=r["case_id"],
-        kind=r["kind"],
-        state=r["state"],
-        created_at=datetime.fromisoformat(r["created_at"]),
-        started_at=datetime.fromisoformat(r["started_at"]) if r["started_at"] else None,
-        finished_at=datetime.fromisoformat(r["finished_at"]) if r["finished_at"] else None,
-        error=r["error"],
-        stages=[StageRecord.model_validate(s) for s in json.loads(r["stages"] or "[]")],
     )

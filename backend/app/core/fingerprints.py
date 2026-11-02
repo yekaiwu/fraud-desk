@@ -92,6 +92,11 @@ def invoice_key_fingerprint(supplier_uen: str, invoice_number: str) -> str:
     return hashlib.sha256(pre.encode("utf-8")).hexdigest()
 
 
+def ctx_fingerprint(kind: str, fingerprint: str, case_id: str, document_id: str | None) -> str:
+    """AAD context of one ``fingerprints.meta`` value (the row's natural key)."""
+    return f"fingerprint:{kind}:{fingerprint}:{case_id}:{document_id or ''}"
+
+
 class SqliteFingerprintStore:
     """Fingerprints in the ``fingerprints`` table of the case database."""
 
@@ -119,10 +124,16 @@ class SqliteFingerprintStore:
                 case_id=r["case_id"],
                 document_id=r["document_id"],
                 created_at=datetime.fromisoformat(r["created_at"]),
-                meta=json.loads(r["meta"]) if r["meta"] else {},
+                meta=self._open_meta(r),
             )
             for r in rows
         ]
+
+    def _open_meta(self, r: Any) -> dict[str, Any]:
+        if not r["meta"]:
+            return {}
+        ctx = ctx_fingerprint(r["kind"], r["fingerprint"], r["case_id"], r["document_id"])
+        return json.loads(self._db.vault.open_text(r["meta"], ctx))
 
     def record(
         self,
@@ -133,7 +144,9 @@ class SqliteFingerprintStore:
         document_id: str | None,
         meta: dict | None = None,
     ) -> None:
-        """Idempotent: the same (kind, fingerprint, case, document) is stored once."""
+        """Idempotent: the same (kind, fingerprint, case, document) is stored once. The meta (it
+        can hold the applicant's UEN) is encrypted with the rest of the case data when that is on;
+        the fingerprint itself is a hash and stays searchable."""
         from app.core.db import ts
 
         with self._db.conn() as c:
@@ -146,9 +159,19 @@ class SqliteFingerprintStore:
                     case_id,
                     document_id,
                     ts(utcnow()),
-                    json.dumps(meta or {}, sort_keys=True),
+                    self._seal_meta(kind, fingerprint, case_id, document_id, meta),
                 ),
             )
+
+    def _seal_meta(
+        self, kind: str, fingerprint: str, case_id: str, document_id: str | None, meta: dict | None
+    ) -> str:
+        text = json.dumps(meta or {}, sort_keys=True)
+        if not meta:
+            return text  # "{}" carries nothing to protect
+        return self._db.vault.seal_text(
+            text, ctx_fingerprint(kind, fingerprint, case_id, document_id)
+        )
 
     def forget_case(self, case_id: str) -> int:
         """Remove every fingerprint a case recorded (a rerun re-records them)."""

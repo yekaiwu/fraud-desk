@@ -53,6 +53,7 @@ def analyse_files(
     reference: str | None = None,
 ) -> Case:
     """Store ``paths`` as a new case (same path as ``POST /cases``), run every stage, return it."""
+    db.bind_settings(settings)
     case = new_case(
         settings,
         use_case,

@@ -428,10 +428,9 @@ def _page_has_ink(ctx: CaseContext, file: FileRef, page: int) -> bool:
     try:
         import pymupdf
 
-        path = ctx.file_path(file.id)
-        if not path.exists():
+        if not ctx.file_path(file.id).exists():
             return False
-        doc = pymupdf.open(path)
+        doc = pymupdf.open(stream=ctx.file_bytes(file.id), filetype="pdf")
         try:
             pix = doc.load_page(page - 1).get_pixmap(
                 dpi=BLANK_DPI, colorspace=pymupdf.csGRAY, alpha=False

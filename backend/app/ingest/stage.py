@@ -62,7 +62,7 @@ def _error_page(page: int, size: tuple[float, float], error: str) -> PageInfo:
 def _read_verified(ctx: CaseContext, file: FileRef) -> bytes:
     """Bytes of the stored file after hash and magic-byte re-verification."""
     try:
-        data = ctx.file_path(file.id).read_bytes()
+        data = ctx.file_bytes(file.id)
     except (OSError, ValueError) as exc:
         raise FileProblem("hash_mismatch", "stored file is missing or unreadable") from exc
     if hashlib.sha256(data).hexdigest() != file.sha256:

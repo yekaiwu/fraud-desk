@@ -1,7 +1,7 @@
 """Image forensics (docs/forensics.md sections 3, 4.2, 4.5 to 4.7; plan 4.5).
 
 Hint generator, not a verdict: a check that finds nothing means "no signal found", never
-"authentic". Everything here reads the raw file (``ctx.file_path``), ``FileRef.pdf_meta`` and the
+"authentic". Everything here reads the raw file (``ctx.file_bytes``, decrypted when encryption at rest is on), ``FileRef.pdf_meta`` and the
 document list; it never reads extracted cell values, never writes, never calls a model and never
 uses the wall clock ("today" is ``ctx.today``).
 
@@ -35,7 +35,6 @@ import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
-from pathlib import Path
 from typing import NamedTuple
 
 import cv2
@@ -47,6 +46,7 @@ from PIL import Image, ImageOps
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
 from app.core.models import Document, FileRef, Flag, Region, Severity
+from app.core.storage import FileSource
 from app.core.textnorm import normalise_uen
 
 # --------------------------------------------------------------------------------------
@@ -319,7 +319,7 @@ def _docs_for_page(ctx: CaseContext, file_id: str, page: int) -> list[Document]:
 
 
 def _read_bytes(ctx: CaseContext, file_id: str) -> bytes:
-    return Path(ctx.file_path(file_id)).read_bytes()
+    return ctx.file_bytes(file_id)
 
 
 def _notice(
@@ -427,10 +427,10 @@ class _ImageMeta:
 
 
 @functools.lru_cache(maxsize=64)
-def _image_meta(sha256: str, path: str) -> _ImageMeta | None:
+def _image_meta(sha256: str, src: FileSource) -> _ImageMeta | None:
     """Metadata of one JPEG/PNG; ``None`` when the image cannot be opened."""
     try:
-        data = Path(path).read_bytes()
+        data = src.read()
         im = Image.open(io.BytesIO(data))
     except Exception:  # noqa: BLE001 - unreadable image: the caller reports it
         return None
@@ -475,10 +475,10 @@ def _image_meta(sha256: str, path: str) -> _ImageMeta | None:
 
 def _meta_for(ctx: CaseContext, f: FileRef) -> _ImageMeta | None:
     try:
-        path = ctx.file_path(f.id)
+        src = ctx.file_source(f.id)
     except Exception:  # noqa: BLE001
         return None
-    return _image_meta(f.sha256, str(path))
+    return _image_meta(f.sha256, src)
 
 
 def _first_pattern(
@@ -1162,7 +1162,7 @@ class _Source(NamedTuple):
     mapping: _Mapping
 
 
-def _open_upload(path: str) -> tuple[np.ndarray, bool] | None | str:
+def _open_upload(path: str | io.BytesIO) -> tuple[np.ndarray, bool] | None | str:
     """(rgb, is_jpeg) of an upload, EXIF-oriented; ``"large"`` when above MAX_DECODE_PIXELS;
     ``None`` when unreadable."""
     try:
@@ -1261,7 +1261,7 @@ def _analyse_raster(
 @functools.lru_cache(maxsize=32)
 def _raster_candidates(
     sha256: str,
-    path: str,
+    src: FileSource,
     file_id: str,
     mime: str,
     pages: tuple[int, ...],
@@ -1277,13 +1277,13 @@ def _raster_candidates(
     big_sources = 0
     if mime in ("image/jpeg", "image/png"):
         try:
-            with Image.open(path) as im:
+            with Image.open(io.BytesIO(src.read())) as im:
                 short = min(im.size)
         except Exception:  # noqa: BLE001
             return _RasterResult(status="failed")
         if short < MIN_SHORT_SIDE:
             return _RasterResult(status="none")
-        opened = _open_upload(path)
+        opened = _open_upload(io.BytesIO(src.read()))
         if opened is None:
             return _RasterResult(status="failed")
         if opened == "large":
@@ -1308,7 +1308,7 @@ def _raster_candidates(
             cands=tuple(_finish(cands)),
         )
     try:
-        doc = pymupdf.open(path)
+        doc = pymupdf.open(stream=src.read(), filetype="pdf")
     except Exception:  # noqa: BLE001
         return _RasterResult(status="failed")
     with doc:
@@ -1376,12 +1376,12 @@ def _raster_outcomes(ctx: CaseContext) -> list[_FileOutcome]:
         else:
             pages, scan_pages = (1,), frozenset()
         try:
-            path = str(ctx.file_path(f.id))
+            src = ctx.file_source(f.id)
         except Exception:  # noqa: BLE001
             outcomes.append(_FileOutcome(f, _RasterResult(status="failed")))
             continue
         result = _raster_candidates(
-            f.sha256, path, f.id, f.mime, pages, scan_pages, MAX_RASTER_PAGES
+            f.sha256, src, f.id, f.mime, pages, scan_pages, MAX_RASTER_PAGES
         )
         if result.status != "none":
             outcomes.append(_FileOutcome(f, result))
@@ -1547,10 +1547,12 @@ def _load_embedded(doc: pymupdf.Document, xref: int) -> Image.Image | None:
 
 
 @functools.lru_cache(maxsize=32)
-def _pdf_page_crops(path: str, sha256: str, pages: tuple[int, ...]) -> tuple[_PageCrop, ...] | None:
+def _pdf_page_crops(
+    src: FileSource, sha256: str, pages: tuple[int, ...]
+) -> tuple[_PageCrop, ...] | None:
     """Candidate crops on ``pages`` (1-based) of one PDF; ``None`` when it cannot be opened."""
     try:
-        doc = pymupdf.open(path)
+        doc = pymupdf.open(stream=src.read(), filetype="pdf")
     except Exception:  # noqa: BLE001
         return None
     out: list[_PageCrop] = []
@@ -1631,11 +1633,11 @@ def _collect_crops(ctx: CaseContext) -> tuple[list[_Crop], list[str], list[str]]
         if not pages:
             continue
         try:
-            path = str(ctx.file_path(f.id))
+            src = ctx.file_source(f.id)
         except Exception:  # noqa: BLE001
             failed.append(f.id)
             continue
-        found = _pdf_page_crops(path, f.sha256, pages)
+        found = _pdf_page_crops(src, f.sha256, pages)
         if found is None:
             failed.append(f.id)
             continue
