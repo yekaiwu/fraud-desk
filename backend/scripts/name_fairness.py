@@ -2,6 +2,8 @@
 
     uv run python backend/scripts/name_fairness.py --out /tmp/nf
     uv run python -I backend/scripts/name_fairness.py --wikidata /path/to/wikidata_alias_pairs.csv
+    uv run python -I backend/scripts/name_fairness.py --wikidata CSV --write-fixture \
+        backend/tests/data/name_fairness_fixture.json
 
 The 270-pair pipeline slice stays in ``eval.py --suite fairness``. Fictitious names; results are an
 upper bound. See ``scripts/_eval/name_fairness.py`` for the design.
@@ -32,7 +34,21 @@ def main(argv: list[str] | None = None) -> int:
         "then runs it; without it 'old' emulates only the missed-slip bug",
     )
     ap.add_argument("--out", type=Path, help="directory for name_fairness.json and .md")
+    ap.add_argument(
+        "--write-fixture",
+        type=Path,
+        help="write the small regression fixture (needs --wikidata) and exit; commit it to "
+        "backend/tests/data/name_fairness_fixture.json",
+    )
     args = ap.parse_args(argv)
+    if args.write_fixture:
+        if not args.wikidata:
+            ap.error("--write-fixture needs --wikidata")
+        from scripts._eval import name_fairness_fixture as fx
+
+        fx.write_fixture(args.wikidata, args.write_fixture)
+        print(json.dumps(fx.measure(json.loads(args.write_fixture.read_text())), indent=1))
+        return 0
     if args.legacy_names:
         nf.MATCHERS["old"] = nf.load_legacy(args.legacy_names)
     synthetic = nf.run_synthetic(seed=args.seed)
