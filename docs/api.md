@@ -72,9 +72,15 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/me` | the signed-in account the proxy vouched for, or null | 5.9 |
 | GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption | 5.23 |
 | GET | `/monitoring/incidents` | the AI incident log, newest first | 5.23 |
-| POST | `/monitoring/incidents` | report (or resolve) an AI incident | 5.23 |
+| POST | `/monitoring/incidents` | report (or resolve) an AI incident; severity medium or high is also announced through the alert sinks | 5.23 |
+| POST | `/monitoring/incidents/{id}/acknowledge` | note that someone has seen an open incident, optionally assigning it; open / resolved is unchanged | 5.23 |
+| GET | `/monitoring/alerts` | alert state (open, acknowledged, resolved), recent deliveries per sink, last test alert, scheduler | 5.23 |
+| POST | `/monitoring/alerts/test` | send a labelled test alert through every configured sink and record the per-sink result | 5.23(c) |
+| POST | `/monitoring/alerts/{key}/acknowledge` | acknowledge an open alert (account or name, and a reason; audited) | 5.23(c) |
+| GET | `/monitoring/readiness` | the 5.23 (a) to (c) checklist: named owner, approved thresholds, alerts that reach a watched place | 5.23 |
+| POST | `/monitoring/thresholds/approve` | record, in the audit log, that the bank approved the current threshold values (approver, role, note) | 5.23(b) |
 
-Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring and the incident log; `/me` is in `health.py`).
+Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`).
 
 ## 3. Create case: `POST /cases`
 
@@ -266,6 +272,22 @@ The two writes are rate limited with the same limiter as review POSTs (`GLDB_RAT
 - **Hard stops never loosen.** `Finding.hard_stop` is computed from the original (code) severity and the rule id as well as the effective severity: lowering a check's severity reduces its points but cannot let a case into the fast lane that the defaults would have blocked.
 - **Switched off** (reason code `switched_off`). The check is not executed. Its `CheckRun` is `status: "skipped"` with `code: "switched_off"` and `reason: "Switched off in the check catalogue by <reviewer> on <YYYY-MM-DD>: <reason>"`. It stays applicable, so `coverage.ratio` drops and the check appears in `coverage.skipped` as `{"rule", "status": "skipped", "reason", "code": "switched_off"}` (the `code` key exists only for this reason). The UI groups skipped checks by `code` when present. If the switched-off check is one of the hard-stop rules the fast lane is not offered.
 - **Provenance.** When at least one override exists at analysis time, `provenance.catalogue = {"overrides": [{"rule", "enabled", "severity", "revision"}...sorted by rule], "hash": sha256}` records which custom settings the case was analysed under. Without overrides the key is absent and every existing hash is unchanged. `ruleset_version` is about code identity and does not change.
+
+## 9b. Monitoring, alerts and readiness: `/monitoring`
+
+Design and operator guide: [ai-incidents.md](ai-incidents.md). These routes are about the monitor, never about a case or an applicant. `POST /monitoring/thresholds/approve` is the one route with "approve" in its path; it records a person's decision about the monitoring thresholds and decides nothing about a case.
+
+`GET /monitoring` keeps its earlier keys (`alerts`, `alerting`, `spend`, `owner_named`, `disk_encryption`, ...) and adds: `scheduler` (`"off"`, `"in_process"` or `"external"`), `scheduler_note`, `interval_minutes`, `last_evaluated_at`, `last_evaluated_by` (`scheduler` or `cli`), `monitor_stale` (true when a schedule is on and nothing has evaluated for more than two intervals), `alert_sinks` (names only), `open_alerts` (keys) and `readiness` (`ready` plus the status of each item).
+
+`GET /monitoring/alerts` returns `{"alerts": [{"key", "status": "open"|"acknowledged"|"resolved", "first_seen", "last_seen", "last_notified", "notify_count", "notified", "value", "threshold", "meaning", "action", "acknowledged_by", "acknowledged_at", "note", "resolved_at"}], "deliveries": [{"ts", "sink", "kind", "alert_key", "ok", "attempts", "error"}], "sinks": [...], "last_test": {"at", "by", "results", "delivered_to"} | null, ...scheduler fields}`. `error` is an exception class or `HTTP_<status>`, never a message or a URL. Keys are the metric names plus `monitor_stale`.
+
+`POST /monitoring/alerts/{key}/acknowledge` body `{"reason": "...", "reviewer": "name"}`. The signed-in account replaces a typed `reviewer`; with `GLDB_PERSONAL_ACCOUNTS=true` a request without an account is `403 account_required`. `reason` follows the review rules (`422 reason_required`). `404 not_found` for an unknown key, `409 alert_not_open` when the alert is already acknowledged or resolved. Writes `monitoring.alert_acknowledged` to the audit log.
+
+`POST /monitoring/alerts/test` sends a test alert and returns `{"sent_at", "sinks_configured", "results": [{"sink", "ok", "attempts", "error", "at"}], "delivered", "message"}`. At most one every 30 seconds (`429 rate_limited`).
+
+`GET /monitoring/readiness` returns `{"as_of", "ready", "statement", "items": [{"id": "5.23(a)"|"5.23(b)"|"5.23(c)", "name", "status": "met"|"not_met", "detail", "missing": [...]}]}`; `ready` is true only when all three are met. `POST /monitoring/thresholds/approve` body `{"approver", "role", "note"}` (2-80, 2-80, 5-500 characters) returns `201` with the stored hash; the approval counts only while the thresholds hash to the same value.
+
+`POST /monitoring/incidents/{id}/acknowledge` body `{"note", "assigned_to"?, "reviewer"?}` returns `201`; `404` unless the incident is an open report. `GET /monitoring/incidents` then shows `acknowledged_by`, `acknowledged_at`, `ack_note` and `assigned_to`; `status` stays `open` until a report names it in `resolves`.
 
 ## 10. Delete and retention
 

@@ -77,7 +77,7 @@ Published 7 Oct 2026, effective 7 Oct 2027. Areas 1 and 2 apply by 7 Oct 2027, a
 
 | Expectation (headline) | What the project provides | Artefact | Gap |
 |---|---|---|---|
-| Data, development, validation, deployment, monitoring, change, retirement `[confirm]` | Data: fictitious generator. Development: `docs/` specs and tests. Validation: eval and the validation report. Deployment: CI. Monitoring: rule effectiveness page. Change: ruleset version in provenance. Retirement: delete-case and retention | `backend/scripts/make_bundle.py`, `.github/workflows/ci.yml`, `backend/app/effectiveness.py`, `backend/app/core/provenance.py::build_provenance`, `backend/app/retention.py` | No production monitoring beyond the effectiveness page; eval not yet run (NOT BUILT: backend/scripts/eval.py) |
+| Data, development, validation, deployment, monitoring, change, retirement `[confirm]` | Data: fictitious generator. Development: `docs/` specs and tests. Validation: eval and the validation report. Deployment: CI. Monitoring: `GET /monitoring` against thresholds with alert delivery, acknowledgement, a silence check and a 5.23 readiness checklist; rule effectiveness page. Change: ruleset version in provenance. Retirement: delete-case and retention | `backend/scripts/make_bundle.py`, `.github/workflows/ci.yml`, `backend/app/effectiveness.py`, `backend/app/core/provenance.py::build_provenance`, `backend/app/retention.py` | The accountable person, the approval of the thresholds and a watched place for alerts are the bank's decisions (readiness shows what is missing); no real data monitored; eval not yet run (NOT BUILT: backend/scripts/eval.py) |
 
 ### Area 4: AI capability and capacity
 
