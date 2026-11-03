@@ -55,6 +55,10 @@ class CaseContext:
     # semantic features that hand a result from one stage to a later one (feature name -> state);
     # per run, never stored with the case, empty while the feature is off
     semantic_state: dict[str, Any] = field(default_factory=dict)
+    # answers of the external verification sources (app/sources), asked once before the rules run:
+    # key such as "gleif" or "onemap:819829" -> SourceOutcome. Per run, never stored with the case;
+    # empty while every source is off. Checks only read it: they never open a connection.
+    sources: dict[str, Any] = field(default_factory=dict)
 
     @property
     def use_case(self) -> UseCase:

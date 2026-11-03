@@ -176,7 +176,9 @@ class RunRec:
         return [f for f in self.flags if f.severity in ("medium", "high")]
 
 
-def analyse(bundle: Bundle, workroot: Path, tag: str) -> RunRec:
+def analyse(bundle: Bundle, workroot: Path, tag: str, **settings_kw: object) -> RunRec:
+    """Run ``bundle`` through the pipeline; ``settings_kw`` are extra ``Settings`` fields (tests of opt-in
+    features)."""
     from app.core.config import Settings
     from app.core.db import Database
     from app.core.registry import load_registry
@@ -196,6 +198,7 @@ def analyse(bundle: Bundle, workroot: Path, tag: str) -> RunRec:
         db_path=str(d / "data" / "gldb.sqlite3"),
         llm_backend="fake",
         semantic="off",
+        **settings_kw,  # type: ignore[arg-type]
     )
     db = Database(settings.database_path, data_dir=settings.data_dir)
     db.init_schema()

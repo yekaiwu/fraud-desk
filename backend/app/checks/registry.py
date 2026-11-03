@@ -48,9 +48,12 @@ SWITCHED_OFF = "switched_off"  # CheckRun.code of a check switched off in the ch
 class CheckSkipped(Exception):  # noqa: N818
     """Raised inside a check that cannot evaluate (missing field, currency mismatch ...)."""
 
-    def __init__(self, reason: str):
+    def __init__(self, reason: str, code: str | None = None):
         super().__init__(reason)
         self.reason = reason
+        # machine-readable: "not_configured" or "private_mode" keep the skip out of coverage
+        # (app/semantic/policy.py NOT_ASKED_CODES); anything else is an ordinary skip
+        self.code = code
 
 
 class CheckMeta(Strict):
@@ -280,6 +283,7 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
                     stage=stage,
                     status="skipped",
                     reason=skip.reason[:300],
+                    code=skip.code,
                     seconds=time.perf_counter() - started,
                 )
             )

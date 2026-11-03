@@ -453,8 +453,10 @@ class CheckRun(Strict):
     stage: FlagStage
     status: Literal["ran", "skipped", "error"]
     reason: str | None = None
-    # Machine-readable skip reason; today only "switched_off" (the check was switched off in the
-    # check catalogue). Left out of the JSON when None.
+    # Machine-readable skip reason: "switched_off" (the check was switched off in the check
+    # catalogue), "not_configured" (an external source that has no switch, token, key or snapshot)
+    # or "private_mode" (blocked by GLDB_PRIVATE_MODE); the last two stay outside the coverage
+    # ratio. Left out of the JSON when None.
     code: str | None = Field(default=None, exclude_if=lambda v: v is None)
     flags: int = 0
     seconds: float = 0.0

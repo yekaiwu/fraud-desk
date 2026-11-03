@@ -120,6 +120,11 @@ ADDED_RULES: dict[str, str] = {
     "file_reuse": "0.4 duplicate detection (file hash), added at R0",
     "x_entity_vs_registry": "2026-11 live company register (docs/checks-kyc-aml.md 4.5a)",
     "pdf_signature_invalid": "2026-11 signature integrity with pyHanko (docs/forensics.md 4.9)",
+    "x_sanctions_screen": "2026-11 sanctions and watchlist screening, official lists (docs/verification-sources.md 2)",
+    "x_entity_vs_gleif": "2026-11 GLEIF legal-entity record (docs/verification-sources.md 3)",
+    "x_address_vs_registry": "2026-11 OneMap postal code and address (docs/verification-sources.md 4)",
+    "inv_gst_registered": "2026-11 IRAS GST register, unconfirmed access (docs/verification-sources.md 5)",
+    "inv_bank_details_valid": "2026-11 offline IBAN and BIC/SWIFT form (docs/verification-sources.md 6)",
     **{
         r: "2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts)"
         for r in (

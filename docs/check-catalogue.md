@@ -2,7 +2,7 @@
 # Check catalogue
 Our reading as students, not legal advice. Decision support only; a human decides. All data is fictitious.
 
-Ruleset version: `rs-702ff80757e5` | Checks registered: 63 | Planned in the plan but not registered: 0
+Ruleset version: `rs-f171172bff37` | Checks registered: 68 | Planned in the plan but not registered: 0
 
 ## How to read this
 
@@ -55,9 +55,11 @@ Ruleset version: `rs-702ff80757e5` | Checks registered: 63 | Planned in the plan
 | `fs_subtotals` | high | financial_statement | - | aml, loan | Each printed subtotal on the income statement, balance sheet and cash flow equals the sum of its lines. | An edited line or an edited subtotal that was not rebuilt. | 1 |
 | `id_checksum` | high | national_id | - | aml, kyc, loan | Check letter matches the 7 digits | modified IDs | 1 |
 | `id_format` | high | national_id | - | aml, kyc, loan | NRIC/FIN has the form S/T/F/G/M + 7 digits + letter | modified IDs | 1 |
+| `inv_bank_details_valid` | low | bank_statement, invoice | - | - | IBAN check digits and country length, and BIC/SWIFT form, on the bank details printed | account number or IBAN altered on the page | 1 |
 | `inv_dates` | medium | invoice | - | aml, loan | The invoice is not dated in the future, and its due and paid dates are not before the invoice date. | A back-dated or forward-dated invoice. | 1 |
 | `inv_duplicate` | high | invoice | - | aml, loan | The same invoice (supplier, number, date and total) is not submitted twice in this case or in an earlier case. | The same invoice submitted twice, or an invoice number reused with an edited total. | 1 |
 | `inv_gst` | high | invoice | - | aml, loan | The GST amount equals the GST rate applied to the subtotal, summed per line, or as printed per line. | An edited GST amount or total. | 1 |
+| `inv_gst_registered` | medium | invoice | - | - | The supplier that charges GST is on the IRAS GST register | invented GST registration number on an invoice | 1 |
 | `inv_ids` | high | invoice | - | aml, loan | The supplier and buyer UENs validate, the GST number has a recognised format, and GST charged comes with a GST number. | An invented supplier with a made-up UEN or GST registration number. | 1 |
 | `inv_lines` | high | invoice | - | aml, loan | Each invoice line's amount equals quantity times unit price and the lines add up to the subtotal. | An edited invoice line amount, quantity or unit price. | 1 |
 | `inv_parties` | medium | invoice | - | aml, loan | Seller and buyer are different companies and the applicant is one of the invoice parties or the buyer is a named counterparty. | Round-tripping between related companies, or an invoice between two unrelated companies. | 1 |
@@ -77,16 +79,19 @@ Ruleset version: `rs-702ff80757e5` | Checks registered: 63 | Planned in the plan
 | Rule | Default severity | Applies to | Requires | Use cases | What it checks | Tamper caught | Version |
 |---|---|---|---|---|---|---|---|
 | `file_reuse` | medium | any file | - | aml, kyc, loan | The same file is not submitted twice in this case or in another case. | The same statement, invoice or ID file reused across applicants. | 1 |
+| `x_address_vs_registry` | medium | company_profile | - | - | Printed Singapore postal code and address exist (OneMap) and match the registered address | registered address replaced by a different or invented one | 1 |
 | `x_cash_at_year_end` | medium | financial_statement | bank_statement | aml, loan | Cash on the balance sheet matches the bank balance on the financial year-end date within 5%. | Inflated cash on the balance sheet. | 1 |
 | `x_declared_vs_activity` | medium | company_profile | bank_statement, company_profile | kyc | Declared business against counterparty activity | declares logistics, statements show crypto | 1 |
 | `x_directors` | high | company_profile | company_profile | kyc | Directors match the registry and the ID documents | director not found in registry | 1 |
 | `x_entity` | high | bank_statement, certificate_of_incorporation, company_profile, contract, financial_statement, invoice, ownership_chart, purchase_order, shareholder_register, source_of_funds_declaration | - | aml, kyc, loan | Company names and UENs agree across the bundle and with the applicant. | Documents of different companies spliced into one bundle, or the applicant's UEN under another name. | 1 |
+| `x_entity_vs_gleif` | medium | certificate_of_incorporation, company_profile | - | - | Company name, status and address match the GLEIF legal-entity record when one exists | company name edited against the GLEIF record | 1 |
 | `x_entity_vs_registry` | high | certificate_of_incorporation, company_profile | - | kyc | Company name, status and incorporation date match the live company register | company name or incorporation date edited against the register | 1 |
 | `x_invoice_vs_contract` | medium | contract, purchase_order | invoice | aml, loan | Invoices agree with the contract or purchase order they cite on parties, amount and dates. | Forged or altered contract or purchase order values, or invoices that bill more than the contract. | 1 |
 | `x_invoice_vs_receipts` | medium | invoice | bank_statement | aml, loan | Every invoice marked paid has a matching deposit in the bank statements inside its payment window. | Fake or unpaid invoices presented as paid. | 1 |
 | `x_ownership_vs_registry` | high | company_profile, ownership_chart, shareholder_register | - | kyc | Chart and register match the registry | ownership chart omits a shareholder | 1 |
 | `x_remitter_vs_buyer` | high | invoice | bank_statement, invoice | aml, loan | The payer of an invoice is its customer | invoice customer differs from remitter | 1 |
 | `x_revenue_vs_credits` | medium | financial_statement | bank_statement | aml, loan | Reported revenue, prorated to the days the statements cover, is supported by trade deposits in the bank statements. | Inflated revenue on the financial statements. | 1 |
+| `x_sanctions_screen` | high | any file | - | aml, kyc, loan | Applicant, directors, owners and named counterparties against the official sanctions lists | - | 1 |
 | `x_sof_support` | high | source_of_funds_declaration | bank_statement, source_of_funds_declaration | aml | Declared source-of-funds amount is supported by credits | false source-of-funds evidence | 1 |
 
 ## Planned but not registered (gap, plan 0.6)
@@ -100,6 +105,8 @@ None
 | `pdf_signature_invalid` | forensics | 2026-11 signature integrity with pyHanko (docs/forensics.md 4.9) |
 | `doc_unclassified` | rules | built-in info check, emitted from pipeline warnings (plan 5.3) |
 | `doc_unreadable` | rules | built-in info check, emitted from pipeline warnings (plan 8.5) |
+| `inv_bank_details_valid` | rules | 2026-11 offline IBAN and BIC/SWIFT form (docs/verification-sources.md 6) |
+| `inv_gst_registered` | rules | 2026-11 IRAS GST register, unconfirmed access (docs/verification-sources.md 5) |
 | `rcpt_dates` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
 | `rcpt_duplicate` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
 | `rcpt_lines` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
@@ -107,4 +114,7 @@ None
 | `rcpt_tax` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
 | `rcpt_total` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
 | `file_reuse` | crossdoc | 0.4 duplicate detection (file hash), added at R0 |
+| `x_address_vs_registry` | crossdoc | 2026-11 OneMap postal code and address (docs/verification-sources.md 4) |
+| `x_entity_vs_gleif` | crossdoc | 2026-11 GLEIF legal-entity record (docs/verification-sources.md 3) |
 | `x_entity_vs_registry` | crossdoc | 2026-11 live company register (docs/checks-kyc-aml.md 4.5a) |
+| `x_sanctions_screen` | crossdoc | 2026-11 sanctions and watchlist screening, official lists (docs/verification-sources.md 2) |

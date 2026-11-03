@@ -41,9 +41,11 @@ from app.core.models import (
     StageRecord,
     utcnow,
 )
+from app.core.outbound import outbound_blocked
 from app.core.provenance import build_provenance
 from app.core.registry import MockRegistry, load_registry
 from app.core.textnorm import company_key, normalise_uen
+from app.sources.common import SourceOutcome
 
 log = logging.getLogger("gldb.pipeline")
 
@@ -302,9 +304,11 @@ def attach_live_entity(ctx: CaseContext) -> None:
     uen = ctx.case.applicant.uen
     if not ctx.settings.registry_live or not uen:
         return
-    from app.core.privacy import outbound_lookups_enabled
-
-    if not outbound_lookups_enabled(ctx.settings):  # private mode: no outbound lookup, ever
+    blocked = outbound_blocked(ctx.settings)
+    if (
+        blocked
+    ):  # private mode: the register is not asked, and the check says why (outside coverage)
+        ctx.sources["acra"] = SourceOutcome("blocked", blocked)
         return
     from app.registry_live import AcraLookup, RegistryUnavailable, with_live_entity
 
@@ -324,6 +328,15 @@ def attach_live_entity(ctx: CaseContext) -> None:
         log.warning("live registry unavailable for %s: %s", ctx.case.id, exc)
         ctx.registry = None
         _add_reason(ctx.case, "registry_unavailable: the company register could not be asked")
+
+
+def attach_verification_sources(ctx: CaseContext) -> None:
+    """Ask the opt-in verification sources (sanctions snapshot, GLEIF, OneMap, IRAS) once for this
+    case; a source that cannot be reached marks the case partial and never raises a flag."""
+    from app.sources.runner import attach_sources
+
+    for reason in attach_sources(ctx):
+        _add_reason(ctx.case, reason)
 
 
 def _add_reason(case: Case, reason: str) -> None:
@@ -386,6 +399,7 @@ def run_pipeline(
             if stage == "forensics":
                 case.applicant = resolve_applicant(ctx)
                 attach_live_entity(ctx)
+                attach_verification_sources(ctx)
             _run_one_stage(ctx, stage, db, on_stage)
         case.provenance = build_provenance(ctx)
         try:

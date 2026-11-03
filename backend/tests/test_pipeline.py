@@ -196,7 +196,9 @@ def test_walking_skeleton_flags_an_edited_balance_and_scores_it(env, monkeypatch
     assert out.score is not None and out.score.value == 30 and out.score.band == "medium"
     assert out.findings[0].weight == 30 and out.findings[0].flag_ids == [flag.id]
     assert out.top_finding and "row 2" in out.top_finding
-    assert out.coverage is not None and out.coverage.applicable == len(out.check_runs)
+    assert out.coverage is not None and out.coverage.applicable == len(
+        [r for r in out.check_runs if r.code not in {"not_configured", "private_mode"}]
+    )
     assert {s["rule"] for s in out.coverage.skipped} >= {"doc_unreadable"} or out.coverage.ran >= 1
     rules_stage = {s.stage: s for s in out.stages}["rules"]
     assert rules_stage.detail["flags"] >= 1 and rules_stage.detail["ran"] >= 1

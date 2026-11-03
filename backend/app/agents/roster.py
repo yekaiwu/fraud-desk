@@ -34,6 +34,9 @@ _IDENTITY = frozenset(
         "x_directors",
         "x_entity",
         "x_ownership_vs_registry",
+        "x_sanctions_screen",
+        "x_entity_vs_gleif",
+        "x_address_vs_registry",
     }
 )
 _FINANCE_PREFIXES = ("bs_", "fs_", "inv_")

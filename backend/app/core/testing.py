@@ -137,7 +137,7 @@ def _kind(spec: FieldSpec) -> CellKind:
     return spec.kind
 
 
-_CTX_KEYS = {"settings", "costs", "cache", "page_words"}
+_CTX_KEYS = {"settings", "costs", "cache", "page_words", "sources"}
 
 
 def make_ctx(
@@ -194,6 +194,7 @@ def make_ctx(
         costs=kw.get("costs") or CostMeter(BudgetLimits.from_settings(settings), PriceTable()),
         cache=kw.get("cache") or ResponseCache(db, enabled=settings.cache_enabled),
         page_words=kw.get("page_words") or {},
+        sources=kw.get("sources") or {},
     )
     weakref.finalize(ctx, shutil.rmtree, tmp, True)
     return ctx

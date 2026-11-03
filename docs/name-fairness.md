@@ -1,5 +1,7 @@
 # Name matching: fairness on a larger DEV/TEST set, real aliases and honest limits
 
+**Sanctions screening is also a name-matching task.** Its false-positive rate by name group (fictitious customers, and random draws of real list entries) is in [verification-sources.md](verification-sources.md) section 2.5, with an offline regression test (`backend/tests/test_sanctions_fairness.py`); it uses a narrower matcher than the one described below.
+
 Scope: `backend/app/names.py` (person-name matching and `same_identity`), the dev/test generator in `backend/scripts/_gen/names_data.py` (extended pools) and the scorer `backend/scripts/_eval/name_fairness.py` (CLI `backend/scripts/name_fairness.py`). The 270-pair pipeline slice (`eval.py --suite fairness`) is unchanged and still runs. All names are fictitious or public Wikidata labels; the generator is ours, so every synthetic number is an upper bound.
 
 The bank, not this tool, defines what is fair and which attributes are protected. Everything below measures one thing we can define ourselves, how often the same person is not accepted and a different person is, by the groups our generator and the Wikidata export give us. Those groups are not a validated taxonomy and are not protected attributes. The thresholds in "Metric and thresholds" are our proposal for the bank to confirm or replace.

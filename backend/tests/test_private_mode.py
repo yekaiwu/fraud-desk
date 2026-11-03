@@ -262,6 +262,7 @@ def test_the_live_register_makes_no_call_in_private_mode(
     class Ctx:
         settings = s
         registry = None
+        sources: dict = {}  # noqa: RUF012 - what the verification sources record per source
 
         class case:  # noqa: N801
             class applicant:  # noqa: N801
@@ -272,6 +273,7 @@ def test_the_live_register_makes_no_call_in_private_mode(
 
     attach_live_entity(Ctx())  # type: ignore[arg-type]
     assert Ctx.registry is None and seen == []
+    assert Ctx.sources["acra"].status == "blocked"  # skipped on purpose: outside coverage
     with pytest.raises(RegistryUnavailable, match="private mode"):
         AcraLookup(tmp_path / "rc", private=True).lookup("200000001A")
     assert seen == []
@@ -407,3 +409,14 @@ def test_provenance_has_no_private_mode_key_when_off() -> None:
     bundles = build_bundles(root, scenario="kyc", variants=("clean",))
     run = run_bundle(bundles["clean"], tmp=root / "case")
     assert "private_mode" not in run.case.model_dump(mode="json", exclude_none=False)["provenance"]
+
+
+def test_the_two_private_mode_gates_agree() -> None:
+    """core/outbound.py (used by the verification sources) and core/privacy.py (used by the register
+    lookup and the socket guard) must never disagree about whether private mode is on."""
+    from app.core.outbound import outbound_blocked
+    from app.core.privacy import outbound_lookups_enabled
+
+    for mode in ("off", "on"):
+        s = mk(private_mode=mode)
+        assert (outbound_blocked(s) is None) == outbound_lookups_enabled(s)

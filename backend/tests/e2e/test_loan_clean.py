@@ -42,7 +42,10 @@ def test_clean_loan_is_complete_and_reports_coverage(loan_runs: dict[str, Run]) 
     # every skipped check states why (informs CR-28 / FAST_LANE_MIN_COVERAGE)
     skipped = [r for r in case.check_runs if r.status == "skipped"]
     assert skipped and all(r.reason for r in skipped)
-    assert {s["rule"] for s in cov.skipped} == {r.rule for r in skipped}
+    # a source that is not configured is skipped with a code and kept out of coverage (not_configured)
+    counted = [r for r in skipped if r.code not in {"not_configured", "private_mode"}]
+    assert {s["rule"] for s in cov.skipped} == {r.rule for r in counted}
+    assert {r.rule for r in skipped} - {r.rule for r in counted} >= {"x_sanctions_screen"}
 
 
 def test_clean_loan_uses_no_model_and_costs_nothing(loan_runs: dict[str, Run]) -> None:

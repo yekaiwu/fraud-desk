@@ -37,6 +37,9 @@ All use `@check(..., version="1")`, take `ctx: CaseContext`, return `list[Flag]`
 | `x_sof_support` | aml.py | crossdoc | high | `source_of_funds_declaration` | `source_of_funds_declaration`, `bank_statement` | aml | aml | yes |
 | `x_remitter_vs_buyer` | aml.py | crossdoc | high | `invoice` | `invoice`, `bank_statement` | aml, loan | aml | yes |
 | `bs_pass_through` | aml.py | rules | medium | `bank_statement` | | aml, loan | aml | yes |
+| `x_sanctions_screen` | verification.py | crossdoc | high | any file | | kyc, aml, loan | use-case lane | yes (even at medium) |
+| `x_entity_vs_gleif` | verification.py | crossdoc | medium | `company_profile`, `certificate_of_incorporation` | | none (listed when the document is present) | use-case lane | by severity |
+| `x_address_vs_registry` | verification.py | crossdoc | medium | `company_profile` | | none (listed when the document is present) | use-case lane | by severity |
 
 `description` and `tamper` strings (catalogue columns): `id_format` "NRIC/FIN has the form S/T/F/G/M + 7 digits + letter" / "modified IDs"; `id_checksum` "Check letter matches the 7 digits" / "modified IDs"; `passport_mrz` "MRZ check digits and visual fields agree" / "modified passports"; `date_valid` "Dates are real, not future, plausible age" / "modified IDs"; `kyc_shareholdings` "Shareholdings sum to 100% and holders above the UBO threshold are named" / "altered shareholder records"; `x_ownership_vs_registry` "Chart and register match the registry" / "ownership chart omits a shareholder"; `x_directors` "Directors match the registry and the ID documents" / "director not found in registry"; `x_declared_vs_activity` "Declared business against counterparty activity" / "declares logistics, statements show crypto"; `x_sof_support` "Declared source-of-funds amount is supported by credits" / "false source-of-funds evidence"; `x_remitter_vs_buyer` "The payer of an invoice is its customer" / "invoice customer differs from remitter"; `bs_pass_through` "Credits forwarded to other entities within days" / "funds routed through multiple companies".
 
@@ -233,6 +236,11 @@ With `GLDB_REGISTRY_LIVE=on`, an applicant UEN that the registry file does not h
 Three answers are kept apart: an entity, "no such UEN" (then `x_ownership_vs_registry` says the UEN is not in the registry), and "could not ask" (rate limit, network, bad answer). The last never becomes a flag: the registry checks skip and the case is marked partial with `registry_unavailable`.
 
 Limits: the register says nothing about who owns or runs the company; a genuine company with a stolen UEN and its true name passes; the open data lags the official register by days; the free API is rate limited, so a burst of new UENs can come back unavailable.
+
+
+### 4.5b Checks against outside sources
+
+`x_sanctions_screen`, `x_entity_vs_gleif`, `x_address_vs_registry` (and `inv_gst_registered`, `inv_bank_details_valid` in the invoice rules) compare the documents with the official sanctions lists, GLEIF, OneMap, the IRAS GST register and the form of an IBAN or BIC. They are all off until configured, follow the same three answers as 4.5a (a result, "none", "could not ask"), and a source that is not configured, blocked by `GLDB_PRIVATE_MODE` or unreachable never produces a flag. Full specification, the sanctions matcher and its false-positive rate by name group: [verification-sources.md](verification-sources.md).
 
 
 ### 4.6 `x_declared_vs_activity` (C5)

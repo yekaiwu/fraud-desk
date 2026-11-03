@@ -1734,6 +1734,9 @@ def x_entity_vs_registry(ctx: CaseContext) -> list[Flag]:
     """Only for an entity read from the open ACRA data: those records say what the entity is and
     whether it is live, which is what a forged certificate or profile gets wrong. (The mock register
     belongs to the generator, so its entities keep to the owner and director checks.)"""
+    blocked = ctx.sources.get("acra")
+    if blocked is not None and blocked.status == "blocked":  # private mode: never asked, not a gap
+        raise CheckSkipped(blocked.reason, "private_mode")
     if ctx.registry is None:
         raise CheckSkipped("registry unavailable")
     uen = normalise_id(ctx.applicant.uen)
