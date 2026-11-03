@@ -123,7 +123,7 @@ def r73(b: Bundle, rng: random.Random) -> Outcome:
                 c.edit.remove(x)
     c.lines = c.lines[1:]
     c.recompute()
-    retext(c, {"Invoice No: INV-2025-0109": "Invoice No: INV-2025-0115"})
+    retext(c, {"Invoice No: INV-2025-0107": "Invoice No: INV-2025-0115"})
     b.replace(src, a.dump())
     _finish(b, "invoice_INV-2025-0115.pdf", c, "INV-2025-0115", src)
     return Outcome(
