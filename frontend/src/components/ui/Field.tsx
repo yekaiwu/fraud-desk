@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useId, type InputHTMLAttributes, type ReactNode } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode, type Ref } from "react";
 
 /**
  * Labelled text input with optional hint and error, wired with aria-describedby / aria-invalid. 16 px text
@@ -11,7 +11,7 @@ export const inputClasses =
   "h-11 w-full rounded-md border border-rule-strong bg-surface px-3 text-base text-ink shadow-[inset_0_1px_2px_rgb(20_32_27/0.06)] placeholder:text-muted " +
   "transition-colors hover:border-brand-2 focus:border-brand-2 aria-[invalid=true]:border-sev-high disabled:bg-paper-2 disabled:opacity-70";
 
-export function Field({ label, hint, error, trailing, className, inputClassName, id, ...input }: { label: string; hint?: ReactNode; error?: ReactNode; trailing?: ReactNode; className?: string; inputClassName?: string } & Omit<InputHTMLAttributes<HTMLInputElement>, "className">) {
+export function Field({ label, hint, error, trailing, className, inputClassName, id, ...input }: { label: string; hint?: ReactNode; error?: ReactNode; trailing?: ReactNode; className?: string; inputClassName?: string; ref?: Ref<HTMLInputElement> } & Omit<InputHTMLAttributes<HTMLInputElement>, "className">) {
   const auto = useId();
   const inputId = id ?? auto;
   const hintId = `${inputId}-hint`;

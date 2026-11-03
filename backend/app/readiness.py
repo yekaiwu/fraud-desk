@@ -7,7 +7,8 @@ recorded, not that they are right:
 * (b) thresholds the bank has approved: an approval is an audit-log row holding a hash of the threshold values
   at that moment. It counts only while the current thresholds hash to the same value;
 * (c) alerts that reach a place someone watches: at least one sink is configured and a test alert reached it
-  recently.
+  recently. The in-app sink (the Notifications page) counts as a sink, and the text says plainly that
+  delivery to a page is not the same as someone watching it.
 
 Nothing here decides anything. The names, the approval and the choice of where alerts land are the bank's.
 """
@@ -24,6 +25,7 @@ from app.alerts import Sink, get_json_meta, parse_ts
 from app.audit import AuditLog, scrub
 from app.core.config import Settings
 from app.core.db import Database, ts
+from app.notifications import IN_APP
 
 APPROVAL_ACTION = "monitoring.thresholds_approved"
 THRESHOLD_FIELDS = (
@@ -236,7 +238,15 @@ def _alerts_item(
     detail = f"A test alert was delivered by {', '.join(working)} within {max_age} days."
     if working == ["file"]:
         detail += " Only the local file received it; the bank must confirm that someone or something watches that file."
-    return _item("5.23(c)", name, True, detail, [], delivered_by=working, **base)
+    if IN_APP in working:
+        detail += (
+            " In-app means the test appeared on the Notifications page. That is not the same as "
+            "someone watching the page: the bank decides who looks at it, how often and what they do next."
+        )
+    return _item(
+        "5.23(c)", name, True, detail, [], delivered_by=working,
+        page_only=working == [IN_APP], watching_confirmed=False, **base,
+    )  # fmt: skip
 
 
 def readiness(

@@ -24,6 +24,8 @@ describe("explainError", () => {
     ["reviewer_required", "Reviewer name required"],
     ["verdict_not_allowed", "Verdict not allowed here"],
     ["internal_error", "Something went wrong"],
+    ["alert_not_open", "Already handled"],
+    ["account_required", "Sign in with your own account"],
   ];
   it.each(table)("%s -> %s", (code, title) => {
     expect(ex(code).title).toBe(title);

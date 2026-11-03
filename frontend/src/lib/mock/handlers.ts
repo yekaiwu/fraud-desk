@@ -601,3 +601,16 @@ export async function getExplainMethod(): Promise<ExplainMethod> {
   await latency();
   return structuredClone(EXPLAIN_METHOD);
 }
+
+export {
+  acknowledgeAlert,
+  acknowledgeIncident,
+  getAlerts,
+  getIncidents,
+  getNotifications,
+  getNotificationSummary,
+  getReadiness,
+  markNotificationsRead,
+  reportIncident,
+  sendTestAlert,
+} from "./monitoring";

@@ -4,6 +4,7 @@ import { AlertOctagon, Loader2, RotateCw } from "lucide-react";
 import { ApiErrorException, explainError, type ApiErrorBody } from "@/lib/errors";
 import { Button } from "./ui/Button";
 import { EmptyState } from "./ui/EmptyState";
+import { Notice } from "./ui/Notice";
 
 /** Page-level loading line: spinner plus words, announced politely. */
 export function Loading({ label = "Loading" }: { label?: string }) {
@@ -42,5 +43,17 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** The outcome of a failed action (a save, an acknowledgement), as an inline error that explains itself. */
+export function ActionError({ error }: { error: unknown }) {
+  const body: ApiErrorBody =
+    error instanceof ApiErrorException ? error.error : { code: "internal_error", message: error instanceof Error ? error.message : "Unexpected error." };
+  const { title, detail } = explainError(body);
+  return (
+    <Notice variant="error" title={title}>
+      {detail}
+    </Notice>
   );
 }

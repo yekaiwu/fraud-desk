@@ -1,5 +1,7 @@
+import type { AlertState, AppNotification, Incident, LastTest } from "../monitoring";
 import type { CaseDetail, Job, RuleChange, RuleOverride } from "../types";
 import { buildCase, jobFor, SPECS, STAGES } from "./fixtures";
+import { alertFixtures, incidentFixtures, lastTestFixture, notificationFixtures } from "./fixtures/monitoring";
 
 /** Time for a created case to move through the 7 stages (frontend.md section 11: about 6 s). */
 export const MOCK_ANALYSIS_MS = 6000;
@@ -34,9 +36,44 @@ export type MockState = {
   overrides: Map<string, RuleOverride>;
   /** the permanent change log, oldest first. */
   changes: RuleChange[];
+  /** The monitor, as the Notifications page sees it (oldest notification first). */
+  monitor: MockMonitor;
   /** artificial latency in ms; tests set it to 0. */
   latencyMs: number;
 };
+
+export type MockMonitor = {
+  notifications: AppNotification[];
+  alerts: AlertState[];
+  incidents: Incident[];
+  lastTest: LastTest | null;
+  /** "on" shows the scheduler as running; tests flip it to see off and stale. */
+  scheduler: "off" | "in_process" | "external";
+  stale: boolean;
+  lastEvaluatedAt: string | null;
+  nextNotification: number;
+  nextIncident: number;
+  /** Set when a test alert was sent, for the 30 second limit. */
+  lastTestMs: number | null;
+};
+
+function freshMonitor(): MockMonitor {
+  const now = Date.now();
+  const notifications = notificationFixtures(now);
+  const incidents = incidentFixtures(now);
+  return {
+    notifications,
+    alerts: alertFixtures(now),
+    incidents,
+    lastTest: lastTestFixture(now),
+    scheduler: "in_process",
+    stale: false,
+    lastEvaluatedAt: new Date(now - 4 * 60_000).toISOString().replace(/\.(\d{3})Z$/, ".$1000Z"),
+    nextNotification: Math.max(...notifications.map((n) => n.id)) + 1,
+    nextIncident: Math.max(...incidents.map((i) => i.id)) + 1,
+    lastTestMs: null,
+  };
+}
 
 function fresh(): MockState {
   const cases = new Map<string, CaseDetail>();
@@ -62,6 +99,7 @@ function fresh(): MockState {
     loadedAt: Date.now(),
     overrides: new Map(),
     changes: [],
+    monitor: freshMonitor(),
     latencyMs: 120,
   };
 }

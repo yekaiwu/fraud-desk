@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { DISCLAIMER, USE_MOCK } from "@/lib/constants";
+import { useNotificationBadge } from "@/lib/useNotificationSummary";
 import { Guilloche } from "./ui/Guilloche";
 import { Logo, LogoMark } from "./ui/Logo";
 
@@ -13,6 +14,7 @@ import { Logo, LogoMark } from "./ui/Logo";
 export const NAV_ITEMS = [
   { href: "/", label: "Worklist" },
   { href: "/upload", label: "New case" },
+  { href: "/notifications", label: "Notifications" },
   { href: "/effectiveness", label: "Control performance" },
   { href: "/rules", label: "Check catalogue" },
 ] as const;
@@ -30,6 +32,33 @@ function SkipLink() {
     >
       Skip to main content
     </a>
+  );
+}
+
+/** The count on the Notifications tab. Nothing is drawn at zero; the link's name carries the number otherwise. */
+export function badgeLabel(count: number): string {
+  return count > 99 ? "99+" : String(count);
+}
+
+function NavLabel({ href, label, pathname }: { href: string; label: string; pathname: string }) {
+  if (href !== "/notifications") return <>{label}</>;
+  return <NotificationsLabel label={label} pathname={pathname} />;
+}
+
+function NotificationsLabel({ label, pathname }: { label: string; pathname: string }) {
+  const count = useNotificationBadge(pathname);
+  return (
+    <>
+      {label}
+      {count > 0 ? (
+        <>
+          <span data-testid="notifications-badge" aria-hidden className="tabular ml-2 inline-flex min-w-[1.375rem] items-center justify-center rounded-full border border-brass/60 bg-brass-tint px-1.5 text-xs font-semibold leading-5 text-brass-deep">
+            {badgeLabel(count)}
+          </span>
+          <span className="sr-only">, {count} to look at</span>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -106,7 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           : "border-t-transparent text-on-brand-muted hover:bg-on-brand/10 hover:text-on-brand",
                       )}
                     >
-                      {item.label}
+                      <NavLabel href={item.href} label={item.label} pathname={pathname} />
                     </Link>
                   </li>
                 );

@@ -7,6 +7,21 @@
  */
 import { API_BASE_URL } from "./constants";
 import { ApiErrorException, networkError } from "./errors";
+import type {
+  AcknowledgeAlertRequest,
+  AlertState,
+  AlertsResponse,
+  Incident,
+  IncidentAck,
+  IncidentReport,
+  MarkReadRequest,
+  MarkReadResponse,
+  NotificationQuery,
+  NotificationSummary,
+  NotificationsPage,
+  Readiness,
+  TestAlertResponse,
+} from "./monitoring";
 import { queueQueryToSearchParams } from "./queueQuery";
 import type {
   ApiError,
@@ -261,4 +276,67 @@ export async function getRuleChanges(q: { rule?: string; limit?: number } = {}):
   if (q.limit) p.set("limit", String(q.limit));
   const body = await request<{ changes?: RuleChange[]; items?: RuleChange[] } | RuleChange[]>("/rules/changes", {}, p);
   return Array.isArray(body) ? body : (body?.changes ?? body?.items ?? []);
+}
+
+// ------------------------------------------------------------------ monitoring and notifications (api.md section 9b)
+
+/** The in-app feed, newest first. `before` pages back; the unread count covers the whole feed. */
+export async function getNotifications(q: NotificationQuery = {}): Promise<NotificationsPage> {
+  if (USE_MOCK) return (await import("./mock/handlers")).getNotifications(q);
+  const p = new URLSearchParams();
+  if (q.category) p.set("category", q.category);
+  if (q.before) p.set("before", String(q.before));
+  if (q.limit) p.set("limit", String(q.limit));
+  if (q.unread) p.set("unread", "true");
+  if (q.since) p.set("since", q.since);
+  return request<NotificationsPage>("/monitoring/notifications", {}, p);
+}
+
+/** Cheap counts for the navigation badge. */
+export async function getNotificationSummary(): Promise<NotificationSummary> {
+  if (USE_MOCK) return (await import("./mock/handlers")).getNotificationSummary();
+  return request<NotificationSummary>("/monitoring/notifications/summary");
+}
+
+/** Mark some (or all) notifications read under the signed-in account, or the typed name. Audited. */
+export async function markNotificationsRead(req: MarkReadRequest): Promise<MarkReadResponse> {
+  if (USE_MOCK) return (await import("./mock/handlers")).markNotificationsRead(req);
+  return request<MarkReadResponse>("/monitoring/notifications/read", jsonInit("POST", req));
+}
+
+export async function getAlerts(): Promise<AlertsResponse> {
+  if (USE_MOCK) return (await import("./mock/handlers")).getAlerts();
+  return request<AlertsResponse>("/monitoring/alerts");
+}
+
+/** Acknowledge an open alert. A reason is required; a signed-in account replaces the typed name. */
+export async function acknowledgeAlert(key: string, req: AcknowledgeAlertRequest): Promise<{ alert: AlertState }> {
+  if (USE_MOCK) return (await import("./mock/handlers")).acknowledgeAlert(key, req);
+  return request<{ alert: AlertState }>(`/monitoring/alerts/${encodeURIComponent(key)}/acknowledge`, jsonInit("POST", req));
+}
+
+/** A labelled test alert through every sink; at most one every 30 seconds. */
+export async function sendTestAlert(): Promise<TestAlertResponse> {
+  if (USE_MOCK) return (await import("./mock/handlers")).sendTestAlert();
+  return request<TestAlertResponse>("/monitoring/alerts/test", { method: "POST" });
+}
+
+export async function getReadiness(): Promise<Readiness> {
+  if (USE_MOCK) return (await import("./mock/handlers")).getReadiness();
+  return request<Readiness>("/monitoring/readiness");
+}
+
+export async function getIncidents(): Promise<{ incidents: Incident[] }> {
+  if (USE_MOCK) return (await import("./mock/handlers")).getIncidents();
+  return request<{ incidents: Incident[] }>("/monitoring/incidents");
+}
+
+export async function reportIncident(req: IncidentReport): Promise<{ id: number; reported_by: string; severity: string }> {
+  if (USE_MOCK) return (await import("./mock/handlers")).reportIncident(req);
+  return request<{ id: number; reported_by: string; severity: string }>("/monitoring/incidents", jsonInit("POST", req));
+}
+
+export async function acknowledgeIncident(id: number, req: IncidentAck): Promise<{ id: number; incident: number; acknowledged_by: string }> {
+  if (USE_MOCK) return (await import("./mock/handlers")).acknowledgeIncident(id, req);
+  return request<{ id: number; incident: number; acknowledged_by: string }>(`/monitoring/incidents/${id}/acknowledge`, jsonInit("POST", req));
 }
