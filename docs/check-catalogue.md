@@ -2,7 +2,7 @@
 # Check catalogue
 Our reading as students, not legal advice. Decision support only; a human decides. All data is fictitious.
 
-Ruleset version: `rs-1c498df8c690` | Checks registered: 57 | Planned in the plan but not registered: 0
+Ruleset version: `rs-702ff80757e5` | Checks registered: 63 | Planned in the plan but not registered: 0
 
 ## How to read this
 
@@ -65,6 +65,12 @@ Ruleset version: `rs-1c498df8c690` | Checks registered: 57 | Planned in the plan
 | `inv_total` | high | invoice | - | aml, loan | Subtotal plus GST equals the printed invoice total. | An edited invoice total. | 1 |
 | `kyc_shareholdings` | high | ownership_chart, shareholder_register | - | kyc | Shareholdings sum to 100% and holders above the UBO threshold are named | altered shareholder records | 1 |
 | `passport_mrz` | high | passport | - | aml, kyc, loan | MRZ check digits and visual fields agree | modified passports | 1 |
+| `rcpt_dates` | medium | receipt | - | aml, loan | The receipt date is not in the future and is not implausibly old. | A receipt dated after the day it was submitted. | 1 |
+| `rcpt_duplicate` | medium | receipt | - | aml, loan | The same receipt (merchant, date, total and receipt number) is not submitted twice in this case or in an earlier case. | The same receipt submitted twice. | 1 |
+| `rcpt_lines` | medium | receipt | - | aml, loan | The item lines of a receipt add up to the printed subtotal. | An edited item amount or subtotal on a receipt. | 1 |
+| `rcpt_merchant` | low | receipt | - | aml, loan | A receipt names the merchant that issued it. | A receipt with the merchant's name removed. | 1 |
+| `rcpt_tax` | medium | receipt | - | aml, loan | The tax on a receipt equals the printed tax rate applied to the subtotal. | An edited tax amount or tax rate on a receipt. | 1 |
+| `rcpt_total` | medium | receipt | - | aml, loan | Subtotal plus tax equals the printed total of a receipt. | An edited receipt total. | 1 |
 
 ## Cross-document
 
@@ -94,5 +100,11 @@ None
 | `pdf_signature_invalid` | forensics | 2026-11 signature integrity with pyHanko (docs/forensics.md 4.9) |
 | `doc_unclassified` | rules | built-in info check, emitted from pipeline warnings (plan 5.3) |
 | `doc_unreadable` | rules | built-in info check, emitted from pipeline warnings (plan 8.5) |
+| `rcpt_dates` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
+| `rcpt_duplicate` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
+| `rcpt_lines` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
+| `rcpt_merchant` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
+| `rcpt_tax` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
+| `rcpt_total` | rules | 2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts) |
 | `file_reuse` | crossdoc | 0.4 duplicate detection (file hash), added at R0 |
 | `x_entity_vs_registry` | crossdoc | 2026-11 live company register (docs/checks-kyc-aml.md 4.5a) |

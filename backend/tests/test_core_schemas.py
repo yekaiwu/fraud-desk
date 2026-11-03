@@ -78,8 +78,9 @@ def test_keys_and_columns_match_data_model(doc_type: str) -> None:
     }
 
 
-def test_all_fourteen_doc_types_present() -> None:
-    assert len(DOC_SCHEMAS) == 14
+def test_all_fifteen_doc_types_present() -> None:
+    # fourteen plus the receipt (a till slip: merchant, date, items, tax, total)
+    assert len(DOC_SCHEMAS) == 15
 
 
 def test_kinds_and_annotations() -> None:

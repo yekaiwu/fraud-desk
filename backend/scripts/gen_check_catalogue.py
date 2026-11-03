@@ -120,6 +120,17 @@ ADDED_RULES: dict[str, str] = {
     "file_reuse": "0.4 duplicate detection (file hash), added at R0",
     "x_entity_vs_registry": "2026-11 live company register (docs/checks-kyc-aml.md 4.5a)",
     "pdf_signature_invalid": "2026-11 signature integrity with pyHanko (docs/forensics.md 4.9)",
+    **{
+        r: "2026-11 receipt document type (docs/ingest-and-extraction.md, Receipts)"
+        for r in (
+            "rcpt_lines",
+            "rcpt_tax",
+            "rcpt_total",
+            "rcpt_dates",
+            "rcpt_merchant",
+            "rcpt_duplicate",
+        )
+    },
 }
 
 STAGE_SECTIONS: tuple[tuple[str, str], ...] = (

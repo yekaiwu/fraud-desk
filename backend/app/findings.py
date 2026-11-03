@@ -36,6 +36,9 @@ class GroupFamily(NamedTuple):
 FAMILIES: tuple[GroupFamily, ...] = (
     GroupFamily("stmt_arith", "per_doc", frozenset({"bs_totals", "bs_running_balance"})),
     GroupFamily("inv_arith", "per_doc", frozenset({"inv_lines", "inv_gst", "inv_total"})),
+    GroupFamily(
+        "rcpt_arith", "per_doc", frozenset({"rcpt_lines", "rcpt_tax", "rcpt_total"})
+    ),  # receipts: one finding per receipt, as for invoices
     GroupFamily("fs_arith", "per_doc", frozenset({"fs_balance", "fs_subtotals", "fs_cash_tie"})),
     GroupFamily(
         "id_doc",
@@ -59,7 +62,11 @@ FAMILIES: tuple[GroupFamily, ...] = (
     GroupFamily("director", "shared", frozenset({"x_directors"})),
     GroupFamily("entity", "shared", frozenset({"x_entity", "fs_entity", "bs_holder"})),
     GroupFamily("remitter", "shared", frozenset({"x_remitter_vs_buyer"})),
-    GroupFamily("dup", "shared", frozenset({"inv_duplicate", "signature_reuse", "file_reuse"})),
+    GroupFamily(
+        "dup",
+        "shared",
+        frozenset({"inv_duplicate", "rcpt_duplicate", "signature_reuse", "file_reuse"}),
+    ),
     GroupFamily(
         "pattern",
         "bundle",

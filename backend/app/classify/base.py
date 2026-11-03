@@ -39,6 +39,7 @@ LABEL_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "C1": {
         "bank_statement": "A bank account statement listing dated transactions with debits, credits and a running balance.",
         "invoice": "A tax invoice from a supplier to a buyer with line items, GST and a total.",
+        "receipt": "A point-of-sale receipt or till slip from a shop, restaurant or fuel stop: merchant, date, items, tax and a total, no invoice number.",
         "financial_statement": "Annual or management accounts: income statement, balance sheet or cash flow statement.",
         "contract": "A commercial contract or agreement between named parties with a value and terms.",
         "purchase_order": "A purchase order issued by a buyer to a supplier for goods or services.",

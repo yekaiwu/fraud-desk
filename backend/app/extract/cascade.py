@@ -48,7 +48,10 @@ UNSTABLE_FRACTION = 0.10
 _DATE_LED = re.compile(
     r"^\s*(\d{1,2}[ /.-](?:[A-Za-z]{3,9}|\d{1,2})[ /.-]\d{2,4}|\d{4}-\d{2}-\d{2})\b"
 )
-PRICED_TYPES = ("invoice", "receipt")
+PRICED_TYPES = {
+    "invoice": ("subtotal", "gst_amount", "total"),
+    "receipt": ("subtotal", "tax_amount", "total"),
+}
 ROWS_MISSING_MIN = 3  # at least this many date-led lines without a row ...
 ROWS_MISSING_SHARE = 0.75  # ... and fewer rows than this share of the date-led lines
 _VALUE_KINDS = {"money", "decimal", "percent", "int", "date"}
@@ -152,7 +155,7 @@ class _Run:
         if self.doc.doc_type not in PRICED_TYPES:
             return {}
         cells = [c for r in result.tables["lines"].rows for c in r.cells.values()]
-        cells += [result.fields.get(k) for k in ("subtotal", "gst_amount", "total")]
+        cells += [result.fields.get(k) for k in PRICED_TYPES[self.doc.doc_type]]
         known = extracted_amounts(cells)
         out: dict[int, list] = {}
         for page, state in self.states.items():
@@ -486,7 +489,7 @@ class _Run:
             cell = row.cells.get("amount")
             if cell is not None and cell.raw is not None:
                 row.cells["amount"] = cell.model_copy(update={"verified": False})
-        for key in ("subtotal", "gst_amount", "total"):
+        for key in PRICED_TYPES[self.doc.doc_type]:
             cell = result.fields.get(key)
             if cell is not None and cell.raw is not None:
                 result.fields[key] = cell.model_copy(update={"verified": False})

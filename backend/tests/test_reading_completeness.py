@@ -150,3 +150,128 @@ def test_a_gross_amount_beside_a_net_unit_price_is_not_a_tamper() -> None:
         lines=lines,
     )
     assert run_rule("inv_lines", ctx_of(doc))
+
+
+# ---- through the cascade: a scanned receipt whose reading skipped a printed row
+
+_TILL_LINES = [
+    ("1 HAM&EGG BURRITO", "9.99"),
+    ("1 SS PANCAKES", "5.99"),
+    ("ADD STRWBER", "3.00"),
+    ("2 HOT TEA", "4.98"),
+    ("Open $ Disc", "2.00-"),
+    ("subtotal", "21.96"),
+    ("Tax", "1.54"),
+    ("Total", "23.50"),
+]
+
+
+def _till_pdf() -> bytes:
+    import io
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setFont("Helvetica", 11)
+    y = 780
+    c.drawString(60, y, "MASTORIS DINER")
+    for text, amount in _TILL_LINES:
+        y -= 22
+        c.drawString(60, y, text)
+        c.drawRightString(400, y, amount)
+    c.save()
+    return buf.getvalue()
+
+
+def _till_json(skip: set[str]) -> dict:
+    rows = [
+        ("HAM&EGG BURRITO", None, None, "9.99"),
+        ("SS PANCAKES", None, None, "5.99"),
+        ("ADD STRWBER", None, None, "3.00"),
+        ("HOT TEA", None, None, "4.98"),
+        ("Open $ Disc", None, None, "2.00-"),
+    ]
+    from app.core.schemas import DOC_SCHEMAS
+
+    fields = dict.fromkeys(DOC_SCHEMAS["receipt"].fields)
+    fields.update(
+        merchant_name="MASTORIS DINER", subtotal="21.96", tax_amount="1.54", total="23.50"
+    )
+    return {
+        "fields": fields,
+        "tables": {
+            "lines": [
+                {
+                    "description": d,
+                    "quantity": q,
+                    "unit_price": p,
+                    "gst_amount": None,
+                    "amount": a,
+                }
+                for d, q, p, a in rows
+                if d not in skip
+            ]
+        },
+    }
+
+
+def _scan_settings(tmp_path):  # noqa: ANN001, ANN202
+    from app.core.config import Settings
+
+    return Settings(
+        _env_file=None,
+        data_dir=tmp_path,
+        db_path=":memory:",
+        llm_backend="openai",
+        llm_api_key="k",
+        llm_model_cheap="m",
+        llm_model_strong="m",
+        llm_supports_vision=False,
+        llm_vision_fallback=True,
+        extractor_mode="cascade",
+    )
+
+
+def _extract_till(tmp_path, cheap_skips, strong_skips):  # noqa: ANN001, ANN202
+    from app.core.llm import FakeLLMClient
+    from app.extract.cascade import extract_document
+    from app.extract.registry import discover
+    from tests.extract_helpers import make_case
+
+    discover()
+    llm = FakeLLMClient(
+        {
+            "extract:receipt:cheap": lambda req: _till_json(cheap_skips),
+            "extract:receipt:strong": lambda req: _till_json(strong_skips),
+        }
+    )
+    ctx, doc, _ = make_case(
+        _till_pdf(), "receipt", llm=llm, is_scan=True, settings=_scan_settings(tmp_path)
+    )
+    result, meta = extract_document(doc, ctx, render=lambda *a, **k: b"\x89PNG")
+    return result, meta, llm
+
+
+def test_a_skipped_discount_row_is_reread_from_the_image(tmp_path) -> None:  # noqa: ANN001
+    result, meta, llm = _extract_till(tmp_path, {"Open $ Disc", "ADD STRWBER"}, set())
+    assert [c.model_role for c in llm.calls] == ["cheap", "strong"]
+    assert len(result.tables["lines"].rows) == 5
+    assert not any(w.startswith("reading_incomplete") for w in result.warnings)
+    assert meta.status == "ok"
+
+
+def test_a_row_both_readers_skip_marks_the_reading_incomplete(tmp_path) -> None:  # noqa: ANN001
+    result, meta, _ = _extract_till(tmp_path, {"Open $ Disc"}, {"Open $ Disc"})
+    assert any(w.startswith("reading_incomplete: page 1") for w in result.warnings)
+    assert meta.status == "partial"
+    # the amounts the arithmetic would lean on are marked not verified
+    assert result.fields["total"].verified is False
+    assert all(r.cells["amount"].verified is False for r in result.tables["lines"].rows)
+
+
+def test_a_complete_reading_is_left_alone(tmp_path) -> None:  # noqa: ANN001
+    result, meta, llm = _extract_till(tmp_path, set(), set())
+    assert [c.model_role for c in llm.calls] == ["cheap"]
+    assert meta.status == "ok" and result.fields["total"].verified is not False

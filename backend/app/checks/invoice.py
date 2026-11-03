@@ -298,7 +298,8 @@ def inv_gst(ctx: CaseContext) -> list[Flag]:
                     field="gst_rate",
                     region=_lab(rate_cell.box, "gst_rate"),
                     extra_regions=_regions(_c(doc, "invoice_date"), labels=("invoice_date",)),
-                    severity="medium",
+                    # a rate Singapore GST never had (10%) is a foreign invoice, noted not alarmed
+                    severity="medium" if printed_rate in SG_GST_RATES else "low",
                     discriminator="rate",
                     evidence=(
                         f"printed gst_rate {fmt_money(printed_rate)} on {inv_date.isoformat()}; "

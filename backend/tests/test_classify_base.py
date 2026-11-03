@@ -182,7 +182,7 @@ def test_registry_builds_rules_and_hosted_and_refuses_local_stub() -> None:
     discover()
     discover()  # idempotent
     rules = get_classifier("rules", ctx)
-    assert isinstance(rules, RulesClassifier) and rules.version == "3"
+    assert isinstance(rules, RulesClassifier) and rules.version == "4"
     hosted = get_classifier("llm", ctx)
     assert hosted.name == "llm" and hosted.version == "1"
     with pytest.raises(ClassifierUnavailable, match="local classifier not available"):
