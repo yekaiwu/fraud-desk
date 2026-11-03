@@ -505,8 +505,80 @@ def pdf_modified(ctx: CaseContext) -> list[Flag]:
         )
     if not files:
         raise CheckSkipped("no PDF file in the case")
-    if not parseable:
+    rev_flags = _revision_flags(ctx, files)
+    if not parseable and not rev_flags:
         raise CheckSkipped("no PDF with a parseable CreationDate or ModDate")
+    return flags + rev_flags
+
+
+# An incremental update is a new revision appended after the file's first ``%%EOF``. A genuine
+# issuer writes one revision. When a later revision no longer shows text that an earlier one did,
+# the content was replaced after the file was first saved (red-team attack R36). OCR software
+# and form filling only add text, so adding is never reported.
+MAX_REVISIONS = 12
+
+
+def _words(doc: pymupdf.Document) -> list[Counter[str]]:
+    return [Counter(w[4] for w in page.get_text("words")) for page in doc]
+
+
+def _revision_changes(data: bytes) -> list[tuple[int, int, list[str], list[str]]]:
+    """(earlier revision, page, words gone, words new) for pages whose earlier text was changed."""
+    if b"/Linearized" in data[:2048]:
+        return []  # a linearised file has two xref parts that are one revision
+    ends = [m.end() for m in re.finditer(rb"%%EOF", data)]
+    if len(ends) < 2 or len(ends) > MAX_REVISIONS:
+        return []
+    with pymupdf.open(stream=data, filetype="pdf") as final_doc:
+        final = _words(final_doc)
+    out: list[tuple[int, int, list[str], list[str]]] = []
+    for k, end in enumerate(ends[:-1], start=1):
+        try:
+            with pymupdf.open(stream=data[:end], filetype="pdf") as old_doc:
+                if old_doc.is_repaired or len(old_doc) != len(final):
+                    continue
+                old = _words(old_doc)
+        except Exception:  # noqa: BLE001 - a prefix that does not open is not evidence
+            continue
+        for pno, (o, f) in enumerate(zip(old, final, strict=True), start=1):
+            gone = sorted((o - f).elements())
+            if gone:
+                out.append((k, pno, gone, sorted((f - o).elements())))
+        if out:
+            break  # the first revision that differs is the one that matters
+    return out
+
+
+def _revision_flags(ctx: CaseContext, files: list[FileRef]) -> list[Flag]:
+    flags: list[Flag] = []
+    for f in files:
+        try:
+            changes = _revision_changes(_read_bytes(ctx, f.id))
+        except Exception:  # noqa: BLE001 - unreadable files are reported elsewhere
+            continue
+        if not changes:
+            continue
+        k, pno, gone, new = changes[0]
+        pages = sorted({c[1] for c in changes})
+        evidence = (
+            f"text saved in revision {k} is not in the final file (page {pno}: "
+            f"{', '.join(repr(_safe(w, 24)) for w in gone[:4])}"
+            + (f" became {', '.join(repr(_safe(w, 24)) for w in new[:4])}" if new else " removed")
+            + f"); pages changed: {', '.join(str(p) for p in pages[:8])}"
+        )
+        flags.append(
+            make_flag(
+                "pdf_modified",
+                docs=_docs_of_file(ctx, f.id),
+                evidence=evidence,
+                explanation=(
+                    "The PDF was saved again after it was first made and text that was in it "
+                    "was replaced, so the document may have been edited."
+                ),
+                severity="high",
+                discriminator=f"{f.id}rev",
+            )
+        )
     return flags
 
 
