@@ -3,10 +3,10 @@
 import clsx from "clsx";
 import { FileText, Info } from "lucide-react";
 import type { DocNamer } from "@/lib/docNames";
-import { locusOf, locusPhrase, type DocSpan } from "@/lib/flagLocus";
+import { locusOf, locusPhrase, placesOf, type DocSpan, type Place } from "@/lib/flagLocus";
 import type { NumberedFlag } from "@/lib/flags";
 import { severityLabel } from "@/lib/labels";
-import { extraLetter, SEVERITY_COLOR } from "./RegionOverlay";
+import { SEVERITY_COLOR } from "./RegionOverlay";
 import { EvidenceRows } from "./FindingEvidence";
 
 const MAX_DOC_LINKS = 6;
@@ -21,18 +21,22 @@ export function FlagCaption({
   documents,
   names,
   onNavigate,
+  onFocusPlace,
   current,
 }: {
   selected: NumberedFlag;
   documents: DocSpan[];
   names: DocNamer;
   onNavigate: (to: { fileId: string; page: number }) => void;
+  /** Go to one of the flag's places: open its page if needed and bring it into view. */
+  onFocusPlace?: (place: Place) => void;
   /** The page on show, so related evidence on another page is offered as a link and the rest is just listed. */
   current?: { fileId: string; page: number };
 }) {
   const { flag, n } = selected;
   const locus = locusOf(flag, documents);
   const color = SEVERITY_COLOR[flag.severity];
+  const places = placesOf(flag);
   return (
     <div role="status" aria-live="polite" data-testid="flag-caption" className="space-y-2 border-t border-rule bg-surface px-3 py-3 text-sm">
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -59,23 +63,35 @@ export function FlagCaption({
           <EvidenceRows evidence={flag.evidence} names={names} />
         </div>
       ) : null}
-      {flag.extra_regions.length > 0 ? (
+      {places.length > 1 ? (
         <div>
-          <p className="label-caps mb-1">Related evidence (dashed boxes)</p>
+          <p className="label-caps mb-1" data-testid="places-heading">
+            Marked in {places.length} places
+          </p>
           <ul className="space-y-1">
-            {flag.extra_regions.map((x, i) => {
-              const here = !current || (x.file_id === current.fileId && x.page === current.page);
+            {places.map((pl) => {
+              const here = !current || (pl.region.file_id === current.fileId && pl.region.page === current.page);
               return (
-                <li key={i} className="flex items-center gap-2 text-ink-2">
-                  <span aria-hidden className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-dashed border-ink-2 bg-surface px-1 text-xs font-bold">
-                    {extraLetter(i)}
-                  </span>
-                  <span>{x.label ?? "related figure"}</span>
-                  {here ? null : (
-                    <button type="button" onClick={() => onNavigate({ fileId: x.file_id, page: x.page })} className="text-xs font-semibold text-brand underline underline-offset-2">
-                      on {names.page(x.file_id, x.page)}
-                    </button>
+                <li key={pl.key} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-2">
+                  {pl.letter === null ? (
+                    <span aria-hidden className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold text-white" style={{ background: color }}>
+                      {n}
+                    </span>
+                  ) : (
+                    <span aria-hidden className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-dashed bg-surface px-1 text-xs font-bold" style={{ borderColor: color, color }}>
+                      {pl.letter}
+                    </span>
                   )}
+                  <span className="text-ink">{pl.label}</span>
+                  <span className="text-xs text-muted">{here ? "on this page" : names.page(pl.region.file_id, pl.region.page)}</span>
+                  <button
+                    type="button"
+                    onClick={() => (onFocusPlace ? onFocusPlace(pl) : onNavigate({ fileId: pl.region.file_id, page: pl.region.page }))}
+                    className="text-xs font-semibold text-brand underline underline-offset-2"
+                    aria-label={`Go to ${pl.label}${pl.letter ? ` (${pl.letter})` : ""}`}
+                  >
+                    Go to
+                  </button>
                 </li>
               );
             })}

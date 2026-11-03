@@ -250,16 +250,17 @@ body {
   --pad-x: 6px;
   --pad-y: 1px;
   position: absolute;
-  outline: 2px dashed #475467;
+  outline: 3px dashed var(--region-color, #475467);
   outline-offset: 0;
-  background: rgb(102 112 133 / 0.1);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--region-color, #667085) 8%, transparent);
   pointer-events: none;
 }
 /* the letter that stands for a related-evidence box (its name is in the caption) */
 .region-margin-chip.region-margin-chip-extra {
   background: #fff;
-  color: #475467;
-  border: 2px dashed #475467;
+  color: var(--region-color, #475467);
+  border: 2px dashed var(--region-color, #475467);
   box-shadow: none;
   text-transform: lowercase;
 }
@@ -351,6 +352,8 @@ body {
   cursor: pointer;
 }
 .region-pill[aria-pressed="true"] { background: var(--region-color); color: #fff; }
+/* "Go to" a place: the same pulse as a selected box */
+.place-pulse { animation: region-pulse 0.9s ease-out 1; }
 @keyframes region-pulse {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--region-color) 60%, transparent); }
   100% { box-shadow: 0 0 0 14px transparent; }

@@ -109,7 +109,7 @@ describe("a finding card", () => {
   it("'Show on document' jumps with reveal for the right flag", async () => {
     const user = userEvent.setup();
     const { onSelectFlag, c } = setup();
-    await user.click(screen.getByRole("button", { name: /Show on document \(flag 1\)/ }));
+    await user.click(screen.getByRole("button", { name: /Show on document.*\(flag 1\)/ }));
     expect(onSelectFlag).toHaveBeenCalledWith(c.findings[0].flag_ids[0], { reveal: true });
   });
 
@@ -201,6 +201,16 @@ describe("deciding", () => {
     const card = document.querySelector('[data-finding="fnd_3"]') as HTMLElement;
     await user.click(within(card).getByRole("button", { name: /Review the 2 instances/ }));
     expect(within(card).getAllByRole("button", { name: /Mark as a real concern/ })).toHaveLength(2);
+  });
+
+  it("says how many places a flag marks on its Show on document button, and nothing when it marks one", () => {
+    const c = fraud();
+    const first = c.findings[0].flag_ids[0];
+    const flag = c.flags.find((f) => f.id === first)!;
+    const r = flag.region!;
+    flag.extra_regions = [{ ...r, label: "opening balance" }, { ...r, page: r.page + 1, label: "credit" }];
+    setup({ c });
+    expect(screen.getByRole("button", { name: /Show on document \(3 places\) \(flag 1\)/ })).toBeInTheDocument();
   });
 
   it("every instance says what is wrong with it, including the one whose sentence is also the group's headline", async () => {

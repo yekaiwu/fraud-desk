@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { SEVERITY_Z, type NumberedFlag } from "@/lib/flags";
-import { locusOf, locusPhrase, touchesPage, type DocSpan, type Locus } from "@/lib/flagLocus";
+import { locusOf, locusPhrase, placesOf, touchesPage, type DocSpan, type Locus } from "@/lib/flagLocus";
 import { paddedRegionStyle } from "@/lib/regions";
 import type { Severity } from "@/lib/types";
 
@@ -16,11 +16,6 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
 /** Chip height in CSS px (1.25rem), plus the gap kept between two chips in the same margin. */
 const CHIP_PX = 20;
 const CHIP_GAP = 3;
-
-/** a, b, c ... for the related-evidence boxes of one flag. */
-export function extraLetter(i: number): string {
-  return String.fromCharCode(97 + (i % 26));
-}
 
 export type Chip = { id: string; side: "left" | "right"; centre: number };
 
@@ -88,8 +83,9 @@ export function RegionOverlay({
   // caption; no text is ever drawn on the page, because a label under a figure hides the figure next to it.
   const selectedNf = flags.find((x) => x.flag.id === selectedFlagId) ?? null;
   const extras = selectedNf
-    ? selectedNf.flag.extra_regions
-        .map((x, i) => ({ x, letter: extraLetter(i), style: x.file_id === current.fileId && x.page === current.page ? paddedRegionStyle(x) : null }))
+    ? placesOf(selectedNf.flag)
+        .filter((pl) => pl.letter !== null && pl.region.file_id === current.fileId && pl.region.page === current.page)
+        .map((pl) => ({ x: pl.region, letter: pl.letter as string, label: pl.label, style: paddedRegionStyle(pl.region) }))
         .filter((e) => e.style)
     : [];
   if (showChips) for (const e of extras) chips.push({ id: `extra:${e.letter}`, side: e.x.x + e.x.w / 2 < 0.5 ? "left" : "right", centre: e.x.y + e.x.h / 2 });
@@ -130,16 +126,22 @@ export function RegionOverlay({
           ))}
         </span>
       ) : null}
-      {extras.map(({ x, letter, style }) => (
+      {extras.map(({ x, letter, label, style }) => (
         <span key={`extra:${letter}`} className="contents">
-          <span className="region-extra" style={{ ...style, zIndex: 1 }} title={x.label ?? undefined} data-extra-for={selectedFlagId ?? undefined} />
+          <span
+            className="region-extra"
+            style={{ ...style, zIndex: 2, "--region-color": SEVERITY_COLOR[selectedNf!.flag.severity] } as CSSProperties}
+            title={label}
+            data-place={letter}
+            data-extra-for={selectedFlagId ?? undefined}
+          />
           {showChips && chipTop.has(`extra:${letter}`) ? (
             <span
               className="region-margin-chip region-margin-chip-extra num"
               aria-hidden
-              title={x.label ?? undefined}
+              title={label}
               data-extra-letter={letter}
-              style={{ top: chipTop.get(`extra:${letter}`), [x.x + x.w / 2 < 0.5 ? "left" : "right"]: "0.6%", zIndex: 34 } as CSSProperties}
+              style={{ "--region-color": SEVERITY_COLOR[selectedNf!.flag.severity], top: chipTop.get(`extra:${letter}`), [x.x + x.w / 2 < 0.5 ? "left" : "right"]: "0.6%", zIndex: 34 } as CSSProperties}
             >
               {letter}
             </span>
@@ -157,6 +159,7 @@ export function RegionOverlay({
                 type="button"
                 className="region-box"
                 data-flag-id={flag.id}
+                data-place="main"
                 data-severity={flag.severity}
                 aria-pressed={selected}
                 aria-label={`Flag ${n}, ${flag.rule}, ${flag.severity} severity, page ${here.page}`}

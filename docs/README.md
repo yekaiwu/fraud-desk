@@ -18,7 +18,7 @@ Specs for the GLDB document-fraud analysis tool. Source plan: the master plan (n
 - [forensics.md](forensics.md): PDF and image forensics checks (plan 4.5).
 - [scoring-and-queue.md](scoring-and-queue.md): findings grouping, score, coverage, lanes, ranked queue (plan 8.3, 8.4).
 - [review-workflow-and-audit.md](review-workflow-and-audit.md): verdicts, mandatory reasons, second approver, audit log, case pack, retention, rule effectiveness (plan 7.2, 7.3).
-- [frontend.md](frontend.md): queue, case page with highlighted regions, upload, effectiveness page, phone-width behaviour. [flag-locations.md](flag-locations.md): what Show on document does for each check.
+- [frontend.md](frontend.md): queue, case page with highlighted regions, upload, effectiveness page, phone-width behaviour. [flag-locations.md](flag-locations.md): what Show on document does for each check. [flag-places.md](flag-places.md): whether each flag marks every place its evidence quotes.
 - [test-data-and-eval.md](test-data-and-eval.md): bundle generator, three demo bundles, tamper catalogue, metrics, ranking and fairness tests (plan 9, 0.5).
 - [compliance.md](compliance.md): Singapore regulatory alignment, obligation to feature to evidence map, scope of the three compliance documents (plan 7).
 - [deploy.md](deploy.md): self-hosting the app on an always-on machine: shared-login gate, same-origin `/api` proxy, backend proxy secret and rate limits, launchd install scripts in `deploy/`, security checklist.

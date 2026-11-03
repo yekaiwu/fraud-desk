@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { isWholePage, locusOf, locusPhrase, targetPage, touchesPage, type DocSpan } from "./flagLocus";
+import { extraLetter, isWholePage, locusOf, locusPhrase, placesOf, targetPage, touchesPage, type DocSpan } from "./flagLocus";
 import type { Region } from "./types";
 
 const docs: DocSpan[] = [
@@ -61,5 +61,28 @@ describe("where the viewer goes", () => {
     expect(locusPhrase({ kind: "page", region: whole })).toBe("applies to the whole page");
     expect(locusPhrase({ kind: "document", pages: [] })).toMatch(/whole file/);
     expect(locusPhrase({ kind: "case" })).toMatch(/case as a whole/);
+  });
+});
+
+describe("placesOf: every place a flag points at", () => {
+  const at = (page: number, label?: string): Region => ({ file_id: "f1", page, x: 0.1, y: 0.1, w: 0.1, h: 0.02, label });
+  it("is the main region first, then the related ones lettered a, b, c", () => {
+    const p = placesOf({ region: at(1, "closing balance"), extra_regions: [at(1, "opening balance"), at(2)], field: "closing_balance" });
+    expect(p.map((x) => [x.key, x.letter, x.label])).toEqual([
+      ["main", null, "closing balance"],
+      ["a", "a", "opening balance"],
+      ["b", "b", "related figure"],
+    ]);
+    expect(extraLetter(0)).toBe("a");
+  });
+  it("names an unlabelled main place after its field, and skips places that cannot be drawn", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const p = placesOf({ region: { ...at(1), label: null }, extra_regions: [{ ...at(1), w: 0 }, at(3, "credit")], field: "gst_amount" });
+    expect(p.map((x) => x.label)).toEqual(["gst amount", "credit"]);
+    expect(p[1].letter).toBe("b"); // letters follow the flag's own list, so a skipped place does not shift the others
+    warn.mockRestore();
+  });
+  it("is empty for a flag with no region and none related", () => {
+    expect(placesOf({ region: null, extra_regions: [], field: null })).toEqual([]);
   });
 });

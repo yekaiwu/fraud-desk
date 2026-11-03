@@ -55,6 +55,29 @@ export function touchesPage(flag: Pick<Flag, "region" | "document_ids">, documen
   return false;
 }
 
+/** One place a flag points at: its main region (no letter), or one of its related regions (a, b, c ...). */
+export type Place = { key: string; letter: string | null; label: string; region: Region };
+
+/** a, b, c ... for the related places of one flag. */
+export function extraLetter(i: number): string {
+  return String.fromCharCode(97 + (i % 26));
+}
+
+/**
+ * Every place a flag points at: the main region first, then the related ones. A figure that is wrong because of
+ * where it sits against other figures (a total against its parts, a balance against the previous one) points at
+ * all of them, and the viewer says how many and lets you step through them, also across pages. Regions that
+ * cannot be drawn are left out.
+ */
+export function placesOf(flag: Pick<Flag, "region" | "extra_regions" | "field">): Place[] {
+  const out: Place[] = [];
+  if (flag.region && clampRegion(flag.region)) out.push({ key: "main", letter: null, label: flag.region.label ?? (flag.field ? flag.field.replace(/_/g, " ") : "flagged figure"), region: flag.region });
+  flag.extra_regions.forEach((x, i) => {
+    if (clampRegion(x)) out.push({ key: extraLetter(i), letter: extraLetter(i), label: x.label ?? "related figure", region: x });
+  });
+  return out;
+}
+
 /** A short, plain phrase for where the viewer is pointing, from the kind alone. */
 export function locusPhrase(l: Locus): string {
   switch (l.kind) {

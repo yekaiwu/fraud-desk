@@ -224,3 +224,25 @@ describe("PageViewer: every flag of every fixture case, whatever its rule, leave
     expect(checked).toBeGreaterThan(20);
   });
 });
+
+
+describe("PageViewer: a flag with several places", () => {
+  it("lists them in the caption and goes to one on another page", async () => {
+    const c = fraud();
+    const flag = c.flags[0];
+    const r = flag.region!;
+    flag.extra_regions = [
+      { file_id: r.file_id, page: r.page, x: 0.2, y: 0.2, w: 0.1, h: 0.02, label: "opening balance" },
+      { file_id: c.files[c.files.length - 1].id, page: 1, x: 0.3, y: 0.3, w: 0.1, h: 0.02, label: "credit on another page" },
+    ];
+    const numbered = numberFlags(c.findings, c.flags);
+    const onNavigate = vi.fn();
+    render(<PageViewer caseId={c.id} files={c.files} documents={c.documents} flags={numbered.all} selectedFlagId={flag.id} onSelectFlag={() => {}} current={{ fileId: r.file_id, page: r.page }} onNavigate={onNavigate} />);
+    expect(screen.getByTestId("places-heading")).toHaveTextContent("Marked in 3 places");
+    expect(document.querySelector('[data-place="main"]')).not.toBeNull();
+    expect(document.querySelector('[data-place="a"]')).not.toBeNull(); // on this page: drawn
+    expect(document.querySelector('[data-place="b"]')).toBeNull(); // on another page: listed, not drawn here
+    await userEvent.setup().click(screen.getByRole("button", { name: /Go to credit on another page \(b\)/ }));
+    expect(onNavigate).toHaveBeenCalledWith({ fileId: c.files[c.files.length - 1].id, page: 1 });
+  });
+});

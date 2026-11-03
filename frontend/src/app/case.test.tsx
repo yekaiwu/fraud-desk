@@ -94,7 +94,7 @@ describe("selecting flags", () => {
     expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument(); // opens on the first flagged page
     await user.click(screen.getByRole("button", { name: "Previous page" }));
     expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: /Show on document \(flag 1\)/ }));
+    await user.click(await screen.findByRole("button", { name: /Show on document.*\(flag 1\)/ }));
     expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Flag 1,.*page 2$/ })).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Record decision" })[0]);
@@ -116,7 +116,7 @@ describe("selecting flags", () => {
     if (medium.getAttribute("aria-expanded") === "false") await user.click(medium); // groups stay as the officer left them
     expect(screen.getByText(/applies to the whole file/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Flag 5,/ })).toBeNull();
-    await user.click(screen.getByRole("button", { name: /Show on document \(flag 5\)/ }));
+    await user.click(screen.getByRole("button", { name: /Show on document.*\(flag 5\)/ }));
     expect(await screen.findByText("Page 1 of 1")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /invoice-INV-0042\.pdf/ })).toBeInTheDocument();
     // the page is not left unmarked: a frame round it, and a caption saying what the flag is and why nothing is circled

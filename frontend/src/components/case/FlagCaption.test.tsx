@@ -54,21 +54,34 @@ describe("FlagCaption", () => {
     expect(screen.getByTestId("flag-caption")).toHaveTextContent(/case as a whole/);
   });
 
-  it("names the related evidence by letter, and offers a link when it is on another page", async () => {
-    const onNavigate = show(
-      flag({
-        region: { file_id: "f1", page: 1, x: 0.5, y: 0.3, w: 0.1, h: 0.02 },
-        extra_regions: [
-          { file_id: "f1", page: 1, x: 0.5, y: 0.2, w: 0.1, h: 0.02, label: "opening balance" },
-          { file_id: "f2", page: 1, x: 0.1, y: 0.1, w: 0.1, h: 0.02, label: "prior statement" },
-        ],
-      }),
-    );
+  it("lists every place the flag marks, numbered then lettered, and how many", async () => {
+    const onFocusPlace = vi.fn();
+    const nf = numberFlags(
+      [],
+      [
+        flag({
+          region: { file_id: "f1", page: 1, x: 0.5, y: 0.3, w: 0.1, h: 0.02, label: "closing balance" },
+          extra_regions: [
+            { file_id: "f1", page: 1, x: 0.5, y: 0.2, w: 0.1, h: 0.02, label: "opening balance" },
+            { file_id: "f2", page: 1, x: 0.1, y: 0.1, w: 0.1, h: 0.02, label: "prior statement" },
+          ],
+        }),
+      ],
+    ).all[0];
+    render(<FlagCaption selected={nf} documents={docs} names={makeDocNamer(docs, files)} onNavigate={vi.fn()} onFocusPlace={onFocusPlace} current={{ fileId: "f1", page: 1 }} />);
+    expect(screen.getByTestId("places-heading")).toHaveTextContent("Marked in 3 places");
+    expect(screen.getByText("closing balance")).toBeInTheDocument();
     expect(screen.getByText("opening balance")).toBeInTheDocument();
     expect(screen.getByText("prior statement")).toBeInTheDocument();
+    expect(screen.getAllByText("on this page")).toHaveLength(2);
     expect(screen.getAllByText(/^[ab]$/)).toHaveLength(2);
-    await userEvent.setup().click(screen.getByRole("button", { name: /^on / }));
-    expect(onNavigate).toHaveBeenCalledWith({ fileId: "f2", page: 1 });
+    await userEvent.setup().click(screen.getByRole("button", { name: /Go to prior statement \(b\)/ }));
+    expect(onFocusPlace).toHaveBeenCalledWith(expect.objectContaining({ key: "b", label: "prior statement" }));
     expect(screen.queryByText(/about the file itself/)).toBeNull(); // a marked figure needs no such note
+  });
+
+  it("says nothing about places for a flag that marks one", () => {
+    show(flag({ region: { file_id: "f1", page: 1, x: 0.5, y: 0.3, w: 0.1, h: 0.02 } }));
+    expect(screen.queryByTestId("places-heading")).toBeNull();
   });
 });

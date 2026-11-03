@@ -804,7 +804,11 @@ def inv_duplicate(ctx: CaseContext) -> list[Flag]:
                     docs=[orig, dup],
                     field="invoice_number",
                     region=_lab(num_c.box, "invoice_number"),
-                    extra_regions=_regions(_c(orig, "invoice_number"), labels=("original",)),
+                    extra_regions=_regions(
+                        _c(orig, "invoice_number"),
+                        _c(orig, "total"),
+                        labels=("original", "original total"),
+                    ),
                     discriminator=fp[:12],  # type: ignore[index]
                     evidence=evidence + _unverified({"invoice_number": num_c}),
                     explanation="This invoice was already submitted in this case.",

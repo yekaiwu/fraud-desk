@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { ChevronRight, CircleSlash, Crosshair, Flag as FlagIcon, MapPin, ZapOff } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { makeDocNamer } from "@/lib/docNames";
+import { placesOf } from "@/lib/flagLocus";
 import {
   dispositionSummary,
   findingHeadline,
@@ -86,6 +87,7 @@ function FlagBody({ nf, c, showWhere = true }: { nf: NumberedFlag; c: Common; sh
   const { flag, n } = nf;
   const decidable = c.canDecide && flag.disposition !== "pending_second_approval";
   const others = otherPageRegions(nf);
+  const placeCount = placesOf(flag).length;
   const otherLink = (r: Region, i: number) => (
     <button
       key={i}
@@ -118,6 +120,7 @@ function FlagBody({ nf, c, showWhere = true }: { nf: NumberedFlag; c: Common; sh
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="ghost" className="-ml-2" icon={<Crosshair aria-hidden className="h-4 w-4" />} onClick={() => c.onSelect(flag.id, { reveal: true })}>
           Show on document
+          {placeCount > 1 ? <>{" "}<span className="font-normal text-ink-2">({placeCount} places)</span></> : null}
           {" "}
           <span className="sr-only">(flag {n})</span>
         </Button>
@@ -272,6 +275,7 @@ export function FindingCard({
               {first ? (
                 <Button size="sm" variant="ghost" className="-ml-2" icon={<Crosshair aria-hidden className="h-4 w-4" />} onClick={() => onSelect(first.flag.id, { reveal: true })}>
                   Show on document
+                  {placesOf(first.flag).length > 1 ? <>{" "}<span className="font-normal text-ink-2">({placesOf(first.flag).length} places)</span></> : null}
                   {" "}
                   <span className="sr-only">(flag {first.n})</span>
                 </Button>

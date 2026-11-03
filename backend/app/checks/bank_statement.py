@@ -130,6 +130,14 @@ def _row_money(row: Row, column: str) -> Decimal | None:
     return _cell_money(row.cells.get(column))
 
 
+def _unread_raw(row: Row, column: str) -> str | None:
+    """The text of an amount cell that has text but no single amount (a figure typed over another leaves both
+    numbers in the text layer), else None."""
+    cell = row.cells.get(column)
+    raw = (cell.raw or "").strip() if cell is not None else ""
+    return raw if raw and _cell_money(cell) is None else None
+
+
 def _acct_key(doc: Document) -> str:
     """Account number without spaces and hyphens, upper-case ('' when absent)."""
     return "".join(_ftext(doc, "account_number").replace("-", "").split()).upper()
@@ -427,11 +435,18 @@ def bs_totals(ctx: CaseContext) -> list[Flag]:
         credits = debits = ZERO
         n_credit = n_debit = invalid = 0
         used: dict[str, Cell] = {}
+        unread: list[
+            tuple[int, str, str, Cell]
+        ] = []  # amount cells counted as nothing: (row, column, text, cell)
         for i, row in enumerate(table.rows):
             debit, credit = _row_money(row, "debit"), _row_money(row, "credit")
             if debit is not None and credit is not None:
                 invalid += 1
                 continue
+            for col in ("credit", "debit"):
+                raw = _unread_raw(row, col)
+                if raw:
+                    unread.append((i, col, raw, row.cells[col]))
             if debit is not None:
                 debits += debit
                 n_debit += 1
@@ -446,22 +461,50 @@ def bs_totals(ctx: CaseContext) -> list[Flag]:
         opening_cell, closing_cell = _field(doc, "opening_balance"), _field(doc, "closing_balance")
         if not approx_eq(expected, closing, tol):
             cells = {"opening_balance": opening_cell, "closing_balance": closing_cell, **used}
+            unread_note, fits = "", []
+            for r, col, raw, _cell in unread:
+                unread_note += f"; the {col} cell on row {r + 1} reads '{truncate(raw, 60)}', not one amount, and was counted as 0.00"
+            if len(unread) == 1:
+                _r, col, raw, _cell = unread[0]
+                sign = 1 if col == "credit" else -1
+                fits = [
+                    t
+                    for t in _MONEY_TOKEN.findall(raw)
+                    if approx_eq(expected + sign * Decimal(t.replace(",", "")), closing, tol)
+                ]
+                if fits:
+                    unread_note += f"; the printed closing balance fits {', '.join(fits)}"
             flags.append(
                 make_flag(
                     "bs_totals",
                     docs=[doc],
                     field="closing_balance",
                     region=_box(closing_cell, "closing balance"),
-                    extra_regions=_extras(_box(opening_cell, "opening balance")),
+                    extra_regions=_extras(
+                        _box(opening_cell, "opening balance"),
+                        *[
+                            _box(c, f"{col} on row {r + 1} (not one amount)")
+                            for r, col, _raw, c in unread
+                        ],
+                    ),
                     evidence=(
                         f"opening {fmt_money(opening)} + credits {fmt_money(credits)} - debits "
                         f"{fmt_money(debits)} = {fmt_money(expected)}; printed closing "
                         f"{fmt_money(closing)}; diff {fmt_money(abs(closing - expected))}"
-                        f"{note}{_unverified({k: v for k, v in cells.items() if v is not None})}"
+                        f"{note}{unread_note}{_unverified({k: v for k, v in cells.items() if v is not None})}"
                     ),
                     explanation=(
-                        f"Opening balance plus deposits minus withdrawals is {fmt_money(expected)}, "
-                        f"but the statement prints a closing balance of {fmt_money(closing)}."
+                        (
+                            f"Opening balance plus deposits minus withdrawals does not equal the closing balance "
+                            f"of {fmt_money(closing)}, because the {unread[0][1]} cell on row {unread[0][0] + 1} "
+                            f"holds more than one amount and was counted as nothing"
+                            + (f" (the closing balance fits {fits[0]})." if fits else ".")
+                        )
+                        if unread
+                        else (
+                            f"Opening balance plus deposits minus withdrawals is {fmt_money(expected)}, "
+                            f"but the statement prints a closing balance of {fmt_money(closing)}."
+                        )
                     ),
                 )
             )

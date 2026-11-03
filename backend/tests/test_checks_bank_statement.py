@@ -1070,3 +1070,32 @@ def test_an_unreadable_amount_that_fits_no_reading_still_says_so_without_inventi
 
 def test_a_clean_running_balance_with_a_normal_credit_is_unchanged() -> None:
     assert bs.bs_running_balance(ctx_of(statement())) == []
+
+
+def test_bs_totals_names_the_same_unreadable_cell_and_marks_every_place() -> None:
+    """The closing-balance total is short by the amount of the cell that holds two numbers: say so, and mark the
+    opening balance, the closing balance and that cell, all three."""
+    rows = [
+        tx("2026-04-17", "FEE", debit="0.20", balance="9999.80"),
+        tx("2026-04-20", "FUNDS TRANSFER FROM VELOTRADE", credit="2195.81", balance="12195.61"),
+    ]
+    doc = statement(rows, opening_balance="10000.00", closing_balance="12195.61", boxes=True)
+    cell = doc.tables["transactions"].rows[1].cells["credit"]
+    cell.value, cell.raw = None, "2,195.81 2,415.39"
+    flags = [f for f in bs.bs_totals(ctx_of(doc)) if f.field == "closing_balance"]
+    assert len(flags) == 1
+    (flag,) = flags
+    assert "reads '2,195.81 2,415.39', not one amount, and was counted as 0.00" in flag.evidence
+    assert "the printed closing balance fits 2,195.81" in flag.evidence
+    assert "holds more than one amount" in flag.explanation and "fits 2,195.81" in flag.explanation
+    assert [r.label for r in flag.extra_regions] == [
+        "opening balance",
+        "credit on row 2 (not one amount)",
+    ]
+
+
+def test_bs_totals_without_an_unreadable_cell_keeps_its_plain_wording() -> None:
+    doc = statement(closing_balance="26999.99")
+    (flag,) = [f for f in bs.bs_totals(ctx_of(doc)) if f.field == "closing_balance"]
+    assert flag.explanation.startswith("Opening balance plus deposits minus withdrawals is ")
+    assert "not one amount" not in flag.evidence

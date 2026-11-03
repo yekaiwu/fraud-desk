@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { pageUrl } from "@/lib/api";
 import { makeDocNamer } from "@/lib/docNames";
-import { locusOf, touchesPage } from "@/lib/flagLocus";
+import { locusOf, touchesPage, type Place } from "@/lib/flagLocus";
 import type { NumberedFlag } from "@/lib/flags";
 import { severityLabel } from "@/lib/labels";
 import { pickImageWidth } from "@/lib/regions";
@@ -62,6 +62,8 @@ export function PageViewer({
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [cw, setCw] = useState(700);
   const [pageH, setPageH] = useState<number | null>(null);
+  // "Go to" on one of a flag's places: open its page, then bring it into view and pulse it
+  const [focus, setFocus] = useState<{ key: string; t: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const wrapper = useRef<HTMLDivElement>(null);
 
@@ -110,6 +112,19 @@ export function PageViewer({
     else el?.scrollIntoView?.({ block: "center", behavior: reduced ? "auto" : "smooth" });
   }, [selectedFlagId, current.fileId, current.page, reduced]);
 
+  useEffect(() => {
+    if (!focus || !wrapper.current) return;
+    const id = window.setTimeout(() => {
+      const el = wrapper.current?.querySelector<HTMLElement>(`[data-place="${focus.key}"]`);
+      if (!el) return;
+      el.scrollIntoView?.({ block: "center", behavior: reduced ? "auto" : "smooth" });
+      el.classList.remove("place-pulse");
+      void el.offsetWidth; // restart the animation
+      el.classList.add("place-pulse");
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [focus, current.fileId, current.page, reduced]);
+
   // the page's height in CSS px, so margin chips of neighbouring rows can be kept apart
   useLayoutEffect(() => {
     const el = wrapper.current;
@@ -131,7 +146,7 @@ export function PageViewer({
   const selectedNf = selectedFlagId ? (flags.find((x) => x.flag.id === selectedFlagId) ?? null) : null;
   const hasWide = onPage.some(({ flag }) => locusOf(flag, documents).kind !== "box");
   const severitiesHere = (["high", "medium", "low", "info"] as const).filter((s) => onPage.some((x) => x.flag.severity === s));
-  const hasExtras = flags.some(({ flag }) => flag.extra_regions.some((x) => x.file_id === file.id && x.page === current.page));
+  const hasExtras = selectedNf ? selectedNf.flag.extra_regions.some((x) => x.file_id === file.id && x.page === current.page) : false;
   const go = (page: number) => onNavigate({ fileId: file.id, page: Math.min(pageCount, Math.max(1, page)) });
   const pageName = names.page(file.id, current.page);
 
@@ -224,7 +239,7 @@ export function PageViewer({
         </div>
       ) : null}
 
-      {selectedNf ? <FlagCaption selected={selectedNf} documents={documents} names={names} onNavigate={onNavigate} current={{ fileId: file.id, page: current.page }} /> : null}
+      {selectedNf ? <FlagCaption selected={selectedNf} documents={documents} names={names} onNavigate={onNavigate} onFocusPlace={(pl: Place) => { if (pl.region.file_id !== file.id || pl.region.page !== current.page) onNavigate({ fileId: pl.region.file_id, page: pl.region.page }); setFocus({ key: pl.key, t: Date.now() }); }} current={{ fileId: file.id, page: current.page }} /> : null}
 
       {pageInfo?.error ? (
         <div className="border-t border-rule p-3">
@@ -293,7 +308,7 @@ export function PageViewer({
               {hasExtras ? (
                 <li className="inline-flex items-center gap-1.5">
                   <span aria-hidden className="inline-block h-3 w-5 rounded-[2px] border border-dashed border-ink-2 bg-ink-2/10" />
-                  Related evidence
+                  Other places this flag points at (a, b ...)
                 </li>
               ) : null}
             </ul>
