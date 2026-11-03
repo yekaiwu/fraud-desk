@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
+// The badge asks the API; here it always answers "nothing to look at" (AppShell.badge.test.tsx covers the counts).
+vi.mock("@/lib/api", () => ({ getNotificationSummary: () => Promise.resolve({ unread: 0, open_alerts: 0, badge: 0 }) }));
 
 import { AppShell } from "./AppShell";
 
@@ -11,15 +13,15 @@ beforeEach(() => {
 });
 
 describe("AppShell", () => {
-  it("has landmarks, a skip link, the four nav items and the disclaimer line", () => {
+  it("has landmarks, a skip link, the five nav items and the disclaimer line", () => {
     render(<AppShell>content</AppShell>);
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveTextContent("content");
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute("href", "#main");
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Control performance", "Check catalogue"]);
-    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.getAttribute("href"))).toEqual(["/", "/upload", "/effectiveness", "/rules"]);
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Notifications", "Control performance", "Check catalogue"]);
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.getAttribute("href"))).toEqual(["/", "/upload", "/notifications", "/effectiveness", "/rules"]);
     expect(screen.getByText(/Decision support only; a human decides/)).toBeInTheDocument();
   });
 

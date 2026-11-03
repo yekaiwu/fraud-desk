@@ -127,6 +127,10 @@ export function explainError(e: ApiErrorBody): ExplainedError {
       const s = typeof d?.retry_after_s === "number" ? d.retry_after_s : null;
       return { title: "Slow down", detail: s === null ? e.message : `Too many requests. Try again in ${s < 90 ? `${s} seconds` : `${Math.ceil(s / 60)} minutes`}.`, retryable: false };
     }
+    case "alert_not_open":
+      return { title: "Already handled", detail: "This alert is no longer open. Reload to see its state.", retryable: false };
+    case "account_required":
+      return { title: "Sign in with your own account", detail: "A typed name is not accepted here.", retryable: false };
     case "busy":
       return { title: "Server is busy", detail: "Too many analyses are running. Try again in a minute.", retryable: true };
     case "internal_error":
