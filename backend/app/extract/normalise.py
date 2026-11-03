@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from app.core.models import RAW_MAX, Cell, CellKind, CellSource, Region, truncate
-from app.core.money import fmt_money, parse_money
+from app.core.money import fmt_money, parse_money, parse_number
 
 __all__ = [
     "SCALE_WORDS",
@@ -293,22 +293,14 @@ def canonical(
         return fmt_money(value), None
 
     if kind == "decimal":
-        cleaned = text.replace(",", "")
-        try:
-            d = Decimal(cleaned)
-        except InvalidOperation:
-            return None, "unparsed"
-        if not d.is_finite():
+        d = _signed_number(text)  # "2,00" is two, "1,000" is a thousand
+        if d is None:
             return None, "unparsed"
         return format(d, "f"), None
 
     if kind == "percent":
-        cleaned = text.replace("%", "").replace(",", "").strip()
-        try:
-            d = Decimal(cleaned)
-        except InvalidOperation:
-            return None, "unparsed"
-        if not d.is_finite():
+        d = _signed_number(text.replace("%", "").strip())  # "10,5%" is ten and a half
+        if d is None:
             return None, "unparsed"
         out = format(d, "f")
         if "." not in out:
@@ -340,6 +332,14 @@ def canonical(
         return _enum(text, values)
 
     return text, None
+
+
+def _signed_number(text: str) -> Decimal | None:
+    """A plain number with optional sign, through the shared decimal-mark rules."""
+    sign = -1 if text[:1] == "-" else 1
+    body = text.lstrip("+-").strip()
+    d = parse_number(body)
+    return None if d is None else sign * d
 
 
 def _enum(text: str, values: list[str] | None) -> tuple[str | None, str | None]:

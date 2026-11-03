@@ -94,7 +94,9 @@ def test_no_cue_is_other_at_exactly_point_six() -> None:
     dist = c1("zzzz qqqq nothing recognisable here")
     assert dist["other"] == 0.6
     assert sum(dist.values()) == pytest.approx(1.0, abs=1e-9)
-    assert dist["invoice"] == pytest.approx(0.4 / 13, abs=1e-4)
+    assert dist["invoice"] == pytest.approx(
+        0.4 / 14, abs=1e-4
+    )  # 15 labels since the receipt type: shared by 14
 
 
 def test_odd_inputs_never_raise() -> None:
@@ -168,7 +170,7 @@ def test_normalise_text_basics() -> None:
 
 def test_deterministic_and_versioned() -> None:
     assert c1(STATEMENT_DBS) == c1(STATEMENT_DBS)
-    assert RulesClassifier.version == "3" and RulesClassifier.name == "rules"
+    assert RulesClassifier.version == "4" and RulesClassifier.name == "rules"
 
 
 def test_nric_shaped_number_alone_is_only_medium() -> None:

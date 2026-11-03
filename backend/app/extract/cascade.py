@@ -29,6 +29,7 @@ from app.core.context import CaseContext
 from app.core.models import Cell, DocStatus, Document, Row
 from app.core.textlayout import layout_text
 from app.extract.base import ExtractionMeta, ExtractionResult, LayoutNotRecognised, Validation
+from app.extract.completeness import extracted_amounts, missed_items
 from app.extract.llm_extractor import (
     LLMExtractor,
     PageReadError,
@@ -47,6 +48,10 @@ UNSTABLE_FRACTION = 0.10
 _DATE_LED = re.compile(
     r"^\s*(\d{1,2}[ /.-](?:[A-Za-z]{3,9}|\d{1,2})[ /.-]\d{2,4}|\d{4}-\d{2}-\d{2})\b"
 )
+PRICED_TYPES = {
+    "invoice": ("subtotal", "gst_amount", "total"),
+    "receipt": ("subtotal", "tax_amount", "total"),
+}
 ROWS_MISSING_MIN = 3  # at least this many date-led lines without a row ...
 ROWS_MISSING_SHARE = 0.75  # ... and fewer rows than this share of the date-led lines
 _VALUE_KINDS = {"money", "decimal", "percent", "int", "date"}
@@ -139,7 +144,27 @@ class _Run:
         validation = self.validator(result, self.ctx, self.doc)
         for page, reason in self.rows_missing(result).items():
             validation.failing.setdefault(page, reason)
+        for page in self.amounts_missing(result):
+            validation.failing.setdefault(page, "amounts_missing")
         return validation
+
+    def amounts_missing(self, result: ExtractionResult) -> dict[int, list]:
+        """Scanned priced pages (invoice, receipt) with printed item or discount lines whose amount
+        the reading did not take. Arithmetic cannot see a dropped row when the subtotal was dropped
+        with it, so the page text is the evidence (extract/completeness.py)."""
+        if self.doc.doc_type not in PRICED_TYPES:
+            return {}
+        cells = [c for r in result.tables["lines"].rows for c in r.cells.values()]
+        cells += [result.fields.get(k) for k in PRICED_TYPES[self.doc.doc_type]]
+        known = extracted_amounts(cells)
+        out: dict[int, list] = {}
+        for page, state in self.states.items():
+            if not state.is_scan or not state.words:
+                continue
+            missed = missed_items([w for w in state.words if w.page == page], known)
+            if missed:
+                out[page] = missed
+        return out
 
     def rows_missing(self, result: ExtractionResult) -> dict[int, str]:
         """Scanned statement pages where the reading holds far fewer rows than the page has date-led
@@ -428,6 +453,9 @@ class _Run:
         validation = self.validate(result)
         for key in validation.missing_required:
             self.warnings.append(f"missing: fields.{key}")
+        incomplete = self.amounts_missing(result)
+        if incomplete:
+            self._mark_incomplete(result, incomplete)
         result.warnings = cap_warnings([*self.warnings, *result.warnings])
         nothing = not any(
             c.value is not None or c.raw is not None for c in result.fields.values()
@@ -446,6 +474,25 @@ class _Run:
             pages_escalated=sorted(set(self.escalated)),
         )
         return result, meta
+
+    def _mark_incomplete(self, result: ExtractionResult, incomplete: dict[int, list]) -> None:
+        """The reading still lacks printed lines after every reader had its turn: say so on the
+        document, and mark the amounts that arithmetic would lean on as not verified. The checks
+        read ``reading_incomplete`` and report it instead of an arithmetic mismatch."""
+        for page, missed in sorted(incomplete.items()):
+            first = "; ".join(f"{m.text[:40]!r}" for m in missed[:2])
+            self.warnings.append(
+                f"reading_incomplete: page {page}: {len(missed)} printed lines not read ({first})"
+            )
+        self.partial = True
+        for row in result.tables["lines"].rows:
+            cell = row.cells.get("amount")
+            if cell is not None and cell.raw is not None:
+                row.cells["amount"] = cell.model_copy(update={"verified": False})
+        for key in PRICED_TYPES[self.doc.doc_type]:
+            cell = result.fields.get(key)
+            if cell is not None and cell.raw is not None:
+                result.fields[key] = cell.model_copy(update={"verified": False})
 
     def _extractor_name(self) -> str:
         if not self.used:

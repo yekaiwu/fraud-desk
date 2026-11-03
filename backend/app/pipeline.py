@@ -28,6 +28,7 @@ from app.core.fingerprints import (
     SqliteFingerprintStore,
     invoice_fingerprint,
     invoice_key_fingerprint,
+    receipt_fingerprint,
 )
 from app.core.llm import LLMClient, get_llm_client
 from app.core.models import (
@@ -188,6 +189,19 @@ def record_fingerprints(ctx: CaseContext) -> int:
                 case_id=case.id,
                 document_id=doc.id,
                 meta={**meta, "role": "key"},
+            )
+            count += 1
+    for doc in ctx.docs("receipt"):
+        merchant = _cell_text(doc, "merchant_name")
+        date_ = _cell_text(doc, "receipt_date")
+        total = _cell_text(doc, "total")
+        if merchant and date_ and total:
+            store.record(
+                "receipt",
+                receipt_fingerprint(merchant, date_, total, _cell_text(doc, "receipt_number")),
+                case_id=case.id,
+                document_id=doc.id,
+                meta={"applicant_uen": uen, "doc_type": "receipt"},
             )
             count += 1
     count += _record_crop_fingerprints(ctx)

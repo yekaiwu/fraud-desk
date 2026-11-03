@@ -19,7 +19,7 @@ from app.core.models import Strict, UtcDatetime, utcnow
 if TYPE_CHECKING:
     from app.core.db import Database
 
-KINDS = ("file_sha256", "invoice", "crop_phash")
+KINDS = ("file_sha256", "invoice", "receipt", "crop_phash")
 
 
 class FingerprintHit(Strict):
@@ -90,6 +90,17 @@ def invoice_key_fingerprint(supplier_uen: str, invoice_number: str) -> str:
     """sha256 hex of ``"invkey|" + uen + "|" + number`` (same supplier and invoice number)."""
     pre = "invkey|" + _norm_uen(supplier_uen) + "|" + _norm_number(invoice_number)
     return hashlib.sha256(pre.encode("utf-8")).hexdigest()
+
+
+def receipt_fingerprint(
+    merchant: str, receipt_date: str, total: str, receipt_number: str = ""
+) -> str:
+    """sha256 hex of ``"rcpt|" + "|".join([merchant, ISO date, total at 2 dp, receipt number])``.
+    The merchant is compared as letters and digits only, so spacing and punctuation read
+    differently by OCR do not hide a repeat."""
+    name = "".join(ch for ch in (merchant or "").casefold() if ch.isalnum())
+    parts = [name, (receipt_date or "").strip(), _norm_total(total), _norm_number(receipt_number)]
+    return hashlib.sha256(("rcpt|" + "|".join(parts)).encode("utf-8")).hexdigest()
 
 
 def ctx_fingerprint(kind: str, fingerprint: str, case_id: str, document_id: str | None) -> str:

@@ -174,7 +174,7 @@ def test_other_and_boilerplate_documents_are_kept_and_listed(tmp_path: Path) -> 
     ) == 2
     for doc in ctx.case.documents:
         assert doc.status == "received_not_checked"
-        assert doc.classification.classifier == "rules" and doc.classification.version == "3"
+        assert doc.classification.classifier == "rules" and doc.classification.version == "4"
     assert outcome.detail["other_pages"] == 2 and outcome.detail["boilerplate_pages"] == 1
     assert outcome.detail["low_confidence_pages"] >= 2
     assert outcome.partial is False  # unsure pages reduce coverage, they do not make a partial
@@ -204,8 +204,8 @@ def test_c3_issuer_on_statements_only(tmp_path: Path) -> None:
     assert software.issuer.label == "software_generated" and software.issuer.probability == 0.75
     assert invoice.issuer is None
     assert (
-        outcome.detail["classifier_C1"] == "rules@3"
-        and outcome.detail["classifier_C3"] == "rules@3"
+        outcome.detail["classifier_C1"] == "rules@4"
+        and outcome.detail["classifier_C3"] == "rules@4"
     )
 
 
@@ -450,14 +450,14 @@ def test_c3_low_confidence_escalates_in_cascade_mode(tmp_path: Path) -> None:
 def test_classifier_versions_are_derived_from_the_data(tmp_path: Path) -> None:
     ctx = text_ctx(tmp_path, [[statement(1, 1)]])
     run_stage(ctx)
-    assert classifier_versions(ctx.case) == {"C1": "rules@3", "C3": "rules@3"}
+    assert classifier_versions(ctx.case) == {"C1": "rules@4", "C3": "rules@4"}
 
     llm = FakeLLMClient(fixtures={"classify:C1": scores(C1, "contract", 0.95)})
     mixed = text_ctx(
         tmp_path / "mixed", [[statement(1, 1), AMBIGUOUS]], llm=llm, classifier_mode="cascade"
     )
     run_stage(mixed)
-    assert classifier_versions(mixed.case)["C1"] == "llm:fake@1+rules@3"
+    assert classifier_versions(mixed.case)["C1"] == "llm:fake@1+rules@4"
 
 
 def test_every_classification_carries_label_probability_classifier_version(tmp_path: Path) -> None:

@@ -33,6 +33,7 @@ StageStatus = Literal["pending", "running", "ok", "failed", "skipped"]
 DocType = Literal[
     "bank_statement",
     "invoice",
+    "receipt",
     "financial_statement",
     "contract",
     "purchase_order",

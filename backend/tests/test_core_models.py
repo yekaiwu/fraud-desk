@@ -168,7 +168,9 @@ def test_table_helpers() -> None:
 def test_constants() -> None:
     assert SCORE_WEIGHTS == {"high": 30, "medium": 15, "low": 5, "info": 0}
     assert BAND_THRESHOLDS == {"medium": 30, "high": 60}
-    assert "bank_statement" in C1_LABELS and C1_LABELS[-1] == "other" and len(C1_LABELS) == 14
+    assert (
+        "bank_statement" in C1_LABELS and C1_LABELS[-1] == "other" and len(C1_LABELS) == 15
+    )  # 15 with receipt
 
 
 def test_provenance_and_outcome_defaults() -> None:

@@ -10,6 +10,7 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   bank_statement: "Bank statement",
   financial_statement: "Financial statements",
   invoice: "Invoice",
+  receipt: "Receipt",
   contract: "Contract",
   purchase_order: "Purchase order",
   company_profile: "Company profile",

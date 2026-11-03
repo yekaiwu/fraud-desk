@@ -9,6 +9,7 @@ import type { DocType, Document, FileRef } from "./types";
 const TYPE_LABEL: Record<DocType, string> = {
   bank_statement: "Bank statement",
   invoice: "Invoice",
+  receipt: "Receipt",
   financial_statement: "Financial statement",
   contract: "Contract",
   purchase_order: "Purchase order",
@@ -65,6 +66,10 @@ function qualifier(d: Document): string | null {
     case "invoice": {
       const n = fieldValue(d, ["invoice_number"]);
       return n || null;
+    }
+    case "receipt": {
+      const n = fieldValue(d, ["merchant_name"]);
+      return n ? titleCase(n) : null;
     }
     case "contract": {
       const n = fieldValue(d, ["contract_number"]);

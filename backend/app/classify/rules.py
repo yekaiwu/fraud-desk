@@ -95,6 +95,37 @@ CUES: dict[str, dict[str, list[Cue]]] = {
             "qty",
             r"re:gst\s*\(?9",
         ),
+        # A till slip. No cue here is an invoice or a statement word: "tax invoice" and "invoice
+        # no" stay the invoice's, and "subtotal", "tax", "total", "cash", "change" and card brands
+        # are on every priced page and every cash flow statement, so they are no cue at all (a
+        # first try with them lowered the invoice and financial statement exemplars). The cues are
+        # what a point-of-sale printer adds: a cashier, change due, a masked card number, a thank
+        # you, a transaction or check number, a server and a table.
+        "receipt": S(
+            "sales receipt",
+            "cash receipt",
+            "customer copy",
+            "merchant copy",
+            "cashier",
+            "change due",
+            r"re:\bthank you for (?:your|shopping|dining|visiting|coming|choosing)",
+            r"re:\bx{4,}[\s*]?\d{4}\b",
+            "approval code",
+        )
+        + M(
+            "tran#",
+            "trans#",
+            "gratuity",
+            r"re:\bserver\s*:",
+            r"re:\bguests?\s*:",
+            r"re:\bchk\s?#?\s?\d+",
+            r"re:\bcheck\s?#\s?\d+",
+            r"re:^table\s*#?\s*\d+(?:/\d+)?\b",  # at the line start: "Coffee Table 1,00" is an item
+            r"re:\bappr(?:oval)?\s?#",
+            r"re:^change\s*[:=]?\s*[$£€]?\s?\d",  # a tendered amount and its change, one per line
+            r"re:^cash\s*[:=]?\s*[$£€]?\s?\d+[.,]\d\d\s*$",
+        )
+        + W("receipt", "thank you"),
         "financial_statement": S(
             "balance sheet",
             "statement of financial position",
@@ -839,7 +870,9 @@ def scores_to_distribution(
             else:
                 overflow = remaining
             sink = fallback if fallback is not None and fallback != best else best
-            probs[sink] = round(probs[sink] + overflow, 4)
+            # rounding the other shares to 4 places can leave a tiny negative overflow (seen with 15
+            # labels): never let it push the sink below zero, _fix_rounding settles the remainder
+            probs[sink] = max(0.0, round(probs[sink] + overflow, 4))
             if sink == best and mass == 0 and best == fallback:
                 # nothing else scored and best is `other`: spread uniformly instead
                 probs[best] = p_best
@@ -924,7 +957,7 @@ def title_veto(norm: str) -> bool:
 @register_classifier(name="rules")
 class RulesClassifier:
     name = "rules"
-    version = "3"  # bump when any cue list or rule changes
+    version = "4"  # bump when any cue list or rule changes
 
     def classify(
         self,

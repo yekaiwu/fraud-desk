@@ -95,11 +95,11 @@ def money(text: object) -> Decimal | None:
 
 
 def field_hits(case, label: dict) -> tuple[bool, bool]:  # noqa: ANN001
-    inv = [d for d in case.documents if d.doc_type == "invoice"]
+    inv = [d for d in case.documents if d.doc_type in ("invoice", "receipt")]
     no = {
         re.sub(r"\W", "", (d.fields["invoice_number"].value or ""))
         for d in inv
-        if "invoice_number" in d.fields
+        if "invoice_number" in d.fields and d.doc_type == "invoice"
     }
     totals = {money(d.fields["total"].value) for d in inv if "total" in d.fields}
     want_no = re.sub(r"\W", "", str(label.get("invoice_no") or ""))
@@ -182,10 +182,14 @@ def run(args: argparse.Namespace) -> int:
     n = len(done)
     alarmed = sum(r["medium_or_high"] > 0 for r in done)
     as_invoice = sum("invoice" in r["doc_types"] for r in done)
+    as_receipt = sum("receipt" in r["doc_types"] for r in done)
+    low_rules = Counter(f["rule"] for r in done for f in r["flags"] if f["severity"] == "low")
     summary = {
         "images": len(rows),
         "errors": len(rows) - n,
         "read_as_invoice": as_invoice,
+        "read_as_receipt": as_receipt,
+        "low_flag_rules": low_rules,
         "false_alarm_cases": alarmed,
         "false_alarm_interval": [round(x, 3) for x in wilson(alarmed, n)],
         "invoice_no_correct": sum(r["invoice_no_ok"] for r in done),

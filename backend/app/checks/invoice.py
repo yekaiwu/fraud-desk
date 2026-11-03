@@ -106,6 +106,41 @@ def _capped(items: list[Flag], cap: int) -> list[Flag]:
     return kept
 
 
+def reading_incomplete(doc: Document) -> str | None:
+    """The extraction's own note that printed lines were not read (``reading_incomplete: ...``).
+    Arithmetic that leans on the lines or the totals cannot be judged on such a reading."""
+    return next((w for w in doc.warnings if w.startswith("reading_incomplete")), None)
+
+
+def incomplete_flag(rule: str, doc: Document, note: str) -> Flag:
+    """The only thing a check may say about a half-read page: low, and not a mismatch."""
+    return make_flag(
+        rule,
+        docs=[doc],
+        severity="low",
+        discriminator="incomplete",
+        evidence=_clip(note.split(": ", 1)[-1], 160),
+        explanation=(
+            "The reading of this page is incomplete (printed lines were not read), so the "
+            "arithmetic could not be tested. A person should read the page."
+        ),
+    )
+
+
+def _tax_extras(doc: Document, row: Row, qty: Decimal, price: Decimal) -> list[Decimal]:
+    """Tax amounts that may sit inside a printed line amount: the line's own GST cell, and the
+    document's printed rate applied to quantity x price."""
+    out: list[Decimal] = []
+    line_gst = _rc(row, "gst_amount").money()
+    if line_gst is not None:
+        out.append(line_gst)
+    rate_cell = _c(doc, "gst_rate")
+    rate = rate_cell.money()
+    if rate is not None and rate > ZERO and rate_cell.source != "derived":  # printed, not assumed
+        out.append(quantize(qty * price * rate / 100, 2))
+    return out
+
+
 # ---------------------------------------------------------------- inv_lines
 
 
@@ -125,6 +160,11 @@ def inv_lines(ctx: CaseContext) -> list[Flag]:
         table = doc.tables.get("lines")
         if table is None or not table.rows:
             continue
+        note = reading_incomplete(doc)
+        if note is not None:
+            flags.append(incomplete_flag("inv_lines", doc, note))
+            evaluated += 1
+            continue
         doc_flags: list[Flag] = []
         total_amount = ZERO
         n_amounts = 0
@@ -141,6 +181,13 @@ def inv_lines(ctx: CaseContext) -> list[Flag]:
             expected = quantize(qty * price, 2)
             line_tol = Decimal("0.005") * abs(qty) + Decimal("0.005")
             diff = abs(amount - expected)
+            # A line that prints a tax-inclusive amount ("Gross worth" next to the net unit price)
+            # is quantity x price plus the line's own GST, or plus the printed rate. A tampered
+            # amount fits neither.
+            for extra in _tax_extras(doc, row, qty, price):
+                if abs(amount - quantize(qty * price + extra, 2)) < line_tol + Decimal("0.01"):
+                    diff = ZERO
+                    break
             # Exclusive of the tolerance itself (T-INV-LN-5: 37.52 vs 37.50 must flag).
             if diff >= line_tol:
                 cells = {
@@ -251,7 +298,8 @@ def inv_gst(ctx: CaseContext) -> list[Flag]:
                     field="gst_rate",
                     region=_lab(rate_cell.box, "gst_rate"),
                     extra_regions=_regions(_c(doc, "invoice_date"), labels=("invoice_date",)),
-                    severity="medium",
+                    # a rate Singapore GST never had (10%) is a foreign invoice, noted not alarmed
+                    severity="medium" if printed_rate in SG_GST_RATES else "low",
                     discriminator="rate",
                     evidence=(
                         f"printed gst_rate {fmt_money(printed_rate)} on {inv_date.isoformat()}; "
@@ -261,6 +309,10 @@ def inv_gst(ctx: CaseContext) -> list[Flag]:
                 )
             )
         if rate is None:
+            continue
+        note = reading_incomplete(doc)
+        if note is not None:  # the rate test above stands; the sums below lean on the lines
+            flags.append(incomplete_flag("inv_gst", doc, note))
             continue
 
         lines = [r for r in (doc.tables["lines"].rows if "lines" in doc.tables else [])]
@@ -325,6 +377,10 @@ def inv_total(ctx: CaseContext) -> list[Flag]:
         if subtotal is None or total is None:
             continue
         evaluated += 1
+        note = reading_incomplete(doc)
+        if note is not None:
+            flags.append(incomplete_flag("inv_total", doc, note))
+            continue
         computed = subtotal + (gst or ZERO)
         if approx_eq(computed, total, tol):
             continue

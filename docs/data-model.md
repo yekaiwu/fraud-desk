@@ -49,7 +49,7 @@ Severity    = Literal["high", "medium", "low", "info"]
 FlagStage   = Literal["forensics", "rules", "crossdoc"]
 StageName   = Literal["ingest", "classify", "extract", "forensics", "rules", "crossdoc", "score"]
 StageStatus = Literal["pending", "running", "ok", "failed", "skipped"]
-DocType     = Literal["bank_statement", "invoice", "financial_statement", "contract", "purchase_order",
+DocType     = Literal["bank_statement", "invoice", "receipt", "financial_statement", "contract", "purchase_order",
                       "company_profile", "certificate_of_incorporation", "ownership_chart",
                       "shareholder_register", "source_of_funds_declaration", "national_id", "passport",
                       "boilerplate", "other"]
@@ -468,6 +468,10 @@ Fields: `contract_number (id)?`, `title (text)`, `contract_date (date)`, `effect
 
 Table `milestones` (optional): `description (text)`, `due_date (date)`, `amount (money)`.
 
+### 6.4a `receipt` (a point-of-sale slip)
+
+Fields: `merchant_name (text)?`, `receipt_number (id)?` (a printed transaction, check or receipt number), `receipt_date (date)?`, `currency (enum)?`, `subtotal (money)?`, `tax_rate (percent)?`, `tax_amount (money)?`, `total (money)` (the only required field). Table `lines`: the same columns as invoice `lines`. There is no invoice number, UEN or GST number, so no invoice rule can apply to it. Rules: `rcpt_*` in check-catalogue.md; reading and limits: ingest-and-extraction.md 6.9.
+
 ### 6.5 `purchase_order`
 
 Fields: `po_number (id)`, `po_date (date)`, `buyer_name (text)`, `buyer_uen (id)?`, `supplier_name (text)`, `supplier_uen (id)?`, `currency (enum)`, `subtotal (money)`, `gst_amount (money)?`, `total (money)`, `delivery_date (date)?`, `contract_reference (id)?`.
@@ -514,6 +518,7 @@ No fields, no tables. `status="received_not_checked"`.
 | Consumer | Reads |
 |---|---|
 | `bs_*` rules | `bank_statement.fields.*`, `transactions`, `page_chain` |
+| `rcpt_*` | `receipt.fields.*`, `receipt.lines` |
 | `inv_*`, `x_invoice_*` | `invoice.fields.*`, `invoice.lines`, `contract.fields`, `purchase_order.*` |
 | `fs_*`, `x_revenue_vs_credits`, `x_cash_at_year_end` | `financial_statement` tables, `transactions` + annotation `c4` |
 | `x_declared_vs_activity` | `company_profile.fields.principal_activity`, `transactions` annotation `c5` and `counterparty` |

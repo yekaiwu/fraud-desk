@@ -5,7 +5,7 @@ export type FlagStage = "forensics" | "rules" | "crossdoc";
 export type StageName = "ingest" | "classify" | "extract" | "forensics" | "rules" | "crossdoc" | "score";
 export type StageStatus = "pending" | "running" | "ok" | "failed" | "skipped";
 export type DocType =
-  | "bank_statement" | "invoice" | "financial_statement" | "contract" | "purchase_order"
+  | "bank_statement" | "invoice" | "receipt" | "financial_statement" | "contract" | "purchase_order"
   | "company_profile" | "certificate_of_incorporation" | "ownership_chart" | "shareholder_register"
   | "source_of_funds_declaration" | "national_id" | "passport" | "boilerplate" | "other";
 export type DocStatus = "ok" | "partial" | "failed" | "received_not_checked";

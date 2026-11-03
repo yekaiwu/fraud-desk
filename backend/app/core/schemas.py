@@ -213,6 +213,22 @@ def _build() -> dict[str, DocSchema]:
         tables={"lines": _LINES_TABLE},
     )
 
+    # A point-of-sale slip: a merchant, a date, items, tax and a total, and no invoice number, UEN
+    # or GST number. Same lines table as an invoice, so the extractor and the arithmetic are shared.
+    s["receipt"] = DocSchema(
+        fields={
+            "merchant_name": _opt("text"),
+            "receipt_number": _opt("id"),
+            "receipt_date": _opt("date"),
+            "currency": _opt(_CURRENCY),
+            "subtotal": _opt("money"),
+            "tax_rate": _opt("percent"),
+            "tax_amount": _opt("money"),
+            "total": _f("money"),
+        },
+        tables={"lines": _LINES_TABLE},
+    )
+
     s["financial_statement"] = DocSchema(
         fields={
             "company_name": _f("text"),
