@@ -2,7 +2,7 @@ import clsx from "clsx";
 import type { ReactNode } from "react";
 
 /**
- * One headline figure: small caps label, big serif number, optional hint.
+ * One headline figure: small caps label, big number, optional hint.
  *
  *   <Stat label="Cases waiting" value={12} hint="3 are high risk" tone="high" />
  */

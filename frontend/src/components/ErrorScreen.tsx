@@ -1,14 +1,12 @@
-import { Guilloche } from "./ui/Guilloche";
 
 /**
  * Full-page "this did not work" screen shared by not-found, error and global-error: a sheet of paper
- * with a guilloche seal in the corner, a serif headline, one calm sentence and the way back.
+ * with a plain headline, one calm sentence and the way back.
  * Server-safe (no hooks), so global-error can use it too.
  */
 export function ErrorScreen({ eyebrow, title, children, actions, reference }: { eyebrow: string; title: string; children: React.ReactNode; actions: React.ReactNode; reference?: string | null }) {
   return (
     <section aria-labelledby="error-title" className="relative mx-auto mt-2 max-w-3xl overflow-hidden rounded-xl border border-rule bg-surface shadow-paper sm:mt-6">
-      <Guilloche variant="rosette" opacity={0.1} className="absolute -right-24 -top-24 h-80 w-80 text-brand sm:-right-12 sm:-top-16 sm:h-[26rem] sm:w-[26rem]" />
       <div className="relative px-5 py-10 sm:px-12 sm:py-16">
         <p className="label-caps">{eyebrow}</p>
         <h1 id="error-title" className="mt-3 max-w-[16ch] text-[2.25rem] leading-[1.08] sm:text-[3.25rem]">

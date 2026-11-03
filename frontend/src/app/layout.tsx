@@ -1,10 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/AppShell";
-// Self-hosted fonts (no CDN, CSP default-src 'self'): display serif with optical size, UI grotesque, mono for IDs and amounts.
-import "@fontsource-variable/fraunces/opsz.css";
-import "@fontsource-variable/hanken-grotesk/wght.css";
-import "@fontsource/ibm-plex-mono/400.css";
-import "@fontsource/ibm-plex-mono/500.css";
+// Fonts are the OS system stacks defined in globals.css: nothing to load, CSP-safe.
 import "./globals.css";
 
 export const metadata: Metadata = {

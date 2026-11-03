@@ -35,10 +35,9 @@ html:has(.welcome-root) {
   scroll-margin-top: 4.5rem;
 }
 
-/* Ruled headings on the deep-green band: hairline over a thicker brass line. */
+/* Ruled headings on the deep-green band: a muted hairline. */
 .rule-on-dark {
   --rule-top: var(--on-brand-muted);
-  --rule-bottom: var(--brass-light);
 }
 
 /* The edited figure on the hero statement: a slow pulse ring, once, like the case page region marker. */

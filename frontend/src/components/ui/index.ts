@@ -2,7 +2,6 @@ export { Badge, ConcernBadge, LaneBadge, RiskBadge, StatusBadge, type BadgeVaria
 export { Button, buttonClasses, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";
 export { EmptyState } from "./EmptyState";
 export { Field, inputClasses } from "./Field";
-export { Guilloche, type GuillocheVariant } from "./Guilloche";
 export { Kbd } from "./Kbd";
 export { Logo, LogoMark } from "./Logo";
 export { MeterBar, type MeterTone } from "./MeterBar";

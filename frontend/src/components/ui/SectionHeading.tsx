@@ -7,7 +7,7 @@ import type { ElementType, ReactNode } from "react";
  *   <SectionHeading level={1} size="page" eyebrow="Worklist" description="Highest risk first.">Cases to review</SectionHeading>
  *   <SectionHeading level={2}>Why this case is risky</SectionHeading>
  *
- * size "page": large serif page title; "section" (default): ruled section title; "minor": small caps label, no rule.
+ * size "page": large page title; "section" (default): ruled section title; "minor": small caps label, no rule.
  */
 export type HeadingLevel = 1 | 2 | 3 | 4;
 
@@ -33,7 +33,7 @@ export function SectionHeading({
   eyebrow?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
-  /** Draw the double rule underneath. */
+  /** Draw the hairline underneath. */
   rule?: boolean;
   className?: string;
   id?: string;

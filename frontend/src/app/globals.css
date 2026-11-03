@@ -5,23 +5,23 @@
    scripts/contrast.mjs (WCAG AA: 4.5:1 text, 3:1 large text and UI parts). Re-run it when you change a value. */
 :root {
   /* paper and ink */
-  --paper: #f6f3ec; /* page */
-  --paper-2: #eeeae0; /* sunken wells, hover, table header */
-  --surface: #fffdf8; /* raised cards */
+  --paper: #f5f6f6; /* page */
+  --paper-2: #eceeee; /* sunken wells, hover, table header */
+  --surface: #ffffff; /* raised cards */
   --ink: #14201b; /* body text, strongest */
   --ink-2: #3a4a43; /* secondary text */
   --muted: #5e6d66; /* tertiary text, captions (>= 4.5:1 on paper, paper-2, surface) */
-  --rule: #d9d3c4; /* hairlines, borders */
-  --rule-strong: #857d68; /* control borders (>= 3:1 on paper and surface) */
+  --rule: #e1e4e3; /* hairlines, borders */
+  --rule-strong: #858c89; /* control borders (>= 3:1 on paper and surface) */
 
   /* brand */
   --brand: #0f3d2e; /* deep institutional green: header band, primary buttons */
   --brand-2: #1b5e46; /* links, active states, focus ring */
   --brand-tint: #e3efe8;
-  --brass: #b8893b; /* FILLS ONLY (never text): "needs your attention" accent */
-  --brass-deep: #7a5a1c; /* brass as text */
-  --brass-tint: #f3e8cf;
-  --brass-light: #e3c27f; /* brass on the dark green band, focus ring on dark */
+  --brass: #8c9590; /* FILLS ONLY (never text): neutral "needs your attention" accent (was brass) */
+  --brass-deep: #46504c; /* attention accent as text */
+  --brass-tint: #eef0ef;
+  --brass-light: #d5ded9; /* attention accent on the dark green band, focus ring on dark */
 
   /* risk (the only places red / amber / green appear) */
   --sev-high: #a8231b;
@@ -34,7 +34,7 @@
   --sev-info-tint: #e4ebf3;
 
   /* text on the dark green band */
-  --on-brand: #f6f3ec;
+  --on-brand: #f5f6f6;
   --on-brand-muted: #b7cdc1;
 
   --ring: var(--brand-2);
@@ -47,9 +47,9 @@
   --accent: var(--brand);
 
   /* elevation: soft, ink-tinted, never heavy */
-  --elev-paper: 0 1px 0 rgb(20 32 27 / 0.04), 0 1px 3px rgb(20 32 27 / 0.07);
-  --elev-lift: 0 1px 0 rgb(20 32 27 / 0.04), 0 10px 28px -10px rgb(20 32 27 / 0.2);
-  --elev-sheet: 0 28px 70px -12px rgb(15 61 46 / 0.4);
+  --elev-paper: 0 1px 2px rgb(20 32 27 / 0.06);
+  --elev-lift: 0 4px 12px -4px rgb(20 32 27 / 0.12);
+  --elev-sheet: 0 16px 40px -12px rgb(20 32 27 / 0.25);
 }
 
 /* Anything sitting on the dark green band flips the focus ring to light brass. */
@@ -91,10 +91,10 @@
   --color-card: var(--card);
   --color-accent: var(--accent);
 
-  /* Families come from the @fontsource packages imported in layout.tsx (self-hosted, font-display: swap). */
-  --font-display: "Fraunces Variable", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-sans: "Hanken Grotesk Variable", "Segoe UI", "Helvetica Neue", Helvetica, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* System font stacks: nothing to load, native look on each OS. */
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
   --radius-xs: 3px;
   --radius-sm: 4px;
@@ -199,19 +199,13 @@ body {
 }
 
 /* ---- bank-statement rules ---- */
-/* Thin hairline over a thicker line. --rule-top / --rule-bottom can be overridden per use. */
+/* Single hairline under headings. --rule-top can be overridden per use. */
 .rule-statement {
   padding-bottom: 0.7rem;
-  background-image:
-    linear-gradient(var(--rule-top, var(--ink-2)), var(--rule-top, var(--ink-2))),
-    linear-gradient(var(--rule-bottom, var(--brand)), var(--rule-bottom, var(--brand)));
-  background-repeat: no-repeat;
-  background-size: 100% 1px, 100% 2px;
-  background-position: 0 calc(100% - 4px), 0 100%;
+  border-bottom: 1px solid var(--rule-top, var(--rule));
 }
 .rule-statement-soft {
-  --rule-top: var(--rule-strong);
-  --rule-bottom: var(--rule);
+  --rule-top: var(--rule);
 }
 
 /* ---- page region overlay (frontend.md section 6) ---- */

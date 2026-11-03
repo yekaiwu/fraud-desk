@@ -12,7 +12,6 @@ import { ExplainChecks } from "../explain/CoverageExplainer";
 import { ExplainNextStep } from "../explain/NextStepExplainer";
 import { ExplainScore } from "../explain/ScoreExplainer";
 import { Button } from "../ui/Button";
-import { Guilloche } from "../ui/Guilloche";
 import { MeterBar } from "../ui/MeterBar";
 import { Panel } from "../ui/Panel";
 import { RiskGauge } from "../ui/RiskGauge";
@@ -90,7 +89,6 @@ export function RecommendationHero({ c, isCurrent, why, onRecord, onShowFindings
   return (
     <Panel tone={high && c.status !== "closed" ? "attention" : "default"} className="relative z-20">
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
-        <Guilloche variant="rosette" opacity={0.06} className="absolute -right-24 -top-28 h-80 w-80 text-brand" />
       </div>
       <div className="relative grid gap-x-8 gap-y-6 md:grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-[auto_minmax(0,1fr)_15.5rem]">
         <div className="flex flex-col items-center justify-start md:col-start-1 md:row-start-1 md:pt-1">

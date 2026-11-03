@@ -6,7 +6,6 @@ import { useId, useRef, useState } from "react";
 import { MAX_FILES_PER_CASE, MAX_UPLOAD_MB } from "@/lib/constants";
 import { ACCEPT } from "@/lib/uploadCheck";
 import { buttonClasses } from "../ui/Button";
-import { Guilloche } from "../ui/Guilloche";
 
 /** Hidden files such as .DS_Store come along with a folder; they are never documents. */
 const isHidden = (f: File) => f.name.startsWith(".");
@@ -100,8 +99,6 @@ export function FileDropzone({ onFiles, disabled = false, label = "Choose files"
           disabled && "cursor-not-allowed opacity-60",
         )}
       >
-        <Guilloche variant="rosette" opacity={over ? 0.16 : 0.08} className="absolute -bottom-24 -left-20 h-64 w-64 text-brand" />
-        <Guilloche variant="rosette" opacity={over ? 0.16 : 0.08} className="absolute -right-20 -top-24 h-64 w-64 text-brand" />
         <span className="relative grid h-14 w-14 place-items-center rounded-full border border-rule bg-paper text-brand-2 shadow-paper">
           <UploadCloud aria-hidden className="h-7 w-7" />
         </span>
