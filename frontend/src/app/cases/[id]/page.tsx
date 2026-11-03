@@ -396,7 +396,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
           {isLg && tab !== "timeline" ? <div className="min-w-0 self-start lg:sticky lg:top-4">{viewer}</div> : null}
           <div id="findings-region" className="min-w-0 scroll-mt-4">
             <div className="flex items-end justify-between gap-2">
-              <Tabs group={GROUP} label="Case sections" tabs={tabs} value={tab} onValueChange={goTab} className="min-w-0 flex-1" />
+              <Tabs group={GROUP} label="Case sections" tabs={tabs} value={tab} onValueChange={goTab} className="min-w-0 flex-1 flex-wrap" />
               <button
                 type="button"
                 onClick={() => setHelpOpen(true)}

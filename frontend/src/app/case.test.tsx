@@ -472,4 +472,12 @@ describe("timeline tab", () => {
     expect(await screen.findByRole("tab", { name: /Findings/ })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("region", { name: "Page viewer" })).toBeInTheDocument();
   });
+
+  it("lets the tab row wrap instead of hiding the last tab off the right edge of a narrow column", async () => {
+    setViewport(1100);
+    await openCase("c_loan_fraud");
+    const list = await screen.findByRole("tablist", { name: "Case sections" });
+    expect(list.className).toContain("flex-wrap");
+    expect(within(list).getByRole("tab", { name: "Timeline" })).toBeInTheDocument();
+  });
 });
