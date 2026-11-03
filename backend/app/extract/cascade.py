@@ -251,11 +251,24 @@ class _Run:
             if problems:
                 self.warnings.append(f"scan_rules_declined: {'; '.join(problems)[:200]}")
                 return None
+            self._scan_unknowns(result)
             self.warnings.append("scan_rules: read from the OCR words by the deterministic parser")
         self.use("text_layer")
         for p in self.pages:
             self.sources[p] = "text_layer"
         return result
+
+    def _scan_unknowns(self, result: ExtractionResult) -> None:
+        """On OCR words an absent mark is not evidence of absence: a UBO badge is a small boxed word the OCR
+        often misses. The parser derives ``is_ubo=false`` for a box with no tag on a chart that uses tags
+        (right on a text layer); on a scan that value is dropped to unknown, as the model path leaves it."""
+        table = result.tables.get("holders")
+        if self.doc.doc_type != "ownership_chart" or table is None:
+            return
+        for row in table.rows:
+            cell = row.cells.get("is_ubo")
+            if cell is not None and cell.source == "derived" and cell.raw is None:
+                row.cells["is_ubo"] = Cell(value=None, kind="bool", source="text_layer")
 
     def _with_text_layer(self, result: ExtractionResult) -> ExtractionResult:
         validation = self.validate(result)

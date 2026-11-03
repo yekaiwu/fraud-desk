@@ -224,3 +224,28 @@ def test_a_compact_answer_is_read_like_an_object_answer(tmp_path: Path) -> None:
         {k: c.raw for k, c in r.cells.items()} for r in want.tables["transactions"].rows
     ]
     response_model_for("bank_statement")  # the plain model is what validates the expanded answer
+
+
+def test_on_a_scan_an_untagged_box_is_unknown_not_not_ubo(tmp_path: Path) -> None:
+    from tests.extract_kyc_helpers import Box, render_chart
+
+    app_box = Box(300, 100, ["Sembrook Freight Pte. Ltd.", "UEN 201912345R"], 200)
+    tan = Box(110, 230, ["Tan Wei Ming", "Individual", "45.00%", "ID S1234567D", "UBO"])
+    hafiz = Box(300, 230, ["Hafiz bin Abdullah", "30.00%"])  # badge missed by the OCR
+    pdf = render_chart([app_box, tan, hafiz])
+    ctx, doc, _ = make_case(
+        pdf, "ownership_chart", llm=FakeLLMClient(), is_scan=True,
+        settings=S(tmp_path, scan_rules_first=True),
+    )  # fmt: skip
+    result, meta = extract_document(doc, ctx, render=RENDER)
+    assert meta.extractor == "text_layer@1"
+    cells = [r.cells["is_ubo"] for r in result.tables["holders"].rows]
+    assert [c.value for c in cells] == [
+        "true",
+        None,
+    ]  # a digital page would say "false" for the second
+    ctx2, doc2, _ = make_case(
+        pdf, "ownership_chart", llm=FakeLLMClient(), settings=S(tmp_path, scan_rules_first=True)
+    )
+    result2, _ = extract_document(doc2, ctx2, render=RENDER)
+    assert [r.cells["is_ubo"].value for r in result2.tables["holders"].rows] == ["true", "false"]
