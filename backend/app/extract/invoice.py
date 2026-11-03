@@ -385,7 +385,11 @@ register_prompt_hints(
     DOC_TYPE,
     "This is a tax invoice. `supplier_*` is the party issuing the invoice, `buyer_*` the party "
     "billed. Return one `lines` object per printed line item (description, quantity, unit price, "
-    "per-line GST only if a GST column is printed, line amount). `gst_rate` is the percentage "
+    "per-line GST only if a GST column is printed, line amount). Return EVERY printed item row: "
+    "also modifiers and add-ons that carry their own price, and discounts, coupons and savings "
+    "as rows with a negative amount (keep the printed minus sign); never leave a priced row out "
+    "to keep the arithmetic simple. If a row prints both a net amount (before tax) and a gross "
+    "amount (with tax), `amount` is the net one. `gst_rate` is the percentage "
     "printed beside the GST label, e.g. '9%'; null if none is printed. `payment_status` is the "
     "printed stamp or label (PAID, UNPAID, PARTIALLY PAID) and `paid_date` the date printed beside "
     "'Paid on'; both null if absent.",

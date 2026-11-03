@@ -1,0 +1,152 @@
+"""Completeness guard (extract/completeness.py) and what the invoice rules do with it.
+
+A reading that lacks printed item lines must never become a high flag; a tampered amount on a
+completely read invoice must still be one.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from app.checks.invoice import reading_incomplete
+from app.core.models import Cell
+from app.extract.completeness import canon_amount, extracted_amounts, missed_in_text
+from tests.checks_fin_factory import ctx_of, make_invoice, run_rule
+
+RECEIPT_TEXT = """\
+        MASTORIS DINER
+   1 HAM&EGG BURRITO              9,99
+   1 SS PANCAKES                  5.99
+     ADD STRWBER                  3.00
+   2 HOT TEA                      4.98
+     subtotal                    23.96
+     Tax                          1.65
+     Payment Due                 25.61
+"""
+
+
+@pytest.mark.parametrize(
+    ("text", "canon"),
+    [
+        ("2 053,73", "205373"),
+        ("$ 2 259,10", "225910"),
+        ("1.234,56", "123456"),
+        ("1,234.56", "123456"),
+        ("2977 .00", "297700"),
+        ("2.05-", "205"),
+        ("985-73-8194", None),  # a tax id
+        ("12,3", None),  # no two-digit decimals
+        ("S8222222A", None),
+        (None, None),
+    ],
+)
+def test_canon_amount(text: str | None, canon: str | None) -> None:
+    assert canon_amount(text) == canon
+
+
+def _known(*raw: str) -> set[str]:
+    return extracted_amounts(Cell(value=None, raw=r) for r in raw)
+
+
+def test_every_printed_row_read_means_nothing_missed() -> None:
+    assert (
+        missed_in_text(RECEIPT_TEXT, _known("9,99", "5.99", "3.00", "4.98", "23.96", "1.65")) == []
+    )
+
+
+def test_a_skipped_row_is_reported() -> None:
+    missed = missed_in_text(RECEIPT_TEXT, _known("9,99", "5.99", "4.98", "23.96", "1.65"))
+    assert [m.amount for m in missed] == ["300"]
+    assert "ADD STRWBER" in missed[0].text
+
+
+def test_totals_and_tax_lines_are_not_items() -> None:
+    # nothing read at all: only the four item rows are "missing", never subtotal, tax or the total
+    missed = missed_in_text(RECEIPT_TEXT, set())
+    assert [m.amount for m in missed] == ["999", "599", "300", "498"]
+
+
+def test_a_discount_line_must_be_read_too() -> None:
+    text = "  1 Caprese        10.00\n  Open $ Disc     2..05-\n  subtotal       7.95\n"
+    missed = missed_in_text(text, _known("10.00", "7.95"))
+    assert [(m.kind, m.amount) for m in missed] == [("adjustment", "205")]
+    assert missed_in_text(text, _known("10.00", "7.95", "2.05-")) == []
+
+
+def test_a_table_row_counts_as_read_when_any_of_its_amounts_was_read() -> None:
+    row = "1. Marble Table   2,00  each  444,60  889,20   10%   978,12"
+    assert missed_in_text(row, _known("889,20")) == []  # net worth taken, gross not
+    assert [m.amount for m in missed_in_text(row, _known("7,13"))] == ["97812"]
+
+
+def test_one_wrong_digit_from_the_image_reading_still_matches() -> None:
+    assert missed_in_text("1 HOT TEA      14.98", _known("14.93")) == []
+
+
+def test_amounts_inside_a_line_of_prose_or_ids_are_not_rows() -> None:
+    text = "Tax Id: 985-73-8194\nPhone 206-441-9785\nCard Num XXXX4737\nTRAN#: 2387827\n"
+    assert missed_in_text(text, set()) == []
+
+
+# ---- what the rules do with an incomplete reading
+
+
+def _incomplete(doc):  # noqa: ANN001, ANN202
+    doc.warnings.append("reading_incomplete: page 1: 2 printed lines not read ('ADD STRWBER')")
+    return doc
+
+
+def test_incomplete_reading_is_low_and_never_a_mismatch() -> None:
+    doc = _incomplete(make_invoice(fields={"subtotal": "9999.00", "total": "12345.00"}))
+    assert reading_incomplete(doc) is not None
+    for rule in ("inv_lines", "inv_gst", "inv_total"):
+        flags = run_rule(rule, ctx_of(doc))
+        assert [f.severity for f in flags] == ["low"], rule
+        assert "incomplete" in flags[0].explanation.lower()
+
+
+def test_a_complete_reading_with_a_changed_total_still_flags_high() -> None:
+    doc = make_invoice(fields={"total": "12345.00"})
+    flags = run_rule("inv_total", ctx_of(doc))
+    assert [f.severity for f in flags] == ["high"]
+
+
+def test_a_complete_reading_with_a_changed_line_amount_still_flags_high() -> None:
+    lines = [
+        {
+            "description": "Freight Mar",
+            "quantity": "4",
+            "unit_price": "2000.00",
+            "amount": "8500.00",
+        },
+        {"description": "Handling", "quantity": "20", "unit_price": "100.00", "amount": "2000.00"},
+    ]
+    flags = run_rule("inv_lines", ctx_of(make_invoice(lines=lines)))
+    assert flags and all(f.severity == "high" for f in flags)
+
+
+def test_a_gross_amount_beside_a_net_unit_price_is_not_a_tamper() -> None:
+    lines = [
+        {"description": "Table", "quantity": "2.00", "unit_price": "444.60", "amount": "978.12"}
+    ]
+    doc = make_invoice(
+        fields={
+            "subtotal": "889.20",
+            "gst_rate": "10.00",
+            "gst_amount": "88.92",
+            "total": "978.12",
+        },
+        lines=lines,
+    )
+    assert run_rule("inv_lines", ctx_of(doc)) == []
+    lines[0]["amount"] = "988.12"  # changed by ten
+    doc = make_invoice(
+        fields={
+            "subtotal": "889.20",
+            "gst_rate": "10.00",
+            "gst_amount": "88.92",
+            "total": "978.12",
+        },
+        lines=lines,
+    )
+    assert run_rule("inv_lines", ctx_of(doc))
