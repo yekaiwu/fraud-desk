@@ -12,6 +12,7 @@ the rule raises ``CheckSkipped`` only when no document could be evaluated. Today
 from __future__ import annotations
 
 import math
+import re
 from bisect import bisect_right
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -225,6 +226,8 @@ def _missing_balance_flags(skipped: list[Document], evaluated: list[Document]) -
 
 _NOT_EVALUATED = object()
 
+_MONEY_TOKEN = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2}")
+
 
 def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | None | sentinel
     table = doc.tables.get("transactions")
@@ -244,6 +247,9 @@ def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | 
 
     first_break: dict | None = None
     later = 0
+    # amount cells that hold text but no single amount (two numbers where one was painted over another): the
+    # arithmetic counts them as nothing, so the flag must say so instead of printing "+ 0.00"
+    unread: list[tuple[int, str, str]] = []
 
     for i, row in enumerate(table.rows):
         debit = row.cells["debit"].money()
@@ -254,10 +260,14 @@ def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | 
             # invalid row (both set): skipped for arithmetic; its own balance becomes the anchor
             if balance is not None:
                 anchor, anchor_label, anchor_row = balance, "previous", i
-                net, first_since, amount_parts = ZERO, None, []
+                net, first_since, amount_parts, unread = ZERO, None, [], []
             continue
         if debit is None and credit is None and balance is None:
             continue  # nothing printed on this row
+        for col, value in (("credit", credit), ("debit", debit)):
+            raw = (row.cells[col].raw or "").strip()
+            if value is None and raw:
+                unread.append((i, col, raw))
 
         amount = (credit or ZERO) - (debit or ZERO)
         net += amount
@@ -282,12 +292,14 @@ def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | 
                     "net": net,
                     "first_since": first_since,
                     "parts": list(amount_parts),
+                    "unread": list(unread),
+                    "tol": tol,
                 }
             else:
                 later += 1
         # compare against the previous PRINTED balance, so one edit gives one break
         anchor, anchor_label, anchor_row = balance, "previous", i
-        net, first_since, amount_parts = ZERO, None, []
+        net, first_since, amount_parts, unread = ZERO, None, [], []
 
     if first_break is None:
         return None
@@ -327,11 +339,29 @@ def _build_flag(doc: Document, table, brk: dict, later: int) -> Flag:  # noqa: A
             f"{brk['first_since'] + 1} = {fmt_money(expected)}, printed {fmt_money(printed)}"
         )
     evidence += f"; diff {fmt_money(diff)}"
+    unread: list[tuple[int, str, str]] = brk.get("unread", [])
+    fits: list[str] = []
+    for r, col, raw in unread:
+        evidence += f"; the {col} cell on row {r + 1} reads '{truncate(raw, 60)}', not one amount, and was counted as 0.00"
+    if len(unread) == 1:
+        _, col, raw = unread[0]
+        sign = 1 if col == "credit" else -1
+        for token in _MONEY_TOKEN.findall(raw):
+            if approx_eq(
+                anchor + brk["net"] + sign * Decimal(token.replace(",", "")), printed, brk["tol"]
+            ):
+                fits.append(token)
+        if fits:
+            evidence += f"; the printed balance fits {', '.join(fits)}"
     if later:
         evidence += f"; {later} later row(s) also break"
 
     cells = {"balance": row.cells["balance"]}
     extra: list[Region] = []
+    for r, col, _raw in unread:
+        box = table.rows[r].cells[col].box
+        if box is not None:
+            extra.append(_labelled(box, f"{col} (not one amount)"))  # type: ignore[arg-type]
     for col in ("credit", "debit"):
         c = row.cells[col]
         if c.money() is not None:
@@ -353,8 +383,17 @@ def _build_flag(doc: Document, table, brk: dict, later: int) -> Flag:  # noqa: A
         extra_regions=extra,
         evidence=evidence,
         explanation=(
-            f"The balance on row {i + 1} is {fmt_money(diff)} {direction} than the previous "
-            "balance plus the transaction amounts."
+            (
+                f"The balance on row {i + 1} does not follow from the previous balance and the "
+                f"transaction amount, because the {unread[0][1]} cell on row {unread[0][0] + 1} holds "
+                f"more than one amount and could not be read as one"
+                + (f" (the printed balance fits {fits[0]})." if fits else ".")
+            )
+            if unread
+            else (
+                f"The balance on row {i + 1} is {fmt_money(diff)} {direction} than the previous "
+                "balance plus the transaction amounts."
+            )
         ),
     )
 

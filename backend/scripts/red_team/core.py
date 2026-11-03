@@ -197,6 +197,9 @@ def analyse(bundle: Bundle, workroot: Path, tag: str, **settings_kw: object) -> 
         data_dir=d / "data",
         db_path=str(d / "data" / "gldb.sqlite3"),
         llm_backend="fake",
+        # a run with no registry must have none: the default path is relative to the working directory, where a
+        # developer's own samples/registry.json would otherwise be picked up
+        registry_path=d / "no-registry.json",
         semantic="off",
         **settings_kw,  # type: ignore[arg-type]
     )

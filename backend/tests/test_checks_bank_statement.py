@@ -1029,3 +1029,40 @@ def test_rb_scan_statement_without_balances_is_not_flagged() -> None:
         for cell_ in row.cells.values():
             cell_.source = "llm_cheap"
     assert run_rb(ok, scan) == []
+
+
+# ------------------------------------------------ an amount cell that holds two numbers (a figure typed over another)
+
+
+def test_a_credit_cell_with_two_amounts_is_named_not_counted_as_nothing() -> None:
+    """The text layer holds the hidden 2,195.81 and the typed-over 2,415.39 in one cell: no single amount.
+    The flag must say so, and say which reading the printed balance fits, not "plus 0.00"."""
+    rows = [
+        tx("2026-04-17", "FEE", debit="0.20", balance="60453.89"),
+        tx("2026-04-20", "FUNDS TRANSFER FROM VELOTRADE", credit="2195.81", balance="62649.70"),
+    ]
+    doc = statement(rows, opening_balance="60454.09", closing_balance="62649.70", boxes=True)
+    cell = doc.tables["transactions"].rows[1].cells["credit"]
+    cell.value, cell.raw = None, "2,195.81 2,415.39"
+    (flag,) = bs.bs_running_balance(ctx_of(doc))
+    assert flag.rule == "bs_running_balance" and flag.row == 1
+    assert "reads '2,195.81 2,415.39', not one amount, and was counted as 0.00" in flag.evidence
+    assert "the printed balance fits 2,195.81" in flag.evidence
+    assert "2,415.39" not in flag.evidence.split("the printed balance fits")[1]  # only the amount that fits
+    assert "holds more than one amount" in flag.explanation and "fits 2,195.81" in flag.explanation
+    assert "+ 0.00 =" in flag.evidence  # the arithmetic is still shown as it was done
+    assert any(r.label == "credit (not one amount)" for r in flag.extra_regions)  # the cell is pointed at
+
+
+def test_an_unreadable_amount_that_fits_no_reading_still_says_so_without_inventing_one() -> None:
+    rows = [tx("2026-04-20", "X", credit="100.00", balance="999.00")]
+    doc = statement(rows, opening_balance="500.00", closing_balance="999.00")
+    cell = doc.tables["transactions"].rows[0].cells["credit"]
+    cell.value, cell.raw = None, "100.00 120.00"
+    (flag,) = bs.bs_running_balance(ctx_of(doc))
+    assert "not one amount" in flag.evidence and "fits" not in flag.evidence
+    assert flag.explanation.endswith("could not be read as one.")
+
+
+def test_a_clean_running_balance_with_a_normal_credit_is_unchanged() -> None:
+    assert bs.bs_running_balance(ctx_of(statement())) == []
