@@ -230,4 +230,56 @@ What the run also showed, unfixed: of the 70 validation images, 55 were read as 
 
 The false alarms were `x_directors` once, `inv_ids` once and `passport_mrz` once. The rate is under the 10% target with the top of the interval at 10%; it is a good result, not a proven one. Only high-quality scans and four edit types were tried.
 
-**Phone photos.** On 60 simulated phone photos Tesseract missed 15.6% of the words as shot and 5.3% after `ingest/flatten.py`; the simulated photos have a dark desk and a clean outline. End to end, on 15 clean simulated photo bundles (Tesseract plus Haiku, same bundles both times), 8 had a medium or high false alarm with straightening (53%, 30 to 75%) and 6 without (40%, 20 to 64%); every one of the 30 cases was marked partial. The difference is not significant, but the word-level gain did not turn into fewer false alarms, so `GLDB_OCR_STRAIGHTEN` is off by default. A likely reason (not tested): the OCR repairs and row checks were tuned on unstraightened Tesseract output. The conclusion that matters more: clean phone photos still raise a false alarm on about half the bundles, so a photographed statement should be treated as needing human reading, not as a screened case.
+**Phone photos.** On 60 simulated phone photos Tesseract missed 15.6% of the words as shot and 5.3% after `ingest/flatten.py`; the simulated photos have a dark desk and a clean outline. End to end, on 15 clean simulated photo bundles (Tesseract plus Haiku, same bundles both times), 8 had a medium or high false alarm with straightening (53%, 30 to 75%) and 6 without (40%, 20 to 64%); every one of the 30 cases was marked partial. The difference is not significant, but the word-level gain did not turn into fewer false alarms, so `GLDB_OCR_STRAIGHTEN` is off by default. A likely reason (not tested): the OCR repairs and row checks were tuned on unstraightened Tesseract output. The conclusion that matters more: clean phone photos still raise a false alarm on about half the bundles, so a photographed statement should be treated as needing human reading, not as a screened case. Section 13 tries a second OCR reader against this and says what it did and did not fix.
+
+## 13. A second OCR reader for phone photos (3 November 2026; off by default)
+
+`GLDB_MULTI_READER` (docs/ingest-and-extraction.md 4.12): a second, different local OCR reads the same picture; a money, date, ID or MRZ figure the two print differently is marked unverified; a check that fails only on such a figure is lowered to **low** with "Reading unreliable, check the page image by eye", both readings in the evidence, counted in coverage (`reading_limited`) and in the partial reasons. Figures both readers print alike are never touched: a failure on them keeps its full severity. Small samples throughout; intervals are 95% Wilson.
+
+**OCR bake-off, free** (469 simulated phone-photo pages of the 15 clean bundles of seed 9201, rendered as the product renders them; 67,320 words, 7,811 amounts, 1,497 dates, 1,200 IDs; misses are tokens on the page the engine did not print, counted as a bag per page):
+
+| Engine | Words missed | Amounts | Dates | IDs | Seconds a page |
+|---|---|---|---|---|---|
+| Tesseract as shot | 15.9% | 13.9% | 11.6% | 7.2% | 1.9 |
+| Tesseract after `flatten()` | 4.2% | 2.7% | 1.1% | 5.2% | 1.5 |
+| Apple Vision as shot | 4.4% | 17.1% | 2.0% | 3.1% | 0.2 |
+| Apple Vision after `flatten()` | 5.4% | 18.7% | 2.3% | 2.8% | 0.2 |
+| RapidOCR as shot | not comparable | 17.9% | | | 3.0 |
+| RapidOCR after `flatten()` | not comparable | 5.5% | | | 2.9 |
+
+Vision is as good as flattened Tesseract on words and better on dates and IDs, but it leaves whole amount columns out. RapidOCR returns text lines with the spaces lost ("01Jul2025"), so its word, date and ID misses (55 to 99%) say nothing about its digits; it needs a word-level post-processor before it could be a first reader. Both extras installed offline from the cached wheels (`uv sync --extra ocr`, no model download).
+
+**Do the engines misread alike?** Of the 7,939 amount or ID tokens Tesseract printed in a number shape, 82 (1.0%) were wrong. A second reader's answer on those, and on the 7,857 right ones:
+
+| First -> second reader | Wrong token: second prints other digits (differ) / nothing comparable / the same wrong token | Right token: agree / differ / nothing comparable |
+|---|---|---|
+| Tesseract -> Vision | 68 (83%) / 11 / 3 (3.7%) | 92.2% / 0.2% / 7.5% |
+| Tesseract -> RapidOCR | 55 (67%) / 25 / 2 (2.4%) | 76.5% / 0.1% / 23.4% |
+| Tesseract as shot -> Tesseract flattened (same engine) | 59 (72%) / 7 / 16 (19.5%) | 98.1% / 0.4% / 1.6% |
+| Vision -> Tesseract | 2 wrong tokens only | 87.8% / 0.9% / 11.3% |
+
+Two different engines repeat a misreading 2 to 4% of the time; the same engine on a straightened picture repeats one 20% of the time, so a second look by the same engine is a much weaker witness. The 14 undetected misreads of 82 are the ones that still produce false alarms.
+
+**Does an edit survive the second reader?** On the 30 tampered photo pages and 30 tampered `scan_hq` pages of seed 9201 whose edit changed an amount (T01, T10, T58), the edited figure was printed correctly by Tesseract on 26 photos and 30 scans, and Vision printed the same figure on 22 and 24 (nothing comparable on 4 and 6). **It never printed other digits (0 of 56).** An edit is read alike; that is what lets agreement keep flagging. Not tried: an edit deliberately set in a typeface or smudge meant to split two engines. A forger who manages that gets a low flag with the note instead of a medium or high one (visible, counted, but weaker).
+
+**Clean scans.** On 59 `scan_hq` pages (every 8th page of the 15 bundles) Tesseract missed 0.5% of words, printed 1 wrong number-shaped token in 1,133, and Vision printed other digits for 0.2% of the right ones. The paid scan sweep (3 of 75 false alarms, 38 of 40 tampered caught, section 12) was **not re-run**; with the switch off the scan path is unchanged by construction (the second reading, the comparison and the retry are not entered; `test_extract_agreement.py`), and with it on the figures above say it would seldom fire on scans. That is an argument, not a measurement.
+
+**End to end** (production path: Tesseract reads, Claude Haiku 5.5 extracts, no semantic checks, no review team, straightening off; the two arms read the same OCR text and got the same model answers from a shared response cache, so they differ only in the switch). Clean bundles are the 12 of the 15 of seed 9201 that fit the budget; the first 8 were fixed before the switch ran, the other 4 (both loan bundles that raised statement alarms before, and two aml) were added with the money left. Tampered: 8 of seed 9201 (T01, T10, T58, T59, two each).
+
+| | Switch off | Switch on |
+|---|---|---|
+| Clean photo bundles with a medium or high flag the digital render did not raise, first 8 | 2 of 8 | 1 of 8 |
+| The same, all 12 | 4 of 12 (33%, 14 to 61%) | 3 of 12 (25%, 9 to 53%) |
+| Tampered photo bundles where the expected rule fired | 7 of 8 (88%, 53 to 98%) | 7 of 8 (88%, 53 to 98%) |
+| Cases marked partial | 12 of 12 | 12 of 12 |
+
+(Seed 9201's earlier run with the same pipeline had 6 of 15, 40%. One of those, `aml-clean-c04`, did not reproduce here: a Haiku and Tesseract run is not repeatable to the flag.) Per cell on the 16 bundles run first, with the switch on: 11,092 figures agreed (90%), 578 had nothing comparable (4.7%), 250 were printed by neither OCR reader (2.0%), 49 differed (0.4%). **One false alarm was removed**: `passport_mrz` on `kyc-clean-c01`, where the model read a 45-character MRZ line from the page image and neither OCR printed it (both lines lowered to low with the reason; the partial reasons gained `reading_limited:1`). The tampered result is identical in the two arms: the one miss (`T01-kyc-clean-i0`) is an edited amount Tesseract did not print, so neither arm can see it.
+
+**A side effect to know about.** The second reader also changes extraction, not only the flags. Tesseract leaves many numbers out; the model recovers them from the page image and the product marks them "unverified" (55 such cells on one `loan-clean` page set), and an unverified cell sends its page to a stronger re-read. With the switch on, a value the second reader prints counts as verified, so those cells stop being unverified (fewer re-reads, fewer "unverified reading" notes) while a figure the readers dispute or nobody prints stays unverified. Pages therefore escalate differently between the two arms: more or fewer pages end "partial" and more or fewer pieces of a split statement assemble (coverage 0.66 off, 0.68 on, on `kyc-clean-c01`). The two arms are the same except for the switch, but the switch changes more than the lowering rule; I did not separate the two effects.
+
+**What still fails, and why this is not the fix.** The three false alarms that remain are not misread digits, so no second reader can touch them: `bs_totals` and `bs_period_continuity` on `aml-clean` (the model took the statement summary's "total debits" for the closing balance; both readers print the same numbers), `bs_running_balance` and `bs_totals` on `loan-clean` (a 3,485.36 amount placed in the credit column instead of the debit column; both readers print the same number), and `x_invoice_vs_receipts` on `aml-clean-c03` (a statement of the six was not matched, so a payment has nothing to match). The photo problem is mostly **layout and column attribution from OCR text**, which the readers agree on, plus a fifth of misread numbers that both engines get wrong alike. Also unfixed: a misread that leaves the model's value unprinted by either reader is only noted (the check must cite it to be lowered); an amount the first reader left out entirely is not recovered; Vision omits amount columns, so on its own it cannot be the first reader.
+
+**Spend:** USD 1.34 recorded for the whole evaluation (cap 1.50; two runs stopped mid-way before the OCR cache existed may have cost a few cents more), 40 case runs (20 bundles, both switch positions), the second position almost free from the shared cache. The OCR bake-off and the edited-amount reads cost nothing.
+
+**Recommendation: leave `GLDB_MULTI_READER` off.** It costs almost nothing (0.2 s a page with Vision, 1.5 s with Tesseract as the second reader, no model calls) and is safe on the one thing that matters (0 of 56 edited amounts split the readers; 7 of 8 and 7 of 8), but it removed one false alarm in 12 bundles, which is not a measurable help. It is worth turning on where a deployment photographs statements and has Vision or Tesseract free; it should be re-measured on the loan bundles that were not run (three of the fifteen) and on a few hundred photo pages with real statements before it is made the default.
+
