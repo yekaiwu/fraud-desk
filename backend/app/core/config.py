@@ -57,6 +57,29 @@ class Settings(BaseSettings):
     registry_live: bool = False
     today: date | None = None
 
+    # External verification sources (docs/verification-sources.md). Every one is opt-in and off by
+    # default; a source that is not configured is a skipped check that does not lower coverage, and
+    # GLDB_PRIVATE_MODE=on (when that setting exists) blocks every one of them that opens a connection.
+    # Sanctions and watchlist screening against a local snapshot built by scripts/update_sanctions.py
+    # from the OFFICIAL lists (UN, OFAC, EU, UK). Screening is offline; only the download is not.
+    sanctions_screen: Literal["off", "on"] = "off"
+    sanctions_snapshot: Path | None = None  # default: <data_dir>/sanctions/current.json
+    sanctions_max_age_days: int = 7  # an older snapshot is "not run", never a clean result
+    # GLEIF LEI lookup (api.gleif.org, no key): legal name, status, address and parents as context.
+    gleif: Literal["off", "on"] = "off"
+    # OneMap (Singapore Land Authority) postal-code and address check. A free token from
+    # developers.onemap.sg (short-lived) or the account's email and password, from which the token is
+    # fetched and renewed. Neither set = the check is off.
+    onemap_token: SecretStr = SecretStr("")
+    onemap_email: str = ""
+    onemap_password: SecretStr = SecretStr("")
+    # IRAS "Check GST Register" (API Marketplace). Built from the public documentation and never
+    # run against the live service by the project: access terms are unconfirmed. Off without a key.
+    iras_api_key: SecretStr = SecretStr("")
+    iras_api_secret: SecretStr = SecretStr("")
+    iras_base_url: str = "https://apiservices.iras.gov.sg/iras/prod"
+    sources_budget_s: float = 45.0  # total time one case may spend asking the sources above
+
     # LLM
     # "auto": Claude Haiku when GLDB_ANTHROPIC_API_KEY is set, else the OpenAI-compatible server (e.g. the local
     # Qwen) when GLDB_LLM_API_KEY is set, else the fake. GLDB_LLM_BACKEND=openai|anthropic|fake forces one.
@@ -410,6 +433,8 @@ class Settings(BaseSettings):
             problems.append(
                 "GLDB_ALERT_RETRIES and GLDB_ALERT_TIMEOUT_S must be > 0, GLDB_ALERT_RETRY_BACKOFF_S >= 0"
             )
+        if self.sanctions_max_age_days <= 0 or self.sources_budget_s <= 0:
+            problems.append("GLDB_SANCTIONS_MAX_AGE_DAYS and GLDB_SOURCES_BUDGET_S must be > 0")
         if not 0 <= self.classifier_min_prob <= 1:
             problems.append("GLDB_CLASSIFIER_MIN_PROB must be between 0 and 1")
         if problems:
@@ -461,6 +486,16 @@ class Settings(BaseSettings):
             out["ocr_backend"] = self.ocr_backend
         if self.registry_live:
             out["registry_live"] = "on"
+        # verification sources: listed only when on, so the hash of every other run is unchanged
+        if self.sanctions_screen == "on":
+            out["sanctions_screen"] = "on"
+            out["sanctions_max_age_days"] = str(self.sanctions_max_age_days)
+        if self.gleif == "on":
+            out["gleif"] = "on"
+        if self.onemap_token.get_secret_value() or self.onemap_email:
+            out["onemap"] = "on"
+        if self.iras_api_key.get_secret_value():
+            out["iras"] = "on"
         if self.ocr_straighten:  # listed only when on: other runs keep their provenance hash
             out["ocr_straighten"] = "on"
         if self.multi_reader:

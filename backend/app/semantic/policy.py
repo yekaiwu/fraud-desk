@@ -29,10 +29,21 @@ def is_semantic_rule(rule: str) -> bool:
     return rule.startswith(SEMANTIC_RULE_PREFIX)
 
 
-def counts_in_coverage(rule: str, status: str) -> bool:
+# Skip codes of a check that was never asked to run on this deployment: an external source that is not
+# configured (no switch, token, key or snapshot) or that private mode blocks. They stay in the case's
+# check runs, so nothing is hidden, but they are outside the coverage ratio: a deployment that never
+# turned a source on must not see every bundle's coverage fall below the fast-lane floor. "Configured
+# but could not be reached" has no code here and still counts as not run.
+NOT_ASKED_CODES: frozenset[str] = frozenset({"not_configured", "private_mode"})
+
+
+def counts_in_coverage(rule: str, status: str, code: str | None = None) -> bool:
     """Whether a check run enters the coverage ratio. A model-derived check counts only when it
     failed (``error``): a failure must lower coverage, but a normal skip (the case has nothing for
-    it to read) or a run must leave coverage exactly as it is with the feature off."""
+    it to read) or a run must leave coverage exactly as it is with the feature off. A skip with a
+    ``NOT_ASKED_CODES`` code (source not configured, or blocked by private mode) is never counted."""
+    if status == "skipped" and code in NOT_ASKED_CODES:
+        return False
     return status == "error" or not is_semantic_rule(rule)
 
 

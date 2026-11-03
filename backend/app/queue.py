@@ -9,7 +9,7 @@ from __future__ import annotations
 from app.core.models import Case, Document, Lane, UncheckedPage, UncheckedReason, Verdict
 from app.core.money import count_amount_tokens
 from app.findings import AML_ROUTING_RULES, HARD_STOP_RULES  # noqa: F401  (re-exported)
-from app.semantic.policy import is_semantic_rule
+from app.semantic.policy import counts_in_coverage, is_semantic_rule
 
 FAST_LANE_MAX_SCORE = 20  # starting guess, recalibrate from the eval
 FAST_LANE_MIN_COVERAGE = 0.80  # starting guess, recalibrate from the eval
@@ -123,7 +123,11 @@ def _check_ratio(case: Case) -> float:
     """Coverage of the checks for the fast-lane gate. Model-derived (semantic) checks are left out:
     an LLM-only signal must not lift a case over the coverage bar (docs/semantic-signals.md)."""
     if any(is_semantic_rule(r.rule) for r in case.check_runs):
-        runs = [r for r in case.check_runs if not is_semantic_rule(r.rule)]
+        runs = [
+            r
+            for r in case.check_runs
+            if not is_semantic_rule(r.rule) and counts_in_coverage(r.rule, r.status, r.code)
+        ]
         if runs:
             return round(sum(1 for r in runs if r.status == "ran") / len(runs), 4)
         return 0.0 if case.partial else 1.0

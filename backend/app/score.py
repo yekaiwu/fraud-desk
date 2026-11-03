@@ -42,7 +42,7 @@ def band_for(value: int) -> Band:
 def compute_coverage(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> Coverage:
     """``ran / applicable`` over the check runs (4.6) plus page-level silence counts."""
     # model-derived checks enter only when they failed (docs/semantic-signals.md section 6)
-    runs = [r for r in case.check_runs if counts_in_coverage(r.rule, r.status)]
+    runs = [r for r in case.check_runs if counts_in_coverage(r.rule, r.status, r.code)]
     applicable = len(runs)
     ran = sum(1 for r in runs if r.status == "ran")
     # a partial case with no runs must never read as full coverage

@@ -16,6 +16,7 @@ from app.checks.registry import all_checks
 from app.core.db import Database
 from app.core.models import Case, ReviewEntry
 from app.review import flag_dispositions, load_entries
+from app.semantic.policy import NOT_ASKED_CODES
 
 NOT_REGISTERED = "(rule no longer registered)"
 
@@ -136,7 +137,7 @@ def compute_effectiveness(
             r = row_for(run.rule, run.stage, "info", NOT_REGISTERED)
             if run.status == "ran":
                 r["cases_ran"] += 1
-            else:
+            elif run.code not in NOT_ASKED_CODES:
                 r["cases_skipped"] += 1
 
     rules = []
