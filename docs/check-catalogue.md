@@ -2,7 +2,7 @@
 # Check catalogue
 Our reading as students, not legal advice. Decision support only; a human decides. All data is fictitious.
 
-Ruleset version: `rs-f171172bff37` | Checks registered: 68 | Planned in the plan but not registered: 0
+Ruleset version: `rs-801d2f9c3127` | Checks registered: 69 | Planned in the plan but not registered: 0
 
 ## How to read this
 
@@ -46,6 +46,7 @@ Ruleset version: `rs-f171172bff37` | Checks registered: 68 | Planned in the plan
 | `bs_running_balance` | high | bank_statement | - | aml, kyc, loan | Each row's printed balance equals the previous balance plus that row's credit or debit. | A single edited transaction amount or an edited balance. | 1 |
 | `bs_totals` | high | bank_statement | - | aml, kyc, loan | Opening balance plus credits minus debits equals the closing balance, and printed totals equal the sums of the listed rows. | Edited amount or balance; removed or inserted rows. | 1 |
 | `date_valid` | high | national_id, passport | - | aml, kyc, loan | Dates are real, not future, plausible age | modified IDs | 1 |
+| `doc_instruction_text` | info | any file | - | aml, kyc, loan | A page contains text that reads as an instruction to the reviewing system. | - | 1 |
 | `doc_unclassified` | info | any file | - | aml, kyc, loan | A document is unclassified, labelled other or boilerplate, or low confidence. | - | 1 |
 | `doc_unreadable` | info | any file | - | aml, kyc, loan | A page or document could not be read, so the checks that need it did not run. | - | 1 |
 | `fs_balance` | high | financial_statement | - | aml, loan | Total assets equal total liabilities plus equity on the balance sheet. | A balance sheet figure changed without rebalancing. | 1 |
@@ -103,6 +104,7 @@ None
 | Rule | Stage | Reason |
 |---|---|---|
 | `pdf_signature_invalid` | forensics | 2026-11 signature integrity with pyHanko (docs/forensics.md 4.9) |
+| `doc_instruction_text` | rules | built-in info check, emitted from pipeline warnings (plan 5.3) |
 | `doc_unclassified` | rules | built-in info check, emitted from pipeline warnings (plan 5.3) |
 | `doc_unreadable` | rules | built-in info check, emitted from pipeline warnings (plan 8.5) |
 | `inv_bank_details_valid` | rules | 2026-11 offline IBAN and BIC/SWIFT form (docs/verification-sources.md 6) |

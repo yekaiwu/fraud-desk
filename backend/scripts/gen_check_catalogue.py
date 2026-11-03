@@ -113,7 +113,11 @@ PLAN_RULES: dict[str, str] = {
 }
 
 # core/builtin_checks.py: info checks emitted from pipeline warnings (plan section)
-BUILTIN_RULES: dict[str, str] = {"doc_unreadable": "8.5", "doc_unclassified": "5.3"}
+BUILTIN_RULES: dict[str, str] = {
+    "doc_unreadable": "8.5",
+    "doc_unclassified": "5.3",
+    "doc_instruction_text": "5.3",
+}
 
 # registered checks that the plan does not list, with the reason
 ADDED_RULES: dict[str, str] = {

@@ -150,3 +150,43 @@ def doc_unclassified(ctx: CaseContext) -> list[Flag]:
             )
         )
     return flags
+
+
+INJECTION_NOTE = "classify: injection_suspected"
+
+
+@check(
+    rule="doc_instruction_text",
+    applies_to={"*"},
+    severity="info",
+    description="A page contains text that reads as an instruction to the reviewing system.",
+    tamper=None,
+)
+def doc_instruction_text(ctx: CaseContext) -> list[Flag]:
+    """Text such as "ignore all previous instructions" is data, never a command: the classifier
+    counts it, the fast lane stays closed (queue.injection_suspected_pages) and this says so."""
+    flags: list[Flag] = []
+    for d in ctx.docs():
+        pages = sorted(
+            {
+                int(w.rsplit("page", 1)[1])
+                for w in d.warnings
+                if w.startswith(INJECTION_NOTE) and w.rsplit("page", 1)[1].strip().isdigit()
+            }
+        )
+        if not pages:
+            continue
+        flags.append(
+            make_flag(
+                "doc_instruction_text",
+                docs=[d],
+                evidence="instruction-like text on page(s) " + ", ".join(str(n) for n in pages),
+                explanation=(
+                    "This document contains wording aimed at the reviewer or the AI, such as an "
+                    "order to ignore the checks. It was treated as document text only and changed "
+                    "no result; the case cannot take the fast lane."
+                ),
+                region=_whole_page(d.file_id, pages[0], "instruction-like text"),
+            )
+        )
+    return flags

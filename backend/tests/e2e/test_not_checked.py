@@ -106,5 +106,7 @@ def test_an_instruction_in_the_text_changes_nothing(world) -> None:  # noqa: ANN
     evil.write_bytes(doc.tobytes())
     base = bases["loan"]
     run = run_bundle(bundles["loan"], tmp=root / "evil", paths=[*base.paths, evil])
-    assert _flag_multiset(run) - _flag_multiset(base) == Counter({("doc_unclassified", "info"): 1})
+    assert _flag_multiset(run) - _flag_multiset(base) == Counter(
+        {("doc_unclassified", "info"): 1, ("doc_instruction_text", "info"): 1}
+    )
     assert run.case.score is not None and run.case.score.value == base.case.score.value
