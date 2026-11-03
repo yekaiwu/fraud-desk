@@ -16,14 +16,20 @@ from ..core import Bundle, Outcome, attack
 F = "F6 cross-document pixel reuse"
 
 
-def _imgs(pdf: pikepdf.Pdf) -> list:
+def _imgs(pdf: pikepdf.Pdf, data: bytes) -> list:
+    """Signature images of page 2 ordered left to right (index 0 = seller, 1 = buyer)."""
+    import fitz
+
     res = pdf.pages[1].Resources.XObject
-    return [res[k] for k in sorted(res.keys())]
+    by_xref = {v.objgen[0]: v for _k, v in res.items()}
+    with fitz.open(stream=data, filetype="pdf") as doc:
+        placed = sorted(doc[1].get_image_info(xrefs=True), key=lambda i: i["bbox"][0])
+    return [by_xref[i["xref"]] for i in placed]
 
 
 def get_sig(data: bytes, idx: int) -> tuple[np.ndarray, np.ndarray]:
     pdf = pikepdf.open(io.BytesIO(data))
-    im = _imgs(pdf)[idx]
+    im = _imgs(pdf, data)[idx]
     w, h = int(im.Width), int(im.Height)
     rgb = np.frombuffer(im.read_bytes(), np.uint8).reshape(h, w, 3).copy()
     alpha = np.frombuffer(im.SMask.read_bytes(), np.uint8).reshape(h, w).copy()
@@ -32,7 +38,7 @@ def get_sig(data: bytes, idx: int) -> tuple[np.ndarray, np.ndarray]:
 
 def set_sig(data: bytes, idx: int, rgb: np.ndarray, alpha: np.ndarray) -> bytes:
     pdf = pikepdf.open(io.BytesIO(data))
-    im = _imgs(pdf)[idx]
+    im = _imgs(pdf, data)[idx]
     im.write(zlib.compress(rgb.tobytes()), filter=Name.FlateDecode)
     im.SMask.write(zlib.compress(alpha.tobytes()), filter=Name.FlateDecode)
     out = io.BytesIO()

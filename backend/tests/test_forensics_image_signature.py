@@ -399,8 +399,8 @@ def _adjusted(png: bytes, degrees: float, scale: float, noise: float = 0.0) -> b
     canvas = canvas.rotate(degrees, resample=Image.Resampling.BICUBIC)
     if noise:
         arr = np.asarray(canvas).astype(np.int16)
-        arr[..., :3] += np.random.default_rng(5).normal(0, noise, arr[..., :3].shape).astype(
-            np.int16
+        arr[..., :3] += (
+            np.random.default_rng(5).normal(0, noise, arr[..., :3].shape).astype(np.int16)
         )
         canvas = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA")
     return png_bytes(canvas)
