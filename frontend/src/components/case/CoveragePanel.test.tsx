@@ -66,7 +66,8 @@ describe("CoveragePanel", () => {
     );
     render(<CoveragePanel c={c} />);
     const region = screen.getByRole("region", { name: "Looked up outside the documents" });
-    expect(region).toHaveTextContent("Asked ACRA (the open company register, live) for 202115950G");
+    expect(region).toHaveTextContent("Company register (ACRA, live): Asked ACRA (the open company register, live) for 202115950G");
+    expect(region).toHaveTextContent("Sanctions lists (UN, OFAC, EU, UK): Screened 6 name(s)");
     expect(region).toHaveTextContent("The documents agree.");
     expect(region).toHaveTextContent("Screened 6 name(s) against UN, OFAC, EU, UK lists");
     expect(region).toHaveTextContent("(3 flags)");

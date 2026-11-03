@@ -91,7 +91,17 @@ const WORDS: Record<string, string> = {
  * A readable name for a check id: "bs_running_balance" -> "Statement: running balance",
  * "x_invoice_vs_receipts" -> "Invoice vs receipts". Derived, so a new check never shows as a blank.
  */
+/** The checks that ask somewhere outside the documents are named after what they ask, not after their id. */
+const OUTSIDE_NAMES: Record<string, string> = {
+  x_entity_vs_registry: "Company register (ACRA, live)",
+  x_entity_vs_gleif: "GLEIF legal-entity record",
+  x_sanctions_screen: "Sanctions lists (UN, OFAC, EU, UK)",
+  x_address_vs_registry: "Address (OneMap)",
+  inv_gst_registered: "GST register (IRAS)",
+};
+
 export function checkName(rule: string): string {
+  if (OUTSIDE_NAMES[rule]) return OUTSIDE_NAMES[rule];
   const parts = rule.split("_").filter(Boolean);
   if (parts.length === 0) return rule;
   const head = PREFIX[parts[0]];

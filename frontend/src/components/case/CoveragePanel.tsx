@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Globe } from "lucide-react";
 import Link from "next/link";
 import { LOW_COVERAGE_RATIO } from "@/lib/constants";
 import { pageCounts, ruleName } from "@/lib/flags";
+import { checkName } from "@/lib/checkCatalogue";
 import { coverageText, plural, unreviewedPagesText } from "@/lib/labels";
 import { groupSkippedChecks } from "@/lib/skipGroups";
 import { useCheckName } from "@/lib/useCheckNames";
@@ -17,6 +18,7 @@ export { groupSkippedChecks, plainSkipReason, type SkipGroup } from "@/lib/skipG
 
 export function CoveragePanel({ c, defaultOpen = true, id = "coverage" }: { c: CaseDetail; defaultOpen?: boolean; id?: string }) {
   const nameOf = useCheckName(ruleName);
+  const lookupName = useCheckName(checkName);
   const cov = c.coverage;
   if (!cov) return null;
   const { unchecked, total } = pageCounts(c);
@@ -54,7 +56,7 @@ export function CoveragePanel({ c, defaultOpen = true, id = "coverage" }: { c: C
               <ul className="space-y-1.5 text-[0.9375rem]">
                 {lookups.map((r) => (
                   <li key={r.rule} title={r.rule} className="break-words">
-                    <span className="font-semibold text-ink">{nameOf(r.rule)}</span>
+                    <span className="font-semibold text-ink">{lookupName(r.rule)}</span>
                     <span className="text-ink-2">: {r.note}</span>
                     {r.flags > 0 ? <span className="ml-1 font-semibold text-brass-deep">({r.flags} {plural(r.flags, "flag")})</span> : null}
                   </li>
