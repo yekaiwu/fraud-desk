@@ -127,3 +127,17 @@ def test_cell_raw_is_capped_at_500_characters() -> None:
 
 def test_zero_width_characters_are_removed() -> None:
     assert canonical("text", "ab​cd") == ("abcd", None)
+
+
+def test_decimal_comma_in_money_quantity_and_percent_cells() -> None:
+    # independent invoices print "$ 978,12", a quantity "2,00" and a rate "10,5%"
+    assert canonical("money", "$ 978,12") == ("978.12", None)
+    assert canonical("money", "$ 2 259,10") == ("2259.10", None)
+    assert canonical("money", "1.234,56") == ("1234.56", None)
+    assert canonical("decimal", "2,00") == ("2.00", None)  # was read as 200
+    assert canonical("decimal", "1,000") == ("1000", None)  # three digits: thousands
+    assert canonical("decimal", "1.000,5") == ("1000.5", None)
+    assert canonical("percent", "10,5%") == ("10.50", None)
+    assert canonical("percent", "10%") == ("10.00", None)
+    assert canonical("money", "21053;73)") == (None, "unparsed")  # debris stays unparsed
+    assert canonical("decimal", "1,234,56") == (None, "unparsed")
