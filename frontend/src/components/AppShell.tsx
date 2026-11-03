@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { LogOut } from "lucide-react";
+import { Bell, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -14,7 +14,6 @@ import { Logo, LogoMark } from "./ui/Logo";
 export const NAV_ITEMS = [
   { href: "/", label: "Worklist" },
   { href: "/upload", label: "New case" },
-  { href: "/notifications", label: "Notifications" },
   { href: "/effectiveness", label: "Control performance" },
   { href: "/rules", label: "Check catalogue" },
 ] as const;
@@ -35,30 +34,37 @@ function SkipLink() {
   );
 }
 
-/** The count on the Notifications tab. Nothing is drawn at zero; the link's name carries the number otherwise. */
+/** The count on the notifications bell. Nothing is drawn at zero; the link's name carries the number otherwise. */
 export function badgeLabel(count: number): string {
   return count > 99 ? "99+" : String(count);
 }
 
-function NavLabel({ href, label, pathname }: { href: string; label: string; pathname: string }) {
-  if (href !== "/notifications") return <>{label}</>;
-  return <NotificationsLabel label={label} pathname={pathname} />;
-}
-
-function NotificationsLabel({ label, pathname }: { label: string; pathname: string }) {
+/**
+ * The notifications button in the top right of the header: a bell that opens /notifications, with the count of
+ * things to look at on it. Its accessible name is "Notifications", or "Notifications, 3 to look at".
+ */
+function NotificationsButton({ pathname }: { pathname: string }) {
   const count = useNotificationBadge(pathname);
+  const active = isActive(pathname, "/notifications");
   return (
-    <>
-      {label}
+    <Link
+      href="/notifications"
+      aria-current={active ? "page" : undefined}
+      className={clsx(
+        "relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border px-3 text-on-brand-muted transition-colors hover:border-on-brand/60 hover:bg-on-brand/10 hover:text-on-brand",
+        active ? "border-brass bg-on-brand/10 text-on-brand" : "border-on-brand/25",
+      )}
+    >
+      <Bell aria-hidden className="h-5 w-5" />
+      <span className="sr-only">
+        Notifications{count > 0 ? `, ${count} to look at` : ""}
+      </span>
       {count > 0 ? (
-        <>
-          <span data-testid="notifications-badge" aria-hidden className="tabular ml-2 inline-flex min-w-[1.375rem] items-center justify-center rounded-full border border-brass/60 bg-brass-tint px-1.5 text-xs font-semibold leading-5 text-brass-deep">
-            {badgeLabel(count)}
-          </span>
-          <span className="sr-only">, {count} to look at</span>
-        </>
+        <span data-testid="notifications-badge" aria-hidden className="tabular absolute -right-1.5 -top-1.5 inline-flex min-w-[1.375rem] items-center justify-center rounded-full border border-brass/60 bg-brass-tint px-1.5 text-xs font-semibold leading-5 text-brass-deep">
+          {badgeLabel(count)}
+        </span>
       ) : null}
-    </>
+    </Link>
   );
 }
 
@@ -106,17 +112,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/" aria-label="Green Link Digital Bank, Fraud Desk: go to the worklist" className="rounded-md">
               <Logo tone="light" />
             </Link>
-            {USE_MOCK ? null : (
-              <form method="post" action="/api/auth/logout">
-                <button
-                  type="submit"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-on-brand/25 px-3.5 text-sm font-semibold text-on-brand-muted transition-colors hover:border-on-brand/60 hover:bg-on-brand/10 hover:text-on-brand"
-                >
-                  <LogOut aria-hidden className="h-4 w-4" />
-                  Log out
-                </button>
-              </form>
-            )}
+            <div className="flex items-center gap-2">
+              <NotificationsButton pathname={pathname} />
+              {USE_MOCK ? null : (
+                <form method="post" action="/api/auth/logout">
+                  <button
+                    type="submit"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-md border border-on-brand/25 px-3.5 text-sm font-semibold text-on-brand-muted transition-colors hover:border-on-brand/60 hover:bg-on-brand/10 hover:text-on-brand"
+                  >
+                    <LogOut aria-hidden className="h-4 w-4" />
+                    Log out
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
           <nav aria-label="Main" className="-mb-[3px] mt-1">
             <ul className="flex gap-1 overflow-x-auto pb-[3px] pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -135,7 +144,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           : "border-t-transparent text-on-brand-muted hover:bg-on-brand/10 hover:text-on-brand",
                       )}
                     >
-                      <NavLabel href={item.href} label={item.label} pathname={pathname} />
+                      {item.label}
                     </Link>
                   </li>
                 );

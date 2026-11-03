@@ -22,9 +22,9 @@ With fewer than `GLDB_MONITOR_MIN_CASES` (default 10) cases in a window the answ
 
 `GET /monitoring` only reads. Telling someone is the next section; the review log's rule-effectiveness page (`GET /rules/effectiveness`) shows how reviewers decided on each rule.
 
-## Where alerts appear: the Notifications tab
+## Where alerts appear: the Notifications bell
 
-Alerts simply appear on the page. The Notifications tab (`/notifications`) lists, newest first, every alert raised or resolved, reminders, medium and high incidents, test alerts and the monitor's own silence, even when no outside sink is configured (the in-app sink, `GET /monitoring/notifications`). The tab shows a badge with the open alerts nobody acknowledged plus unread notifications, and the page has the open alerts with what to do, an Acknowledge action that needs a reason, the readiness items with what is missing, a Send test alert button, the scheduler status and the incident log. The outside sinks below are optional extras for people who are not looking at the page.
+Alerts simply appear on the page. The Notifications page (`/notifications`, opened from the bell button at the top right of every page) lists, newest first, every alert raised or resolved, reminders, medium and high incidents, test alerts and the monitor's own silence, even when no outside sink is configured (the in-app sink, `GET /monitoring/notifications`). The tab shows a badge with the open alerts nobody acknowledged plus unread notifications, and the page has the open alerts with what to do, an Acknowledge action that needs a reason, the readiness items with what is missing, a Send test alert button, the scheduler status and the incident log. The outside sinks below are optional extras for people who are not looking at the page.
 
 **Delivery to the page is not the same as someone watching it.** Nothing here knows whether a person looked. A read mark records that someone pressed the button, under their name. Readiness item (c) counts the page as a sink, and says so plainly; who watches the page, how often and what they do next is the bank's to set. The accountable person is deliberately not named (`GLDB_AI_OWNER` stays empty): the tab shows that as an open item, "not named, decided by the bank".
 

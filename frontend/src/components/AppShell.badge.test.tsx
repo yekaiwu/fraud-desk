@@ -29,14 +29,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("Notifications tab badge", () => {
-  it("draws nothing at zero: the link is just 'Notifications'", async () => {
+describe("Notifications bell badge", () => {
+  it("draws nothing at zero: the bell is just 'Notifications'", async () => {
     answer(0);
     render(shell());
     await waitFor(() => expect(getNotificationSummary).toHaveBeenCalled());
     const link = screen.getByRole("link", { name: "Notifications" });
     expect(link).toHaveAttribute("href", "/notifications");
-    expect(link.textContent).toBe("Notifications");
+    expect(link.textContent).toBe("Notifications"); // an icon and a screen-reader label, no visible text
+    expect(link.querySelector("svg")).not.toBeNull();
     expect(screen.queryByTestId("notifications-badge")).toBeNull();
   });
 

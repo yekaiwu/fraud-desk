@@ -42,7 +42,7 @@ Fraud Desk reads a document bundle, runs the checks an analyst would do by hand,
 > - **Tested by an independent attacker.** A red team of 71 attacks in 10 families tried to get forged bundles through; 25 of the 50 counted got through, and every gap is kept as a permanent test ([docs/red-team.md](docs/red-team.md)).
 > - **Reads scans on your machine.** Tesseract reads the page and Claude Haiku 5.5 turns the text into fields, about 2.6 times cheaper per case than Haiku reading page images. A page image goes to the model only when that page's arithmetic does not add up. A local model can do the reading instead, as an in-house proof of concept ([docs/anthropic-haiku.md](docs/anthropic-haiku.md), [docs/local-llm.md](docs/local-llm.md)).
 > - **Predictable model spend.** Per-case and per-day dollar caps.
-> - **Notifications tab.** Monitoring alerts, incidents and tests appear on the page itself with a badge, what to do about each and an acknowledgement that needs a reason, even with no outside channel set up. The accountable person is shown as an open item until the bank names one ([docs/ai-incidents.md](docs/ai-incidents.md)).
+> - **Notifications bell.** Monitoring alerts, incidents and tests appear on the page itself with a badge, what to do about each and an acknowledgement that needs a reason, even with no outside channel set up. The accountable person is shown as an open item until the bank names one ([docs/ai-incidents.md](docs/ai-incidents.md)).
 
 ## See it
 
@@ -97,7 +97,7 @@ flowchart LR
   G --> H[[Ranked worklist]]
   H --> I{{A person decides}}
   I --> J[(Audit log)]
-  G -.-> N[Notifications tab]
+  G -.-> N[Notifications bell]
 ```
 
 Reads PDFs and images: text layer first, then Tesseract OCR for scans, with Claude Haiku 5.5 turning the text into fields. Each page the OCR reads is checked for completeness (every item line must have an amount); an incomplete page is re-read from its image and, if it still fails, reported as incomplete, never as a mismatch. A flag on scanned pages must be reproduced by a different reading of the same pages or it is kept as information only, a second OCR reader for photos is built and off by default, and a local model can do the reading instead (in-house proof of concept). Optional lookups (company register, sanctions lists, GLEIF, OneMap, IRAS) are off until configured, and a source that cannot be reached never becomes a flag. **A reader for scans is required: without one, scanned pages are reported as unreadable and the score is marked partial.** All extracted text is treated as untrusted input from the person being checked, and the model has no tools, so all it can do is fill a schema.
@@ -183,7 +183,7 @@ Digital PDFs are the strongest case. Scans and photos score lower, and real-worl
 - **Registries.** The registry is a JSON file written by the generator unless the opt-in live lookups are on. ACRA open data, GLEIF, OneMap and the IRAS GST register check names, status, dates and addresses, not who owns or runs a company; owner and director checks need a registry the bank has. OneMap and IRAS were built against fake services and not tested live. Singpass and Myinfo are not connected: they need the bank to apply.
 - **Names.** About 30% of real same-person aliases are not accepted (India 35.2%, Malaysia 20.7%, Singapore 17.0%), almost all of them not matchable from the name alone, and the name-linking model check is off until its fairness gap is closed. The bank defines what fair means.
 - **Encryption** protects stored data against disk, backup and volume theft. It does not protect against someone who controls the running application or the key on the same machine; the applicant name and case reference stay readable so the queue can search; page images still go to the model provider.
-- **Alerts** appear on the Notifications tab only while the monitor is scheduled, and a stopped process cannot alert. The accountable person is deliberately unnamed, and the thresholds are unapproved, until the bank decides.
+- **Alerts** appear on the Notifications page (the bell, top right) only while the monitor is scheduled, and a stopped process cannot alert. The accountable person is deliberately unnamed, and the thresholds are unapproved, until the bank decides.
 - **Local model.** It is a proof of concept for the in-house option: slower than Haiku, tested only on clean scans, and LM Studio's own server logs prompts in full, so real data must use the gateway and llama-server pair instead.
 - **One process, SQLite;** jobs are not durable across restarts and nothing has been load-tested. The hosted demo uses one shared login with self-declared reviewer names; personal reviewer accounts can be configured, and there are no roles.
 - The local classifier is a stub; it needs `torch` and `transformers`, which are deliberately not installed by default.
