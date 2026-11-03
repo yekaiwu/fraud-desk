@@ -59,6 +59,15 @@ describe("effectiveness page", () => {
     const panel = await screen.findByRole("region", { name: "Worth a closer look" });
     expect(panel).toHaveTextContent("Statement: pass through");
     expect(panel).toHaveTextContent("75% dismissed of 8 decided");
+    expect(within(panel).getByRole("link", { name: "Review this check" })).toHaveAttribute("href", "/rules?check=bs_pass_through");
+  });
+
+  it("says in plain words that it is a report and where to act on it", async () => {
+    vi.spyOn(api, "getEffectiveness").mockResolvedValue(resp([rule({ rule: "bs_a", times_fired: 1 })]));
+    renderWithSWR(<EffectivenessPage />);
+    expect(await screen.findByText(/A report on the checks, not a control panel/)).toBeInTheDocument();
+    expect(screen.getByText(/Every check is a control/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Check catalogue" })).toHaveAttribute("href", "/rules");
   });
 
   it("sorts from the column headers, with aria-sort, and toggles direction", async () => {

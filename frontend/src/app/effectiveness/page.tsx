@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart3, ChevronDown, ChevronRight, Download } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
 import { BarLegend } from "@/components/effectiveness/StackedBar";
@@ -58,11 +59,18 @@ export default function EffectivenessPage() {
 
   return (
     <Stagger className="space-y-6">
-      <SectionHeading level={1} size="page" description="How often each check fires and what analysts decided.">
+      <SectionHeading level={1} size="page" description="A report on the checks, not a control panel: how often each check fires and what analysts decided about what it raised.">
         Control performance
       </SectionHeading>
 
       <Panel tone="sunken" padding="sm">
+        <p className="mb-3 text-[0.9375rem] text-ink-2">
+          Every check is a control. When an analyst confirms or dismisses a flag, the check that raised it gets a vote. A check whose flags are mostly dismissed may be too sensitive; one that is nearly always confirmed is doing its job. To act on it, open the check in the{" "}
+          <Link href="/rules" className="font-medium text-brand-2 underline underline-offset-2">
+            Check catalogue
+          </Link>
+          : you can lower its severity, switch it off or reword it (every change needs a reason and is logged, and applies to analyses run afterwards).
+        </p>
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
           <FilterField id="eff-uc" label="Case type">
             <select id="eff-uc" className={inputClasses} value={useCase} onChange={(e) => setUseCase(e.target.value as UseCase | "")}>
@@ -123,8 +131,13 @@ export default function EffectivenessPage() {
                   {noisy.map((r) => (
                     <li key={r.rule} className="flex flex-wrap items-baseline justify-between gap-x-4 py-2">
                       <span className="font-semibold text-ink">{nameOf(r.rule)}</span>
-                      <span className="tabular text-sm text-ink-2">
-                        {r.dismissal_rate === null ? "-" : formatRatio(r.dismissal_rate)} dismissed of {r.confirmed + r.dismissed} decided
+                      <span className="flex flex-wrap items-baseline gap-x-3">
+                        <span className="tabular text-sm text-ink-2">
+                          {r.dismissal_rate === null ? "-" : formatRatio(r.dismissal_rate)} dismissed of {r.confirmed + r.dismissed} decided
+                        </span>
+                        <Link href={`/rules?check=${encodeURIComponent(r.rule)}`} className="text-sm font-medium text-brand-2 underline underline-offset-2">
+                          Review this check
+                        </Link>
                       </span>
                     </li>
                   ))}

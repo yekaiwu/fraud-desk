@@ -169,6 +169,8 @@ Empty (`findings` empty and not partial): "No flags raised. 21 of 21 checks ran.
 
 ### 5.4 Effectiveness (`/effectiveness`)
 
+In the navigation this page is called "Control performance": a control is a check, and the page reports on them, it does not change anything. It says so under the title. A check whose flags analysts mostly dismiss is listed under "Worth a closer look" with a "Review this check" link to `/rules?check=<rule>`, which opens that check's editor in the Check catalogue (lower its severity, switch it off, reword it; every change needs a reason and is logged).
+
 Data `GET /rules/effectiveness` (+ optional `use_case`, `since` filters). Top KPIs: cases total, cases decided, median time to verdict (`formatSeconds`). Table (`RuleTable`, desktop table, phone cards): rule (monospace) with description, stage, default severity, times fired / cases fired, a `StackedBar` of confirmed / dismissed / pending / open with a text equivalent ("5 confirmed, 1 dismissed, 0 pending, 1 open"), dismissal rate (`-` when null), median seconds to decide, ran / skipped. Sorts: times fired (default), dismissal rate, rule. "Never fired" rules are grouped in a collapsed section. A rule is marked "Noisy?" (text, not colour) when `confirmed + dismissed >= 5` and `dismissal_rate >= 0.5` (constants `NOISY_MIN_DECIDED`, `NOISY_RATE`). "Download CSV" (client-side, current sort). Always-visible caveat: "Measures reviewer agreement, not ground truth. Ground truth is in the validation report." States: loading skeleton; **empty** (`cases_decided == 0`): "No decided cases yet. Rule statistics appear after reviewers confirm or dismiss flags." (rules table still shows zeros); error as elsewhere.
 
 ### 5.5 Rules (`/rules`, optional, build last)

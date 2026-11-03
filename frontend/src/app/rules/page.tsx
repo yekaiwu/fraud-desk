@@ -1,7 +1,8 @@
 "use client";
 
 import { History, SearchX } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import useSWR from "swr";
 import { ChangeLogSheet } from "@/components/catalogue/ChangeLog";
 import { CheckEditor, type SavedKind } from "@/components/catalogue/CheckEditor";
@@ -29,7 +30,7 @@ function Select({ id, label, value, onChange, children }: { id: string; label: s
   );
 }
 
-export default function RulesPage() {
+function RulesView() {
   const { data, error, isLoading, mutate } = useSWR("rules", () => getRules());
   const [f, setF] = useState<CheckFilters>(NO_FILTERS);
   const set = <K extends keyof CheckFilters>(k: K, v: CheckFilters[K]) => setF((cur) => ({ ...cur, [k]: v }));
@@ -38,7 +39,11 @@ export default function RulesPage() {
   const docTypes = useMemo(() => documentTypesOf(all), [all]);
   const rules = useMemo(() => orderChecks(filterChecks(all, f, checkName)), [all, f]);
   const counts = useMemo(() => catalogueCounts(all), [all]);
-  const [editing, setEditing] = useState<string | null>(null);
+  // /rules?check=bs_pass_through opens that check's editor (the Control performance page links here);
+  // undefined means "not chosen yet: follow the link", null means "closed"
+  const [chosen, setEditing] = useState<string | null | undefined>(undefined);
+  const linked = useSearchParams()?.get("check") ?? null;
+  const editing = chosen === undefined ? linked : chosen;
   const [logOpen, setLogOpen] = useState(false);
   const [saved, setSaved] = useState<{ kind: SavedKind; name: string } | null>(null);
   const editRule = useMemo(() => all.find((r) => r.rule === editing) ?? null, [all, editing]);
@@ -157,5 +162,13 @@ export default function RulesPage() {
       <CheckEditor rule={editRule} rules={all} open={editing !== null} onClose={() => setEditing(null)} onSaved={(u, k) => void onSaved(u, k)} />
       <ChangeLogSheet open={logOpen} onClose={() => setLogOpen(false)} rules={all} />
     </Stagger>
+  );
+}
+
+export default function RulesPage() {
+  return (
+    <Suspense fallback={null}>
+      <RulesView />
+    </Suspense>
   );
 }
