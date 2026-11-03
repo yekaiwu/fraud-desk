@@ -208,6 +208,8 @@ Six changes; each is a separate commit with tests, none lowers a threshold or a 
 | R101, R103, R104 | A document that no rule read (not checked, `other`, a doubtful label) and that carries at least three printed money figures blocks the fast lane. One unread document used to be a small share of the pages. Flags and scores are unchanged. | `9da3992` |
 | R90 | A page classified as instruction-like text blocks the fast lane; it used to be counted in the stage detail and nothing else. | `46bea4d` |
 
+False-alarm check for the six changes: a fresh pool of 30 clean digital bundles (10 per scenario, seed 9001) and the three hard-quirk bundles raise no flag at medium or above, and the number of bundles in the fast lane is the same with and without the two queue changes (7 of 30 both ways; KYC is always `edd` and AML always `aml`). The full suite (`uv run pytest backend/tests`) passes: 3,718 passed, 3 skipped, 19 expected failures (the known evasions); `ruff check` and `ruff format --check` are clean.
+
 Before and after on the 47 counted attacks that existed in the first full run: evaded 28 to 24 (R23, R36, R50 and R102 became detected), free passes 21 to 16, detected but fast 5 to 4.
 
 Not changed on purpose: the hard-stop list. `x_cash_at_year_end`, `x_invoice_vs_receipts` and `x_invoice_vs_contract` raise medium flags that leave a case in the fast lane (R16, R17, R70, R75: score 15, no hard stop). That is the documented calibration (`scoring-and-queue.md`); the cases are detected, and a strict xfail test records them as known gaps. Whether a medium contradiction between two documents should close the fast lane is a decision for the owners.
