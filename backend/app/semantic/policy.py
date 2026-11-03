@@ -59,7 +59,7 @@ def switched_off_by_setting(settings: object, rule: str) -> str | None:
     if name is None or getattr(settings, name, "off") == "on":
         return None
     env = "GLDB_" + name.upper()
-    return f"Switched off by setting {env}=off (the default). Not run until the bank agrees to it."
+    return f"Switched off by setting {env}=off"
 
 
 def cap_severity(severity: str) -> str:

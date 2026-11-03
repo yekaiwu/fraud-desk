@@ -815,3 +815,15 @@ def test_a_citation_with_no_locator_gets_the_field_of_a_field_based_side() -> No
     assert [k.claim.kind for k in kept] == ["same_entity"] and sum(ver.dropped.values()) == 0
     kept, ver = verify_pairs(reply("Some Other Company"), [cand], ctx.docs())
     assert kept == [] and ver.dropped["quote_not_found"] == 1  # the quote check is unchanged
+
+
+def test_the_switched_off_reason_is_just_the_setting() -> None:
+    from app.semantic.policy import switched_off_by_setting
+
+    class S:
+        semantic_entity = "off"
+
+    assert (
+        switched_off_by_setting(S(), "sem_entity_link")
+        == "Switched off by setting GLDB_SEMANTIC_ENTITY=off"
+    )
