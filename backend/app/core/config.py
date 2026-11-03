@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     # Ask Singapore's open ACRA dataset about an applicant UEN that the registry file does not hold
     # (app/registry_live.py). Off by default: it makes a network call per new UEN.
     registry_live: bool = False
+    # Private mode (docs/local-llm.md section 12, app/core/privacy.py): "on" refuses to start with a hosted
+    # model or key, accepts only a loopback / private / tailnet / allowed LLM host, switches off every outbound
+    # lookup and installs a guard on all outgoing connections.
+    private_mode: Literal["off", "on"] = "off"
+    private_allowed_hosts: str = (
+        ""  # comma-separated hosts (names or IPs) allowed in addition to the private ranges
+    )
     today: date | None = None
 
     # LLM
@@ -76,6 +83,9 @@ class Settings(BaseSettings):
     # chat_template_kwargs.enable_thinking, but honours reasoning_effort="none" (thinking off).
     llm_reasoning_effort: str = ""
     llm_max_concurrency: int = 4  # client-side cap on simultaneous provider calls (all threads)
+    # Tables come back as lists of rows (no key name repeated per cell): about half the output tokens on a
+    # statement page, which is what a slow local model spends its time on. Off by default (hosted path unchanged).
+    llm_compact_tables: bool = False
     llm_max_output_tokens: int = 8000  # raise (16000+) when thinking is on
     llm_retry_503_attempts: int = 2  # retries of a 503 (model loading); the local profile uses 8
     llm_retry_503_backoff_s: float = 1.0  # wait n = backoff * 3**n unless Retry-After is sent
@@ -97,8 +107,12 @@ class Settings(BaseSettings):
     # Tesseract or RapidOCR, whichever the first reader is not). A figure the two readers print
     # differently is marked unverified, and a check that fails only on such a figure is lowered to
     # "reading unreliable, check by eye" (ingest/ocr.py, extract/agreement.py, reading_agreement.py).
-    # Agreement never lowers anything. Off by default: see docs/limitations.md section 13.
+    # Agreement never lowers anything. Off by default: see docs/limitations.md section 16.
     multi_reader: bool = False
+    # Read a scanned document with the deterministic parsers first (on its OCR words) and call the model
+    # only when the parser does not recognise the layout, a required field is missing or an arithmetic check
+    # fails. Off by default: the hosted path is unchanged. The local profile turns it on (docs/local-llm.md 12).
+    scan_rules_first: bool = False
     # With a local OCR chosen under the anthropic backend the model reads OCR text only. True also
     # lets a scanned page whose arithmetic does not add up be re-read once from its image (the one
     # place the model sees pixels). Empty = on in that setup and off elsewhere; false turns it off.
@@ -360,6 +374,12 @@ class Settings(BaseSettings):
 
     def validate_startup(self) -> None:
         """Fail fast on a configuration that cannot work (architecture.md section 10)."""
+        if self.private_mode == "on":
+            from app.core.privacy import validate_private_settings
+
+            private_problems = validate_private_settings(self)
+            if private_problems:
+                raise SettingsError("private mode: " + "; ".join(private_problems))
         if self.effective_llm_backend() == "anthropic":
             self.validate_anthropic()
         if self.effective_llm_backend() == "openai":
@@ -461,6 +481,12 @@ class Settings(BaseSettings):
             out["ocr_backend"] = self.ocr_backend
         if self.registry_live:
             out["registry_live"] = "on"
+        if self.private_mode == "on":  # listed only when on: other runs keep their provenance hash
+            out["private_mode"] = "on"
+        if self.llm_compact_tables:  # listed only when on
+            out["llm_compact_tables"] = "on"
+        if self.scan_rules_first:  # listed only when on: other runs keep their provenance hash
+            out["scan_rules_first"] = "on"
         if self.ocr_straighten:  # listed only when on: other runs keep their provenance hash
             out["ocr_straighten"] = "on"
         if self.multi_reader:

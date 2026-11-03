@@ -7,7 +7,7 @@ The system prompt is fixed per document type, contains no document text and is r
 
 from __future__ import annotations
 
-from app.core.schemas import DOC_SCHEMAS
+from app.core.schemas import DOC_SCHEMAS, compact_table_columns
 from app.extract.registry import prompt_hints
 
 PREAMBLE = (
@@ -31,8 +31,9 @@ PREAMBLE = (
 )
 
 
-def keys_description(doc_type: str) -> str:
+def keys_description(doc_type: str, compact: bool = False) -> str:
     schema = DOC_SCHEMAS[doc_type]
+    packed = compact_table_columns(doc_type) if compact else {}
     parts = ["fields: " + ", ".join(f"{k} ({s.kind})" for k, s in schema.fields.items())]
     for name, spec in schema.tables.items():
         cols = [
@@ -40,13 +41,23 @@ def keys_description(doc_type: str) -> str:
             for c in spec.columns
             if not (doc_type == "financial_statement" and c == "is_subtotal")
         ]
-        parts.append(f"table {name}: " + ", ".join(cols))
+        if name in packed:
+            parts.append(
+                f"table {name}: a list of rows, each row a list of exactly {len(cols)} strings or "
+                "nulls in this column order (use null for a cell that is empty): " + ", ".join(cols)
+            )
+        else:
+            parts.append(f"table {name}: " + ", ".join(cols))
     if doc_type == "bank_statement":
         parts.append("page_marker: the text such as 'Page 2 of 3' printed on this page, or null")
     return "Keys. " + "; ".join(parts) + "."
 
 
-def build_system_prompt(doc_type: str) -> str:
+def build_system_prompt(doc_type: str, compact: bool = False) -> str:
     hints = " ".join(prompt_hints(doc_type))
-    text = PREAMBLE.format(doc_type=doc_type.replace("_", " ")) + "\n" + keys_description(doc_type)
+    text = (
+        PREAMBLE.format(doc_type=doc_type.replace("_", " "))
+        + "\n"
+        + keys_description(doc_type, compact)
+    )
     return text + ("\n" + hints if hints else "")

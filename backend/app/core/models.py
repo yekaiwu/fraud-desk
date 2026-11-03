@@ -516,6 +516,8 @@ class Provenance(Strict):
     # weights file's "weights_version", "weights_sha256", "weights_source", "fitted_on_synthetic"}.
     # Absent on a case stored before the field existed (those were scored by the legacy rule).
     score_model: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
+    # "on" when the case was analysed in private mode (GLDB_PRIVATE_MODE); absent otherwise
+    private_mode: str | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------------------

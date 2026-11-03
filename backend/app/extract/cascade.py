@@ -231,12 +231,13 @@ class _Run:
                 self.warnings.append(f"unreadable: page {p}: {st.error.split(':', 1)[0]}")
                 self.partial = True
         tl_result: ExtractionResult | None = None
+        any_scan = any(s.is_scan for s in self.states.values())
         if (
             self.mode in ("text_layer", "cascade")
             and self.tl is not None
-            and not any(s.is_scan for s in self.states.values())
+            and (not any_scan or (self.settings.scan_rules_first and self.mode == "cascade"))
         ):
-            tl_result = self._text_layer()
+            tl_result = self._text_layer(on_scan=any_scan)
         if tl_result is not None:
             result = self._with_text_layer(tl_result)
         elif self.mode == "text_layer" or self.llm is None:
@@ -248,22 +249,51 @@ class _Run:
         return self._finalize(result)
 
     # ------------------------------------------------------------------ text layer
-    def _text_layer(self) -> ExtractionResult | None:
+    def _text_layer(self, on_scan: bool = False) -> ExtractionResult | None:
+        """The deterministic parser. ``on_scan``: the words are OCR words (``GLDB_SCAN_RULES_FIRST``). A
+        scanned document is accepted only when the parser understood the layout AND every check the
+        validator has holds AND nothing required is missing; otherwise the model reads it, so a
+        parser reading that is incomplete or does not add up never replaces a model reading."""
         assert self.tl is not None
         try:
             parse = getattr(self.tl, "parse_document", None) or self.tl.extract
             result = parse(self.doc, self.ctx)
         except LayoutNotRecognised as exc:
-            self.warnings.append(f"layout_not_recognised: {exc}")
+            self.warnings.append(
+                f"{'scan_rules_declined' if on_scan else 'layout_not_recognised'}: {exc}"
+            )
             return None
         validation = self.validate(result)
         if validation.structural:
-            self.warnings.append(f"layout_not_recognised: {'; '.join(validation.structural)}")
+            self.warnings.append(
+                f"{'scan_rules_declined' if on_scan else 'layout_not_recognised'}: "
+                f"{'; '.join(validation.structural)}"
+            )
             return None
+        if on_scan:
+            problems = [f"page {p} {why}" for p, why in sorted(validation.failing.items())]
+            problems += [f"missing {k}" for k in validation.missing_required]
+            if problems:
+                self.warnings.append(f"scan_rules_declined: {'; '.join(problems)[:200]}")
+                return None
+            self._scan_unknowns(result)
+            self.warnings.append("scan_rules: read from the OCR words by the deterministic parser")
         self.use("text_layer")
         for p in self.pages:
             self.sources[p] = "text_layer"
         return result
+
+    def _scan_unknowns(self, result: ExtractionResult) -> None:
+        """On OCR words an absent mark is not evidence of absence: a UBO badge is a small boxed word the OCR
+        often misses. The parser derives ``is_ubo=false`` for a box with no tag on a chart that uses tags
+        (right on a text layer); on a scan that value is dropped to unknown, as the model path leaves it."""
+        table = result.tables.get("holders")
+        if self.doc.doc_type != "ownership_chart" or table is None:
+            return
+        for row in table.rows:
+            cell = row.cells.get("is_ubo")
+            if cell is not None and cell.source == "derived" and cell.raw is None:
+                row.cells["is_ubo"] = Cell(value=None, kind="bool", source="text_layer")
 
     def _with_text_layer(self, result: ExtractionResult) -> ExtractionResult:
         validation = self.validate(result)

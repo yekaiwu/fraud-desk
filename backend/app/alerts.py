@@ -42,6 +42,7 @@ from app.audit import AuditLog, scrub, sha256_text
 from app.core.config import Settings
 from app.core.db import Database, ts
 from app.core.errors import ApiError
+from app.core.privacy import host_allowed, parse_allowed, url_allowed
 from app.monitoring import snapshot
 
 log = logging.getLogger("gldb.alerts")
@@ -367,7 +368,12 @@ def build_sinks(
     """The sinks that are configured; an unconfigured one is simply absent."""
     _quiet_http_logs()
     sinks: list[Sink] = []
+    private = settings.private_mode == "on"
+    allowed = parse_allowed(settings.private_allowed_hosts)
     url = settings.alert_webhook_url.get_secret_value().strip()
+    if url and private and not url_allowed(url, allowed):
+        log.warning("private mode: the alert webhook points outside the private network; not used")
+        url = ""
     if url:
         sinks.append(
             WebhookSink(
@@ -381,6 +387,7 @@ def build_sinks(
         settings.alert_smtp_host.strip()
         and settings.alert_email_from.strip()
         and recipients(settings)
+        and not (private and not host_allowed(settings.alert_smtp_host, allowed))
     ):
         sinks.append(
             EmailSink(
@@ -396,7 +403,9 @@ def build_sinks(
             )
         )
     token = settings.alert_telegram_bot_token.get_secret_value().strip()
-    if token and settings.alert_telegram_chat_id.strip():
+    if (
+        token and settings.alert_telegram_chat_id.strip() and not private
+    ):  # hosted: never in private mode
         sinks.append(
             TelegramSink(
                 token,

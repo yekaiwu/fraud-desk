@@ -128,4 +128,5 @@ def build_provenance(ctx: CaseContext) -> Provenance:
         created_at=utcnow(),
         catalogue=catalogue_stamp(ctx.overrides),
         score_model=describe_score_model(s),
+        private_mode="on" if s.private_mode == "on" else None,
     )

@@ -428,6 +428,9 @@ class OpenAICompatClient:
         sleep: Callable[[float], None] = time.sleep,
         http_client: Any | None = None,
     ):
+        from app.core.privacy import assert_outbound_allowed
+
+        assert_outbound_allowed(settings, settings.llm_base_url, "model call")  # private mode
         self.settings = settings
         self.cache = cache
         self._sleep = sleep
@@ -536,6 +539,11 @@ class OpenAICompatClient:
             kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
         if cfg.llm_reasoning_effort:
             kwargs["reasoning_effort"] = cfg.llm_reasoning_effort
+        elif not cfg.llm_enable_thinking:
+            # LM Studio ignores chat_template_kwargs.enable_thinking, so the model kept thinking for
+            # thousands of tokens a page (and ran out of max_tokens on statements). "none" switches
+            # thinking off there; llama-server ignores a field it does not use. Measured: docs/local-llm.md 12.
+            kwargs["reasoning_effort"] = "none"
         attempt = 0
         while True:
             try:

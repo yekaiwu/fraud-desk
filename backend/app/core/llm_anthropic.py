@@ -79,6 +79,10 @@ class AnthropicLLMClient:
         http_client: Any | None = None,
     ):
         settings.validate_anthropic()  # SettingsError: key missing or a model that is not allowed
+        if settings.private_mode == "on":
+            from app.core.privacy import PrivateModeViolation
+
+            raise PrivateModeViolation("private mode: the hosted anthropic backend is refused")
         self.settings = settings
         self.cache = cache
         self._gate = concurrency_gate("anthropic", settings.llm_max_concurrency)

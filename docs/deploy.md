@@ -76,6 +76,31 @@ Settings go into `deploy/.env.production`; afterwards restart the backend: `laun
 
 Every variable is listed in `deploy/env.production.example` and `.env.example`.
 
+### Private mode (nothing leaves the private network)
+
+`GLDB_PRIVATE_MODE=on` is for real customer data on a local model. The backend then **refuses to start** (a clear message, never a key) when any of these is configured: the anthropic backend or any `GLDB_ANTHROPIC_API_KEY`; an OpenAI-compatible `GLDB_LLM_BASE_URL` whose host is not loopback, a private (RFC 1918, link-local) or tailnet (100.64.0.0/10) address, a single-label name such as `llm-host`, or a `.local` / `.ts.net` / `.internal` name, unless the host is listed in `GLDB_PRIVATE_ALLOWED_HOSTS`; `GLDB_REGISTRY_LIVE=true`; a Telegram alert sink; a webhook or SMTP alert sink outside the private network. While it runs, a guard refuses every outgoing connection and every DNS lookup of a name that is not allowed (any library, so a call added later is caught too), and the live company-register lookup does nothing. `GET /monitoring` reports `private_mode`, the LLM host, the allowed hosts and whether the guard is installed; every new case's provenance carries `private_mode: "on"`.
+
+Recommended profile (a local model through the gateway and llama-server pair, local OCR, rules before the model on scans):
+
+```
+GLDB_PRIVATE_MODE=on
+GLDB_LLM_BACKEND=openai
+GLDB_LLM_BASE_URL=http://100.64.0.1:8080/v1      # or http://127.0.0.1:8081/v1 behind the gateway on this machine
+GLDB_LLM_API_KEY=sk-llm-...                      # the gateway key, not a hosted key
+GLDB_LLM_MODEL_CHEAP=qwen3.8-27b
+GLDB_LLM_MODEL_STRONG=qwen3.8-27b
+GLDB_LLM_ENABLE_THINKING=false
+GLDB_LLM_SUPPORTS_VISION=false
+GLDB_LLM_MAX_CONCURRENCY=1
+GLDB_LLM_TIMEOUT_S=300
+GLDB_LLM_COMPACT_TABLES=true
+GLDB_SCAN_RULES_FIRST=true
+GLDB_OCR_BACKEND=tesseract
+GLDB_ENCRYPT_AT_REST=on
+```
+
+**Do not point private mode at LM Studio's server (port 1234) for real data.** LM Studio writes every request body (the page text) and every answer to `~/.lmstudio/server-logs/` in full, in files readable by the `staff` group, and private mode cannot see that. Use the gateway and llama-server pair ([local-llm.md](local-llm.md) section 11.2), which keeps no prompt text, or turn LM Studio's request logging off and delete its server logs first. What private mode does not cover: the Mac and its backups, the tailnet itself, Tesseract and OCR on the same machine (local by design), the browser the analyst uses, and any package installation or update you run by hand.
+
 ## 6. Publish it (optional)
 
 Until you do this the app is reachable only from the machine itself. Use any HTTPS front that forwards to `127.0.0.1:3000` and sets `X-Forwarded-For` and `X-Forwarded-Proto`: a reverse proxy (Caddy, nginx), a tunnel (Cloudflare Tunnel, ngrok) or Tailscale.
@@ -125,6 +150,7 @@ Before you publish:
 - [ ] Six wrong logins return 429 on the sixth.
 - [ ] Every sample and anything uploaded is fictitious.
 - [ ] If a paid model is on, the daily cap is set (and a monthly limit in the provider's console).
+- [ ] For real customer data: `GLDB_PRIVATE_MODE=on`, `GET /monitoring` shows `private_mode` = `on` and `network_guard` = `installed`, the model server is the gateway and llama-server pair (not LM Studio's own server), and the alert sinks are the file, an internal webhook or an internal mail relay.
 - [ ] The security headers are present: `curl -sI https://<your-host>/login`.
 - [ ] You know how to switch it off, and who has the password.
 - [ ] Reviewers understand that names in the audit log are self-declared.

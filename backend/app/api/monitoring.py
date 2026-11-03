@@ -20,6 +20,7 @@ from app.audit import scrub
 from app.core.config import Settings
 from app.core.errors import ApiError
 from app.core.models import Strict
+from app.core.privacy import describe as describe_privacy
 from app.monitoring import (
     INCIDENT_ACK_ACTION,
     INCIDENT_ACTION,
@@ -102,6 +103,7 @@ def get_monitoring(request: Request, db: DbDep, settings: SettingsDep) -> dict[s
         "alert_sinks": [s.name for s in service.sinks],
         "open_alerts": open_alerts,
         "readiness": readiness_summary(full),
+        **describe_privacy(settings),
     }
 
 

@@ -523,3 +523,54 @@ make_page_model = response_model_for  # name used by ingest-and-extraction.md 3.
 def response_json_schema(doc_type: str) -> dict[str, Any]:
     """JSON schema (``LLMRequest.json_schema``) of ``response_model_for(doc_type)``."""
     return response_model_for(doc_type).model_json_schema()
+
+
+def compact_table_columns(doc_type: str) -> dict[str, list[str]]:
+    """Tables the model may return as rows-of-arrays (``GLDB_LLM_COMPACT_TABLES``): column order per table.
+    A table with an enum column (the financial statement's ``line`` and ``section``) keeps the object form."""
+    if doc_type == "financial_statement":
+        return {}
+    return {name: list(spec.columns) for name, spec in DOC_SCHEMAS[doc_type].tables.items()}
+
+
+def response_json_schema_compact(doc_type: str) -> dict[str, Any]:
+    """Like :func:`response_json_schema`, but each table is a list of rows and each row a list of strings or
+    nulls in the column order of :func:`compact_table_columns`: no repeated key names, so a long table costs
+    about half the output tokens. :func:`expand_compact_tables` turns the answer back into row objects."""
+    import copy
+
+    schema = copy.deepcopy(response_json_schema(doc_type))
+    tables = schema["$defs"][f"Tables_{doc_type}"]["properties"]
+    for name in compact_table_columns(doc_type):
+        tables[name] = {
+            "title": tables[name].get("title", name),
+            "type": "array",
+            "items": {"type": "array", "items": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
+        }
+    return schema
+
+
+def expand_compact_tables(doc_type: str, data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Row arrays back to row objects (a short row is padded with null, a long one cut), plus notes."""
+    cols_by_table = compact_table_columns(doc_type)
+    notes: list[str] = []
+    out_tables: dict[str, Any] = {}
+    for name, rows in (data.get("tables") or {}).items():
+        cols = cols_by_table.get(name)
+        if cols is None or not isinstance(rows, list):
+            out_tables[name] = rows
+            continue
+        objs = []
+        for i, row in enumerate(rows):
+            if isinstance(row, dict):  # a model that ignored the compact form still works
+                objs.append(row)
+                continue
+            cells = list(row) if isinstance(row, list) else [None]
+            if len(cells) != len(cols):
+                notes.append(
+                    f"compact_row_length: {name}[{i}] has {len(cells)} of {len(cols)} cells"
+                )
+                cells = (cells + [None] * len(cols))[: len(cols)]
+            objs.append(dict(zip(cols, cells, strict=True)))
+        out_tables[name] = objs
+    return {**data, "tables": out_tables}, notes

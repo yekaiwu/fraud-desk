@@ -127,6 +127,10 @@ def create_app(
     lifespan context still has a working application."""
     settings = settings or get_settings()
     settings.validate_startup()  # fail fast with a clear message
+    if settings.private_mode == "on":
+        from app.core.privacy import install_network_guard, parse_allowed
+
+        install_network_guard(parse_allowed(settings.private_allowed_hosts))
 
     if db is None:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
