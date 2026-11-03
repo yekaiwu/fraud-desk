@@ -1,9 +1,6 @@
 "use client";
 
-// Rendered instead of the root layout when the layout itself fails, so it brings its own <html>, fonts and styles.
-import "@fontsource-variable/fraunces/opsz.css";
-import "@fontsource-variable/hanken-grotesk/wght.css";
-import "@fontsource/ibm-plex-mono/400.css";
+// Rendered instead of the root layout when the layout itself fails, so it brings its own <html> and styles.
 import "./globals.css";
 import { RotateCw } from "lucide-react";
 import { ErrorScreen } from "@/components/ErrorScreen";

@@ -47,7 +47,7 @@ export function SerialLabel({ no, children, dark = false }: { no: string; childr
   );
 }
 
-/** Editorial section head: serial label, large serif title, short intro on the right, double rule underneath. */
+/** Editorial section head: serial label, large title, short intro on the right, double rule underneath. */
 export function SectionHead({ no, label, id, title, intro, dark = false }: { no: string; label: string; id: string; title: ReactNode; intro?: ReactNode; dark?: boolean }) {
   return (
     <div className={clsx("reveal rule-statement pb-8", dark && "rule-on-dark")}>

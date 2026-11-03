@@ -91,10 +91,10 @@
   --color-card: var(--card);
   --color-accent: var(--accent);
 
-  /* Families come from the @fontsource packages imported in layout.tsx (self-hosted, font-display: swap). */
-  --font-display: "Fraunces Variable", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-sans: "Hanken Grotesk Variable", "Segoe UI", "Helvetica Neue", Helvetica, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* System font stacks: nothing to load, native look on each OS. */
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
   --radius-xs: 3px;
   --radius-sm: 4px;

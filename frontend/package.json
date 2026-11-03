@@ -13,9 +13,6 @@
     "build:mock": "NEXT_PUBLIC_USE_MOCK=1 next build"
   },
   "dependencies": {
-    "@fontsource-variable/fraunces": "^5.3.0",
-    "@fontsource-variable/hanken-grotesk": "^5.3.0",
-    "@fontsource/ibm-plex-mono": "^5.3.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.62.0",
     "next": "16.4.3",

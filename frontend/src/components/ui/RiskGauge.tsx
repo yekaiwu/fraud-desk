@@ -4,7 +4,7 @@ import { bandLabel, scoreSummary } from "@/lib/labels";
 import type { Band } from "@/lib/types";
 
 /**
- * Semicircular risk gauge: the score in large serif numerals, the band word beneath. The hero of the case
+ * Semicircular risk gauge: the score in large numerals, the band word beneath. The hero of the case
  * page. Marks on the rim show where Medium (30) and High (60) start. A partial score is a floor ("at least").
  *
  *   <RiskGauge score={90} band="high" size="lg" />

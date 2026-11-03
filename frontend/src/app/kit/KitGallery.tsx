@@ -63,10 +63,10 @@ export function KitGallery() {
           ))}
         </ul>
         <div className="mt-6 space-y-1">
-          <p className="font-display text-5xl font-semibold tracking-tight">Fraunces display 48</p>
-          <p className="font-display text-2xl font-semibold">Section serif 24: Why this case is risky</p>
-          <p className="text-base">Hanken Grotesk body 16. A director appears on three unrelated companies in the last 90 days.</p>
-          <p className="num text-sm">IBM Plex Mono: UEN 201912345K  S$1,284,500.00  Check: bs_running_balance</p>
+          <p className="font-display text-5xl font-semibold tracking-tight">System display 48</p>
+          <p className="font-display text-2xl font-semibold">Section 24: Why this case is risky</p>
+          <p className="text-base">System sans body 16. A director appears on three unrelated companies in the last 90 days.</p>
+          <p className="num text-sm">System mono: UEN 201912345K  S$1,284,500.00  Check: bs_running_balance</p>
         </div>
       </Panel>
 
