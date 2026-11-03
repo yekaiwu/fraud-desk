@@ -81,6 +81,7 @@ Algorithm (`group_key`), first match wins:
 | 0 | `ela_region`, `copy_move` flag with severity `low` (a lone, uncorroborated raster region) | `noisy:<rule>` (whole bundle) | a clean scan or photo makes these fire page after page; one noisy check counts once (plan 4.5). A region a second detector corroborates is `high` and goes to row 13 |
 | 1 | `stmt_arith` per_doc: `bs_totals`, `bs_running_balance` | `stmt_arith:<subject>` | one edited amount breaks both identities |
 | 2 | `inv_arith` per_doc: `inv_lines`, `inv_gst`, `inv_total` | `inv_arith:<subject>` | one edited line breaks several totals |
+| 2a | `rcpt_arith` per_doc: `rcpt_lines`, `rcpt_tax`, `rcpt_total` | `rcpt_arith:<subject>` | the same receipt figures seen by three identities |
 | 3 | `fs_arith` per_doc: `fs_balance`, `fs_subtotals`, `fs_cash_tie` | `fs_arith:<subject>` | same figure seen by several identities |
 | 4 | `id_doc` per_doc: `id_format`, `id_checksum`, `passport_mrz`, `date_valid` | `id_doc:<subject>` | one altered ID document |
 | 5 | `meta` per_file: `pdf_editor_software`, `pdf_modified`, `pdf_producer_unexpected`, `image_editor_software`, `image_modified` | `meta:<file_key>` | metadata of one file is one observation |
@@ -88,7 +89,7 @@ Algorithm (`group_key`), first match wins:
 | 7 | `director` shared: `x_directors` | `director:<disc>` if disc else default | same director absent from the registry seen on several documents |
 | 8 | `entity` shared: `x_entity`, `fs_entity`, `bs_holder` | `entity:<disc>` if disc else default (disc = `company_disc`/`uen_disc` of the foreign company, checks-financial.md 3.4) | the bundle names a different company: one fact |
 | 9 | `remitter` shared: `x_remitter_vs_buyer` | `remitter:<disc>` if disc else default | the same paying party across several credits |
-| 10 | `dup` shared: `inv_duplicate`, `signature_reuse`, `file_reuse` | `dup:<disc>` if disc else default | both copies of a duplicate are flagged; disc = fingerprint or file hash (first 12 hex), crop hash (8 hex), or `store:<case_id>` |
+| 10 | `dup` shared: `inv_duplicate`, `rcpt_duplicate`, `signature_reuse`, `file_reuse` | `dup:<disc>` if disc else default | both copies of a duplicate are flagged; disc = fingerprint or file hash (first 12 hex), crop hash (8 hex), or `store:<case_id>` |
 | 11 | `pattern` bundle: `x_invoice_vs_receipts`, `inv_sequence`, `bs_round_numbers`, `bs_benford`, `font_mix` | `pattern:<rule>` | a bundle-wide pattern, not N independent frauds; stops 10 unpaid invoices capping the score alone |
 | 12 | `anchor` anchor: `x_invoice_vs_contract` | `anchor:<rule>:<id of the first document in flag.document_ids whose doc_type is contract or purchase_order>`, else default | one disputed contract, many invoices |
 | 13 | `region` region: `pdf_text_vs_render`, `font_span_outlier`, `ela_region`, `copy_move`, `noise_mismatch` | `region:<file_id>:p<page>:<n>` from 4.2; default when the flag has no `region` | two detectors pointing at the same pixels are one finding |

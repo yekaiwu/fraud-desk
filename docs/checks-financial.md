@@ -321,6 +321,8 @@ Fixture `F-INV-1` (section 9.1): `INV-0042`, issued 2026-03-10, due 2026-04-09, 
   - `T-INV-LN-4` honest quirk (tax-inclusive lines): lines sum to 10900.00, `subtotal 10000.00`, `gst_amount 900.00`, `total 10900.00`: (b) passes through the inclusive branch.
   - `T-INV-LN-5` boundary: unit price 12.5, quantity 3, amount 37.50 passes; 37.52 flags.
 
+**Added 2026-11 (reading incomplete, tax-inclusive lines).** (1) When the extraction left `reading_incomplete: ...` on the document (printed item or discount lines of a scanned page were not read, ingest-and-extraction.md 6.6a), `inv_lines`, `inv_gst` and `inv_total` raise one **low** flag per rule (discriminator `incomplete`, "The reading of this page is incomplete ... a person should read the page") instead of any mismatch; never a high flag from a half-read page. (2) A line amount that equals `quantity x unit_price` plus the line's own GST, or plus the printed rate (not a defaulted one), is a tax-inclusive line ("Gross worth" next to a net unit price), not a mismatch; an amount that fits neither still flags. (3) `inv_gst`: a printed rate that Singapore GST never had (10%) is a low note on a foreign-looking invoice, not medium; a rate Singapore had but not on that date (8% in 2026) stays medium.
+
 ### 5.2 `inv_gst`
 
 - **Logic:** accept both GST methods (plan 1.4). Let `rate` = `gst_rate` if printed else the statutory rate for `invoice_date` from `GST_RATE_TABLE` (9% from 2024-01-01, 8% in 2023, 7% from 2007-07-01; **[confirm on IRAS before shipping]**), or 9.00 if `invoice_date` is missing. Candidate expected GST:
@@ -432,6 +434,21 @@ Fixture `F-INV-1` (section 9.1): `INV-0042`, issued 2026-03-10, due 2026-04-09, 
   - `T-INV-SQ-2` tampered (order): `INV-0043` dated before `INV-0041`: `order` flag, low.
   - `T-INV-SQ-3` honest quirk (selection): `INV-0041, INV-0045, INV-0050`: one `info` `gap` flag, no low/medium flag, so the score is unchanged.
   - `T-INV-SQ-4` two suppliers with overlapping numbers: grouped separately, `[]`.
+
+### 5.9 Receipts: `rcpt_lines`, `rcpt_tax`, `rcpt_total`, `rcpt_dates`, `rcpt_merchant`, `rcpt_duplicate` (2026-11, not in the plan)
+
+A receipt is its own document type (data-model.md 6.4a): no invoice number, UEN or GST number, so none of the `inv_*` rules applies to it (they are registered for `invoice` only). Code: `backend/app/checks/receipt.py`; tests `test_receipts.py`. Use cases `aml`, `loan`. All use `CENT_TOLERANCE = 0.02` (plus half a cent a line), not the invoice dollar, because till amounts are small.
+
+| Rule | Default | Logic | Honest limits |
+|---|---|---|---|
+| `rcpt_lines` | medium | the item lines (negative rows are discounts) add up to the printed subtotal | needs a subtotal; a discount the extraction did not read is caught by the completeness guard, not here |
+| `rcpt_tax` | medium | `tax_amount` equals the printed `tax_rate` of the subtotal | skipped without a printed rate; tax below the full-basket figure is low (tax is often on part of the basket); two taxes printed together can pair the wrong rate |
+| `rcpt_total` | medium | subtotal plus tax equals the total | a total above that by up to 25% of the subtotal is **low** (tip, service charge or rounding the schema does not carry); less, or far more, is medium |
+| `rcpt_dates` | medium | the date is not after today (future: medium); more than ten years old is low | a US month-first date ("5/19/2017") is read only when day first is impossible; ambiguous dates are skipped, never guessed |
+| `rcpt_merchant` | low | the receipt names a merchant | |
+| `rcpt_duplicate` | medium | same merchant (letters and digits only), date, total and receipt number in this case or an earlier one (`receipt_fingerprint`, store kind `receipt`) | a shop that prints no receipt number can repeat a total on the same day |
+
+Never high: the amounts are small, tips and discounts are printed outside the schema, and the reading is often a photograph. **A mismatch that rests on a cell the page text could not confirm (`verified=False`) or that two readers read differently is low** (`_doubtful`), and a receipt with `reading_incomplete` gets one low flag per arithmetic rule and nothing else.
 
 ## 6. Behaviour spec: financial statement (plan 4.3)
 
