@@ -238,3 +238,17 @@ def test_receipt_fingerprint_ignores_spacing_and_punctuation_of_the_merchant() -
     assert receipt_fingerprint("Mastoris Diner", "2026-09-04", "22.4", "1") == receipt_fingerprint(
         "MASTORIS  DINER.", "2026-09-04", "22.40", "1"
     )
+
+
+def test_a_mismatch_that_rests_on_an_unconfirmed_reading_is_only_low() -> None:
+    # the page text could not confirm the printed tax rate (an image reading): look, do not alarm
+    doc = make_receipt(fields={"tax_amount": "3.47", "total": "24.43"})
+    doc.fields["tax_rate"] = doc.fields["tax_rate"].model_copy(update={"verified": False})
+    assert [f.severity for f in run_rule("rcpt_tax", ctx_of(doc))] == ["low"]
+    lines = [dict(r) for r in LINES]
+    lines[1]["amount"] = "15.99"
+    doc = make_receipt(lines=lines)
+    row = doc.tables["lines"].rows[1]
+    row.cells["amount"] = row.cells["amount"].model_copy(update={"verified": False})
+    assert [f.severity for f in run_rule("rcpt_lines", ctx_of(doc))] == ["low"]
+    # the same mismatch on confirmed cells stays medium (see the tests above)

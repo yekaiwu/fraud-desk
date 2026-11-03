@@ -275,3 +275,119 @@ def test_a_complete_reading_is_left_alone(tmp_path) -> None:  # noqa: ANN001
     result, meta, llm = _extract_till(tmp_path, set(), set())
     assert [c.model_role for c in llm.calls] == ["cheap"]
     assert meta.status == "ok" and result.fields["total"].verified is not False
+
+
+# ---- tamper: one changed amount on a completely read, scanned invoice still flags (both formats)
+
+
+def _invoice_pdf(rows, sub, gst, total) -> bytes:  # noqa: ANN001
+    import io
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setFont("Helvetica", 10)
+    c.drawString(60, 800, "Invoice no: 97159829")
+    c.drawString(60, 780, "Date of issue: 18/09/2015")
+    c.drawString(60, 760, "Seller: Bradley-Andrade")
+    c.drawString(60, 740, "Client: Castro PLC")
+    y = 700
+    c.drawString(60, y, "Description")
+    c.drawRightString(300, y, "Qty")
+    c.drawRightString(380, y, "Net price")
+    c.drawRightString(470, y, "Amount")
+    for d, q, p, a in rows:
+        y -= 20
+        c.drawString(60, y, d)
+        c.drawRightString(300, y, q)
+        c.drawRightString(380, y, p)
+        c.drawRightString(470, y, a)
+    for label, v in (("Subtotal", sub), ("VAT 10%", gst), ("Total", total)):
+        y -= 20
+        c.drawString(300, y, label)
+        c.drawRightString(470, y, v)
+    c.save()
+    return buf.getvalue()
+
+
+def _invoice_json(rows, sub, gst, total) -> dict:  # noqa: ANN001
+    from app.core.schemas import DOC_SCHEMAS
+
+    fields = dict.fromkeys(DOC_SCHEMAS["invoice"].fields)
+    fields.update(
+        invoice_number="97159829",
+        supplier_name="Bradley-Andrade",
+        buyer_name="Castro PLC",
+        subtotal=sub,
+        gst_rate="10%",
+        gst_amount=gst,
+        total=total,
+    )
+    lines = [
+        {"description": d, "quantity": q, "unit_price": p, "gst_amount": None, "amount": a}
+        for d, q, p, a in rows
+    ]
+    return {"fields": fields, "tables": {"lines": lines}}
+
+
+def _run_invoice(tmp_path, rows, sub, gst, total):  # noqa: ANN001, ANN202
+    from app.core.llm import FakeLLMClient
+    from app.core.models import Document
+    from app.extract.cascade import extract_document
+    from app.extract.registry import discover
+    from tests.extract_helpers import make_case
+
+    discover()
+    data = _invoice_json(rows, sub, gst, total)
+    llm = FakeLLMClient({"extract:invoice": lambda req: data})
+    ctx, doc, _ = make_case(
+        _invoice_pdf(rows, sub, gst, total),
+        "invoice",
+        llm=llm,
+        is_scan=True,
+        settings=_scan_settings(tmp_path),
+    )
+    result, meta = extract_document(doc, ctx, render=lambda *a, **k: b"\x89PNG")
+    out = Document(
+        **{
+            **doc.model_dump(),
+            "fields": result.fields,
+            "tables": result.tables,
+            "warnings": result.warnings,
+            "status": meta.status,
+        }
+    )
+    return out, result
+
+
+@pytest.mark.parametrize("comma", [False, True])
+def test_a_changed_amount_on_a_completely_read_scanned_invoice_still_flags_high(
+    tmp_path,
+    comma: bool,  # noqa: ANN001
+) -> None:
+    def fmt(v: str) -> str:
+        return v.replace(".", ",") if comma else v
+
+    clean = [
+        ("Desk lamp", fmt("2.00"), fmt("100.00"), fmt("200.00")),
+        ("Chair", fmt("3.00"), fmt("150.00"), fmt("450.00")),
+    ]
+    sub, gst, total = fmt("650.00"), fmt("65.00"), fmt("715.00")
+    doc, _ = _run_invoice(tmp_path, clean, sub, gst, total)
+    assert not any(w.startswith("reading_incomplete") for w in doc.warnings)
+    for rule in ("inv_lines", "inv_total", "inv_gst"):
+        assert run_rule(rule, ctx_of(doc)) == [], rule  # the untouched invoice is silent
+
+    # a forger changes one line amount (200 -> 2000) and the printed subtotal is left alone
+    edited = [clean[0][:3] + (fmt("2000.00"),), clean[1]]
+    doc, _ = _run_invoice(tmp_path, edited, sub, gst, total)
+    assert not any(w.startswith("reading_incomplete") for w in doc.warnings)
+    flags = run_rule("inv_lines", ctx_of(doc))
+    assert flags and all(f.severity == "high" for f in flags)
+
+    # a forger changes only the printed total
+    doc, _ = _run_invoice(tmp_path, clean, sub, gst, fmt("7150.00"))
+    flags = run_rule("inv_total", ctx_of(doc))
+    assert [f.severity for f in flags] == ["high"]

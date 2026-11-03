@@ -72,6 +72,17 @@ def _receipt_date(cell: Cell) -> date | None:
         return None
 
 
+def _doubtful(*cells: Cell) -> bool:
+    """A cell the page text could not confirm, or that two readers read differently. A mismatch
+    that rests on such a cell is a hint to look, not a finding: it is reported low."""
+    return any(c.verified is False or c.alt_raw is not None for c in cells)
+
+
+def _line_amount_cells(doc: Document) -> list[Cell]:
+    table = doc.tables.get("lines")
+    return [r.cells.get("amount", _EMPTY) for r in table.rows] if table is not None else []
+
+
 def _line_amounts(doc: Document) -> list[Decimal]:
     table = doc.tables.get("lines")
     if table is None:
@@ -119,6 +130,7 @@ def rcpt_lines(ctx: CaseContext) -> list[Flag]:
                 docs=[doc],
                 field="subtotal",
                 region=_box(sub_cell, "subtotal"),
+                severity="low" if _doubtful(sub_cell, *_line_amount_cells(doc)) else None,
                 evidence=(
                     f"{len(amounts)} lines sum {fmt_money(total)}; printed subtotal "
                     f"{fmt_money(subtotal)}; diff {fmt_money(abs(total - subtotal))}"
@@ -166,7 +178,7 @@ def rcpt_tax(ctx: CaseContext) -> list[Flag]:
             continue
         # a rate printed beside the tax label can apply to the taxable part only; tax below the
         # full-basket figure is therefore a weaker sign than tax above it
-        severity = "low" if tax < expected else None
+        severity = "low" if tax < expected or _doubtful(tax_cell, rate_cell, sub_cell) else None
         flags.append(
             make_flag(
                 "rcpt_tax",
@@ -231,7 +243,7 @@ def rcpt_total(ctx: CaseContext) -> list[Flag]:
                 extra_regions=[
                     b for b in (_box(sub_cell, "subtotal"), _box(tax_cell, "tax_amount")) if b
                 ],
-                severity="low" if explained else None,
+                severity="low" if explained or _doubtful(sub_cell, tax_cell, tot_cell) else None,
                 evidence=(
                     f"subtotal {fmt_money(subtotal)} + tax {fmt_money(tax or ZERO)} = "
                     f"{fmt_money(computed)}; printed total {fmt_money(total)}; "
@@ -278,6 +290,7 @@ def rcpt_dates(ctx: CaseContext) -> list[Flag]:
                     docs=[doc],
                     field="receipt_date",
                     region=_box(cell, "receipt_date"),
+                    severity="low" if _doubtful(cell) else None,
                     discriminator="future",
                     evidence=(
                         f"receipt date {when.isoformat()} is after {today.isoformat()}"
