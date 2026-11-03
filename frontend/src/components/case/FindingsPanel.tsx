@@ -160,7 +160,9 @@ export function FlagRow({ nf, c, headline }: { nf: NumberedFlag; c: Common; head
             {headline ? null : <ConcernBadge severity={flag.severity} />}
             <DispositionChip d={flag.disposition} />
           </div>
-          {own && own !== headline ? (
+          {/* every instance says what is wrong with it, even when its sentence is also the group's headline:
+              an instance card with only a location and "Evidence" reads as if the description were missing */}
+          {own ? (
             <p className="text-[0.9375rem] text-ink">
               <Amounts text={c.names.text(own)} mono={false} />
             </p>

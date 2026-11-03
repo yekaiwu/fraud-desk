@@ -203,6 +203,22 @@ describe("deciding", () => {
     expect(within(card).getAllByRole("button", { name: /Mark as a real concern/ })).toHaveLength(2);
   });
 
+  it("every instance says what is wrong with it, including the one whose sentence is also the group's headline", async () => {
+    const user = userEvent.setup();
+    const c = fraud();
+    const finding = c.findings.find((f) => f.flag_ids.length > 1)!;
+    const flags = finding.flag_ids.map((id) => c.flags.find((f) => f.id === id)!);
+    flags[0].explanation = "The balance on row 22 does not follow from the previous balance.";
+    flags[1].explanation = "Opening balance plus deposits minus withdrawals does not equal the closing balance.";
+    setup({ c });
+    await user.click(screen.getByRole("button", { name: /Medium concern/ }));
+    const card = document.querySelector(`[data-finding="${finding.id}"]`) as HTMLElement;
+    await user.click(within(card).getByRole("button", { name: /Review the \d instances/ }));
+    const rows = within(card).getAllByRole("listitem").filter((li) => li.id.startsWith("flag-"));
+    expect(rows[0]).toHaveTextContent("The balance on row 22 does not follow from the previous balance.");
+    expect(rows[1]).toHaveTextContent("Opening balance plus deposits minus withdrawals does not equal the closing balance.");
+  });
+
   it("selects several flags for one bulk decision with the second-approver warning for a high one", async () => {
     const user = userEvent.setup();
     const { onDecide, c } = setup();
