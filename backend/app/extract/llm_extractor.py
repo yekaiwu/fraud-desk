@@ -40,8 +40,9 @@ from app.core.schemas import (
     response_model_for,
 )
 from app.core.textlayout import aligned_text, layout_text, page_marker
+from app.extract.agreement import READER_KINDS, agreement
 from app.extract.base import ExtractionResult
-from app.extract.normalise import format_warning, make_cell
+from app.extract.normalise import canonical, format_warning, make_cell
 from app.extract.prompts.common import build_system_prompt
 from app.extract.registry import (
     get_postprocessor,
@@ -56,6 +57,27 @@ log = logging.getLogger("gldb.extract")
 Role = Literal["cheap", "strong"]
 _SOURCE = {"cheap": "llm_cheap", "strong": "llm_strong"}
 _NOT_VERIFIED_KINDS = {"bool"}  # derived by us, never printed
+READER_KEYS = frozenset({"mrz_line1", "mrz_line2"})  # text cells compared with the second reader
+
+
+def _compare_readings(
+    text: str, other: str | None, kind: CellKind, values: list[str] | None
+) -> Literal["same", "different", "garbled"]:
+    """The second reader printed other characters where this value stands: is it the same figure
+    (``1234.56`` for ``1,234.56``), a different readable value, or not a value of this kind at all
+    (``4,5O0.00``)? Only a different, readable value is a disagreement."""
+    if not other:
+        return "garbled"
+    try:
+        mine, _ = canonical(kind, text, values=values)
+        theirs, warn = canonical(kind, other, values=values)
+    except Exception:  # noqa: BLE001 - a normaliser slip must not stop the page
+        return "garbled"
+    if theirs is None or warn is not None:
+        return "garbled"
+    return "same" if theirs == mine else "different"
+
+
 _MAGNITUDE_COLUMNS = {("bank_statement", "transactions"): {"debit", "credit"}}
 
 
@@ -146,10 +168,12 @@ def build_reading(
     model: str,
     mode: str,
     words: list[Word],
+    second: list[Word] | None = None,
 ) -> PageReading:
     schema = DOC_SCHEMAS[doc.doc_type]
     source = _SOURCE[role]
     verifier = PageVerifier(words, doc.file_id, page)
+    second_verifier = PageVerifier(second, doc.file_id, page) if second else None
     reading = PageReading(
         page=page,
         role=role,
@@ -180,6 +204,30 @@ def build_reading(
         if verify and kind not in _NOT_VERIFIED_KINDS:
             v = verifier.check(text, kind, use_cursor=cursor)
             verified, box = v.verified, v.box
+        state, other = None, None
+        if second and verify and (kind in READER_KINDS or key in READER_KEYS):
+            if verified and box is not None:
+                found = agreement(text, kind, box, second, forced=key in READER_KEYS)
+                if found is not None:
+                    state, other = found.state, found.other
+                    if state == "differ":
+                        verdict = _compare_readings(text, other, kind, values)
+                        if verdict == "same":
+                            state, other = "agree", None
+                        elif verdict == "garbled":
+                            state, other = "unread", None  # not a readable value: no disagreement
+                    if state == "differ":
+                        verified = (
+                            False  # the readers differ: shown as unverified, with both readings
+                        )
+            elif verified is False and second_verifier is not None:
+                # the first reader does not print this value, the second does: the model's value is
+                # supported by a reader, so it is not "unverified"
+                other_hit = second_verifier.check(text, kind, use_cursor=False)
+                if other_hit.verified:
+                    verified, box, state = True, other_hit.box, "agree"
+                elif key in READER_KEYS or any(ch.isdigit() for ch in text):
+                    state = "unsupported"  # neither OCR reader prints it: only the model does
         cell, warn = make_cell(
             text,
             kind,
@@ -189,6 +237,8 @@ def build_reading(
             values=values,
             magnitude=magnitude,
         )
+        if state is not None and cell.value is not None:
+            cell = cell.model_copy(update={"agreement": state, "other_raw": other})
         if warn:
             reading.warnings.append(CellWarn(warn, table, row, key, text))
         if verified is False:
@@ -476,6 +526,7 @@ class LLMExtractor:
             model=result.model,
             mode=mode,
             words=state.words,
+            second=ctx.page_words_second.get((doc.file_id, page)) if state.is_scan else None,
         )
         reading.notes += notes
         return reading

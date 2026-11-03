@@ -43,6 +43,9 @@ class CaseContext:
     costs: CostMeter
     cache: ResponseCache
     page_words: dict[tuple[str, int], list[Word]]  # (file_id, page) -> words; runtime only
+    # the same pages read by a second, different local OCR (GLDB_MULTI_READER); runtime only, empty
+    # unless the setting is on and the page is a photograph or a scan
+    page_words_second: dict[tuple[str, int], list[Word]] = field(default_factory=dict)
     # check catalogue overrides read once when the analysis starts (rule id -> override); empty
     # means every check runs with its code defaults
     overrides: dict[str, RuleOverride] = field(default_factory=dict)

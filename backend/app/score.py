@@ -57,6 +57,28 @@ def compute_coverage(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> Cover
         ),
         key=lambda d: d["rule"],
     )
+    # a check whose flag was lowered because the readers disagree has not been settled either way
+    limited = {f.rule for f in case.flags if f.reading is not None}
+    if limited:
+        ran -= sum(1 for r in runs if r.status == "ran" and r.rule in limited)
+        skipped = sorted(
+            [
+                *skipped,
+                *(
+                    {
+                        "rule": r.rule,
+                        "status": "reading_limited",
+                        "reason": "two readers of the photo disagree on a figure this check uses; "
+                        "check the page image by eye",
+                        "code": "reading_limited",
+                    }
+                    for r in runs
+                    if r.status == "ran" and r.rule in limited
+                ),
+            ],
+            key=lambda d: d["rule"],
+        )
+        ratio = round(ran / applicable, 4) if applicable else ratio
     pages_total, _ = page_counts(case, min_prob=min_prob)
     unchecked = unchecked_pages(case, min_prob=min_prob)
     return Coverage(
@@ -80,6 +102,9 @@ def collect_partial_reasons(case: Case) -> list[str]:
     unreadable = sum(1 for f in case.files for p in f.pages if p.error)
     if unreadable:
         reasons.append(f"pages_unreadable:{unreadable}")
+    limited = sum(1 for f in case.flags if f.reading is not None)
+    if limited:
+        reasons.append(f"reading_limited:{limited}")
     pieces = {
         d.statement.group
         for d in case.documents

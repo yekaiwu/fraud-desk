@@ -81,8 +81,10 @@ def _run_registry_stage(
     }
     warnings = [f"check_error:{r.rule}: {r.reason}" for r in errors]
     if stage == "crossdoc":
+        from app.reading_agreement import apply_reading_agreement
         from app.verify_reading import confirm_scan_flags
 
+        detail.update(apply_reading_agreement(ctx))
         summary = confirm_scan_flags(ctx)
         note = summary.pop("warning", None)
         if note:

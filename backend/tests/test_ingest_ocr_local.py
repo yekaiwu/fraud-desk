@@ -632,3 +632,79 @@ def test_id_check_letter_read_as_a_bang_and_noise_words() -> None:
     assert not ocr_backends._is_noise("ee", 80.0)  # Tesseract is sure of it
     assert not ocr_backends._is_noise("123", 5.0)  # digits stay whatever the confidence
     assert not ocr_backends._is_noise("Acme", 10.0)  # longer words stay
+
+
+# ----------------------------------------------------------------------------- second reader
+
+
+class SecondFake(FakeOcr):
+    name = "second-fake"
+
+
+def use_second(monkeypatch: pytest.MonkeyPatch, backend: object | None, seen: list | None = None):  # noqa: ANN202
+    def pick(settings, first):  # noqa: ANN001, ANN202
+        if seen is not None:
+            seen.append(first)
+        return backend
+
+    monkeypatch.setattr(ocr_module, "select_second_backend", pick)
+
+
+def test_the_second_reader_reads_the_same_picture_and_is_stored_apart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first, second = FakeOcr(), SecondFake([OcrBox("Closing Balance 2,550.00", 0.1, 0.5, 0.5, 0.02)])
+    use_backend(monkeypatch, first)
+    seen: list = []
+    use_second(monkeypatch, second, seen)
+    ctx = ctx_with_files(tmp_path, [image_pdf()], llm=NoCallLLM(), multi_reader=True, **TEXT_ONLY)
+    run_stage(ctx)
+    assert first.calls == second.calls and len(second.calls) == 1  # one picture, two readers
+    assert [w.text for w in ctx.page_words[("f1", 1)]][-1] == "2,500.00"
+    assert [w.text for w in ctx.page_words_second[("f1", 1)]][-1] == "2,550.00"
+    assert seen == ["fake-ocr"]  # told which engine read first, so it can pick another
+
+
+def test_off_means_no_second_reading_at_all(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    use_backend(monkeypatch, FakeOcr())
+    second = SecondFake()
+    use_second(monkeypatch, second)
+    ctx = ctx_with_files(tmp_path, [image_pdf()], llm=NoCallLLM(), **TEXT_ONLY)
+    run_stage(ctx)
+    assert ctx.page_words_second == {} and second.calls == []
+
+
+def test_no_other_engine_or_a_failing_one_leaves_the_first_reading_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    use_backend(monkeypatch, FakeOcr())
+
+    class Broken(FakeOcr):
+        def recognise(self, png: bytes) -> list[OcrBox]:
+            raise RuntimeError("engine fell over")
+
+    for backend in (None, Broken()):
+        use_second(monkeypatch, backend)
+        ctx = ctx_with_files(
+            tmp_path, [image_pdf()], llm=NoCallLLM(), multi_reader=True, **TEXT_ONLY
+        )
+        outcome = run_stage(ctx)
+        assert ctx.page_words[("f1", 1)] and ctx.page_words_second == {}
+        assert outcome.partial is False
+
+
+def test_select_second_backend_never_returns_the_first_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.ingest.ocr_backends import select_second_backend
+
+    monkeypatch.setattr(ocr_backends, "find_tesseract", lambda: "/usr/bin/tesseract")
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(ocr_backends, "_import_ocrmac", lambda: FakeOcrmacModule)
+    s = settings(ocr_backend="tesseract")
+    assert select_second_backend(s, "tesseract").name == "macos-vision"  # type: ignore[union-attr]
+    assert select_second_backend(s, "macos-vision").name == "tesseract"  # type: ignore[union-attr]
+    assert select_second_backend(s, None).name == "tesseract"  # type: ignore[union-attr]
+    assert select_second_backend(settings(ocr_backend="none"), "tesseract") is None
