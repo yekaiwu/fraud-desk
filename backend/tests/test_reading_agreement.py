@@ -212,3 +212,14 @@ def test_info_and_low_flags_are_never_touched_and_semantic_flags_are_left_alone(
     for f in low_before:
         now = next(g for g in ctx.case.flags if g.id == f.id)
         assert now.severity == f.severity and now.reading is None
+
+
+def test_a_check_that_did_not_run_on_the_retried_figures_has_not_passed() -> None:
+    from app.reading_agreement import _passes
+
+    doc = misread_statement()
+    ctx = ctx_for(doc)
+    flag = flags_of(ctx, "bs_running_balance")[0]
+    assert _passes(flag, ({}, {"bs_running_balance"})) is True  # ran, and no longer raised
+    assert _passes(flag, ({}, set())) is False  # skipped on the changed figures: not a pass
+    assert _passes(flag, ({flag.id: flag}, {"bs_running_balance"})) is False  # raised again

@@ -208,3 +208,10 @@ def test_a_value_neither_reader_prints_is_unsupported_and_stays_unverified() -> 
     )
     cell = reading.fields["opening_balance"]
     assert cell.verified is False and cell.agreement == "unsupported"
+
+
+def test_an_identifier_with_a_character_lost_is_a_damaged_reading_not_a_disagreement() -> None:
+    other = [word("S123456D", 0.30, w=0.10)]
+    assert agreement("S1234567D", "id", box(0.30, w=0.10), other).state == "unread"
+    other = [word("6825340924¾š", 0.30, w=0.10)]
+    assert agreement("6825340924", "id", box(0.30, w=0.10), other).state == "agree"

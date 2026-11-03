@@ -156,9 +156,10 @@ def _swapped(case: Case, locs: dict[_Locator, Cell]) -> Case:
     return copy
 
 
-def _rerun(ctx: CaseContext, case: Case) -> dict[str, Flag]:
-    """The flags of the rules and cross-document stages on ``case``, by flag id. The model-based
-    checks, the second reading and the review team are off: only the pure checks are repeated."""
+def _rerun(ctx: CaseContext, case: Case) -> tuple[dict[str, Flag], set[str]]:
+    """The flags of the rules and cross-document stages on ``case``, by flag id, and the rules that
+    ran (a check that was skipped on the changed figures has not passed). The model-based checks, the
+    second reading and the review team are off: only the pure checks are repeated."""
     settings = ctx.settings.model_copy(
         update={"semantic": "off", "verify_scan_flags": False, "agents": False}
     )
@@ -169,7 +170,14 @@ def _rerun(ctx: CaseContext, case: Case) -> dict[str, Flag]:
     for f in case.flags:
         if f.stage in CHECK_STAGES:
             flags[f.id] = f
-    return flags
+    return flags, {r.rule for r in case.check_runs if r.status == "ran"}
+
+
+def _passes(flag: Flag, again: tuple[dict[str, Flag], set[str]]) -> bool:
+    """The check ran on the retried figures and no longer raised this flag at its severity."""
+    flags, ran = again
+    back = flags.get(flag.id)
+    return flag.rule in ran and (back is None or _RANK[back.severity] < _RANK[flag.severity])
 
 
 def _depends_on(
@@ -180,9 +188,7 @@ def _depends_on(
     near = {loc: c for loc, c in culprits.items() if loc[0] in flag.document_ids}
     singles: dict[_Locator, Cell] = {}
     for loc in list(near)[:MAX_TRIALS]:
-        again = _rerun(ctx, _swapped(ctx.case, {loc: near[loc]}))
-        back = again.get(flag.id)
-        if back is None or _RANK[back.severity] < _RANK[flag.severity]:
+        if _passes(flag, _rerun(ctx, _swapped(ctx.case, {loc: near[loc]}))):
             singles[loc] = near[loc]
     return singles or near
 
@@ -229,7 +235,7 @@ def apply_reading_agreement(ctx: CaseContext) -> dict[str, object]:
         and not is_semantic_rule(f.rule)
         and docs_with & set(f.document_ids)
     }
-    variant: dict[str, Flag] = {}
+    variant: tuple[dict[str, Flag], set[str]] = ({}, set())
     if differ:
         try:
             variant = _rerun(ctx, _swapped(case, differ))
@@ -241,17 +247,15 @@ def apply_reading_agreement(ctx: CaseContext) -> dict[str, object]:
         if flag.id not in candidates:
             continue
         culprits: dict[_Locator, Cell] = {}
-        if differ:
-            back = variant.get(flag.id)
-            if back is None or _RANK[back.severity] < _RANK[flag.severity]:
-                culprits.update(_depends_on(ctx, flag, differ))  # fails only on a disputed figure
+        if differ and _passes(flag, variant):  # fails only on a disputed figure
+            culprits.update(_depends_on(ctx, flag, differ))
         culprits.update({loc: c for loc, c in unsupported.items() if _cites(flag, loc, c)})
         if culprits:
             case.flags[i] = _lowered(flag, _readings(ctx, culprits))
             lowered += 1
     known = {f.id for f in case.flags}
     added = 0
-    for fid, flag in variant.items():
+    for fid, flag in variant[0].items():
         if fid in known or added >= MAX_NEW_FLAGS or _RANK[flag.severity] < _RANK["medium"]:
             continue
         if is_semantic_rule(flag.rule) or not (docs_with & set(flag.document_ids)):

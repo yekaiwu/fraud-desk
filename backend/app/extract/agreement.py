@@ -26,7 +26,7 @@ from collections.abc import Sequence
 from typing import Literal, NamedTuple
 
 from app.core.models import CellKind, Region, Word
-from app.extract.verify import locate, normalise_token
+from app.extract.verify import locate
 
 __all__ = ["READER_KINDS", "Agreement", "agreement", "squash"]
 
@@ -53,10 +53,11 @@ _STRAY = re.compile(r"[^0-9a-z<]+$")
 
 def squash(token: str) -> str:
     """The comparison form of a printed token: NFKC, case-folded, enclosing punctuation, a currency sign
-    and stray marks after the last letter or digit (``ł`` read off a table border) removed. In a figure
+    and non-ASCII marks (``ł`` read off a table border) removed. In a figure
     every separator but the last two-decimal one is a thousands separator whichever of ``,`` and ``.``
     the reader wrote (Vision often writes ``66.576.50``). Digits and letters are never changed."""
-    t = normalise_token(token).strip()
+    # non-ASCII marks are read-off garbage here (and NFKC would turn "¾" into the digits 3 and 4)
+    t = token.encode("ascii", "ignore").decode("ascii").casefold().strip()
     t = t.lstrip(_EDGE).rstrip(_TAIL)
     if t.startswith("s$"):
         t = t[2:]
@@ -137,4 +138,8 @@ def agreement(
         return Agreement("unread", None)
     if kind in ("money", "decimal", "percent") and not _FIGURE_DECIMALS.match(folded):
         return Agreement("unread", None)  # not a well-formed figure: no reading to compare
+    if (kind in ("id", "int") or forced) and len(folded.replace(" ", "")) != len(
+        " ".join(tokens).replace(" ", "")
+    ):
+        return Agreement("unread", None)  # an identifier with a character lost or added is damaged
     return Agreement("differ", " ".join(shown[w.block].text for w in inside))

@@ -129,6 +129,7 @@ def shadow_reading(
             **reader,
             "semantic": "on" if any(is_semantic_rule(f.rule) for f in flagged or []) else "off",
             "verify_scan_flags": False,
+            "multi_reader": False,  # the second reading is itself the independent look
             "agents": False,
             "max_usd_per_day": Decimal("100"),
         }
