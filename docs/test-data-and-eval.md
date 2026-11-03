@@ -459,6 +459,8 @@ Every figure is printed with its denominator (`4/5`) and, for a rate over `n < 1
 
 Report the table per `f` and a line per `f` for how the result moves (plan 9.4). Caveats printed under the table: the generator is ours, `forger` cases may legitimately sit low, and the queue is only as good as the weights in `SCORE_WEIGHTS`, which are recalibrated from M1/M3 (plan 4, 8.3), so the ranking test is run **after** any recalibration and before the freeze.
 
+**Score-model fitting and comparison.** `backend/scripts/fit_score_weights.py` reuses this queue (`ranking.build_cases`, also for `scan_hq`, and larger queues: 60 slots repeat the 12/9/9 mix) to produce labelled outcomes (`_eval/score_data.py`, `gldb-score-outcomes/1`): the findings and flags of each analysed case, whether it is tampered, how many distinct manipulations were planted, and a confirmed/dismissed outcome per flag. It fits the per-rule weights of the calibrated score model on the dev seed (4002) only and compares `legacy`, the unfitted noisy-OR and the calibrated model on seeds the fit never saw, by resampling the stored cases at a 10% fraud share (AUROC, position of the first fraud case, tampered share of the top 10% of the queue, cases at 100). Nothing is analysed twice and no model is called. See scoring-and-queue.md 4.4a.
+
 ### 4.6 Cost and speed baseline
 
 `eval.py --write-baseline` writes `docs/eval-results/baseline.json` from the first full run: per-bundle usd and seconds (mean, p50, p95), usd per page by stage, core recall, false alarms per 10, P@5 at f = 0.2. Later runs report each as a ratio to the baseline. Targets are stated as ratios only after the baseline exists (plan 6 "Metrics").

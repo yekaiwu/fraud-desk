@@ -165,7 +165,7 @@ Digital PDFs are the strongest case. Scans and photos score lower, and real-worl
 <details>
 <summary><b>Read this before relying on any number above</b></summary>
 
-- **Synthetic data, our own checks.** The mock bundles and the tamper catalogue are written by the same people who wrote the checks. Weights, bands and thresholds are starting guesses.
+- **Synthetic data, our own checks.** The mock bundles and the tamper catalogue are written by the same people who wrote the checks. Bands and thresholds are starting guesses. The risk score can be the original capped sum of points per finding (`GLDB_SCORE_MODEL=legacy`) or a combination of per-finding probabilities with weights fitted on our own synthetic cases (`calibrated`, [docs/scoring-and-queue.md](docs/scoring-and-queue.md) section 4.4a); either way it orders the queue and is not a probability of fraud.
 - **Scans are only as good as the reader.** Three of the five recall rows above come from an oracle that is handed the right answer; the two real-reader rows are 11 tampered cases each on two clean bundles. Tesseract reads clean scans well but misreads small print, so on a poor scan expect wrong digits; the fallback to a page image only helps pages whose arithmetic fails. With no reader for scans, scanned or image-only pages are reported as unreadable and the score is partial.
 - **The mock registry is a JSON file** written by the generator, not a live company-registry or identity lookup.
 - **One process, SQLite;** jobs are not durable across restarts. The hosted login is one shared username and password with self-declared reviewer names, and there are no roles.

@@ -265,6 +265,7 @@ class Provenance(Strict):                # plan 7.2 reproducibility
     flags_digest: str                    # sha256 of sorted (flag.id, severity, evidence); equal across deterministic reruns
     created_at: datetime
     catalogue: dict | None = None        # {"overrides": [{"rule","enabled","severity","revision"}...sorted by rule], "hash": sha256 of that list}; present only when check catalogue overrides existed at analysis time, absent from the JSON otherwise
+    score_model: dict | None = None      # how the score was made: {"name": "legacy"|"calibrated", "version"} and, for calibrated, "weights_version", "weights_sha256", "weights_source" ("synthetic"|"review_log"), "fitted_on_synthetic"; absent on a case stored before the field existed (those were scored by the legacy rule), see scoring-and-queue.md 4.4a
 
 class RuleOverride(Strict):              # one row of rule_overrides (section "Catalogue overrides" below)
     enabled: bool = True

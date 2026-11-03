@@ -277,7 +277,7 @@ The two writes are rate limited with the same limiter as review POSTs (`GLDB_RAT
 
 Design and operator guide: [ai-incidents.md](ai-incidents.md). These routes are about the monitor, never about a case or an applicant. `POST /monitoring/thresholds/approve` is the one route with "approve" in its path; it records a person's decision about the monitoring thresholds and decides nothing about a case.
 
-`GET /monitoring` keeps its earlier keys (`alerts`, `alerting`, `spend`, `owner_named`, `disk_encryption`, ...) and adds: `scheduler` (`"off"`, `"in_process"` or `"external"`), `scheduler_note`, `interval_minutes`, `last_evaluated_at`, `last_evaluated_by` (`scheduler` or `cli`), `monitor_stale` (true when a schedule is on and nothing has evaluated for more than two intervals), `alert_sinks` (names only), `open_alerts` (keys) and `readiness` (`ready` plus the status of each item).
+`GET /monitoring` keeps its earlier keys (`alerts`, `alerting`, `spend`, `owner_named`, `disk_encryption`, ...) and adds: `scheduler` (`"off"`, `"in_process"` or `"external"`), `scheduler_note`, `interval_minutes`, `last_evaluated_at`, `last_evaluated_by` (`scheduler` or `cli`), `monitor_stale` (true when a schedule is on and nothing has evaluated for more than two intervals), `alert_sinks` (names only), `open_alerts` (keys) and `readiness` (`ready` plus the status of each item). It also carries `score_model`: `{"name": "legacy"|"calibrated", "version", "ok", "ordering_signal_only": true, "note"}` and, for the calibrated model, `weights_version`, `weights_sha256`, `weights_source` (`synthetic` or `review_log`) and `fitted_on_synthetic`. A weights file that cannot be read shows `ok: false` with an `error`; scoring then stops rather than falling back (scoring-and-queue.md 4.4a).
 
 `GET /monitoring/alerts` returns `{"alerts": [{"key", "status": "open"|"acknowledged"|"resolved", "first_seen", "last_seen", "last_notified", "notify_count", "notified", "value", "threshold", "meaning", "action", "acknowledged_by", "acknowledged_at", "note", "resolved_at"}], "deliveries": [{"ts", "sink", "kind", "alert_key", "ok", "attempts", "error"}], "sinks": [...], "last_test": {"at", "by", "results", "delivered_to"} | null, ...scheduler fields}`. `error` is an exception class or `HTTP_<status>`, never a message or a URL. Keys are the metric names plus `monitor_stale`.
 
@@ -313,7 +313,12 @@ The scoring and routing method as data, for the "?" explanations and the analysi
     "weights": {"high": 30, "medium": 15, "low": 5, "info": 0},
     "cap": 100,
     "bands": {"medium_from": 30, "high_from": 60},
-    "counting": "Each finding counts once, however many flags or documents it covers."
+    "counting": "Each finding counts once, however many flags or documents it covers.",
+    "model": "legacy",
+    "model_version": "1",
+    "combination": "sum",
+    "note": "Points per finding by severity (high 30, medium 15, low 5), added up and capped at 100. The weights are starting guesses, not measured. The score orders the queue; it is not a probability of fraud.",
+    "ordering_signal_only": true
   },
   "coverage": {
     "low_coverage_ratio": 0.7,
@@ -342,6 +347,8 @@ The scoring and routing method as data, for the "?" explanations and the analysi
   "ruleset_version": "rs-02de835ec068"
 }
 ```
+Score keys: `weights`, `cap`, `bands` and `counting` are as before. `model` (`legacy` or `calibrated`), `model_version`, `combination` (`sum` or `noisy_or`), `note` and `ordering_signal_only` (always true) are additive. With `GLDB_SCORE_MODEL=calibrated`, `combination` is `noisy_or`, `counting` describes how findings are combined, `weights` stays the per-severity default used for a rule the weights file does not name, and `family_discount`, `family_cap`, `weights_version`, `weights_source` and `fitted_on_synthetic` are added; `note` then says the weights were fitted on synthetic data and that the score is an ordering signal, not a probability. A finding's `weight` is then the points it would score alone (at least 1 for anything but `info`), so finding weights no longer add up to `score.value`. `score.value` stays an integer 0 to 100 with the same bands.
+
 Notes: `low_coverage_ratio` is the point below which the UI calls coverage "low" (a display marker; it routes nothing). `fast_lane.max_score` and `min_coverage` are the numbers behind the `requires` sentences. The fast lane tests the score (at most `max_score`), not the band. `suggested_verdict` is what a lane suggests to the person deciding; it never preselects a verdict. `ruleset_version` equals `/health` and `provenance.ruleset_version`.
 
 ## 11b. Why a document was classified that way

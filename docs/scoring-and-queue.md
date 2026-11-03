@@ -121,6 +121,8 @@ Ranking and ids: sort findings by `(SEVERITY_RANK, not hard_stop, -len(document_
 
 ### 4.4 Weights, cap, bands (plan 8.3)
 
+This section describes the **`legacy`** model (`GLDB_SCORE_MODEL=legacy`): the original rule and the one every stored case before November 2026 was scored with. Section 4.4a describes the `calibrated` model. Bands, hard stops, lanes and the partial-case rule (4.5, 4.7) are the same under both.
+
 `SCORE_WEIGHTS = {high: 30, medium: 15, low: 5, info: 0}`, `BAND_THRESHOLDS = {medium: 30, high: 60}` (frozen in `core/models.py`). `score.value = min(100, sum(f.weight))`. `band_for`: `value >= 60` high, `>= 30` medium, else low. No score point exists without a flag. Review entries never change any of it.
 
 | Findings | value | band |
@@ -133,6 +135,80 @@ Ranking and ids: sort findings by `(SEVERITY_RANK, not hard_stop, -len(document_
 | 1 medium + 3 low | 30 | medium |
 | 29 vs 30 vs 59 vs 60 | band low / medium / medium / high | boundaries |
 | 4 high | 100 (cap, raw 120) | high |
+
+### 4.4a Scoring models: `legacy` and `calibrated`
+
+**Why.** The legacy sum has three weaknesses found in our own review. It *saturates*: four high findings reach the cap (raw 120), so a bad case and a catastrophic one both read 100 (on the held-out synthetic seeds 126 of 540 tampered cases, 23%, sat at exactly 100: 84 of 360 digital and 42 of 180 scanned). Findings of one cause can still add up: grouping (4.1) removes duplicates of a single flag set, but two wrong names, or a name wrong in two ways, remain separate findings that add 30 each. And the weights (30, 15, 5 by severity) are guesses, not measured precision.
+
+**Selecting.** `GLDB_SCORE_MODEL=legacy|calibrated` (default `legacy`, see "Choice of default" below). `GLDB_SCORE_WEIGHTS_PATH` names a weights file for the calibrated model; empty means the file shipped with the app (`backend/app/score_weights.default.json`). The integer 0 to 100 contract, the band thresholds (30 and 60), hard stops, `AML_ROUTING_RULES`, the fast lane (`score <= 20`, coverage, no hard stop, not partial) and the database's partial-case floor of 30 (`PARTIAL_PRIORITY_FLOOR`: a partial case sorts as at least medium) are untouched. Nothing is approved or rejected by either model.
+
+**The calibrated model** (`backend/app/score_model.py`):
+
+1. Findings come from the same grouping (4.1 to 4.3). Each finding gets a probability `p`: the largest `p` of its flags, looked up by `(rule, severity)` in the weights file. A pair the file does not name keeps today's value for its severity (high 0.30, medium 0.15, low 0.05 = the legacy points divided by 100). `info` is 0. A check catalogue override changes the flag's severity and the lookup follows it.
+2. **Rule families** group findings that are one root cause told several ways: `identity` (names, ownership, directors, remitters), `arithmetic`, `id_document`, `file_metadata`, `pixel_forensics`, `reuse`, `patterns`, `activity`; a rule in none of them is its own family (`score_model.RULE_FAMILY`). Inside a family the findings are sorted by `p` and the k-th (from 0) counts `d**k` of its strength, `d = 0.5`, and the family's combined probability is capped at `FAMILY_CAP = 0.58`: `P_family = min(0.58, 1 - prod(1 - p_k * 0.5**k))`.
+3. Families are independent evidence: `P = 1 - prod(1 - P_family)`, `score = floor(100 * P + 0.5)`, never above 100. The order of the findings never matters (inputs are sorted first), so the score is deterministic.
+4. `SINGLE_FINDING_CEILING = 0.55`: the fit multiplies a measured precision by 0.55, so no single finding can reach 60 (the High band) and no single family can either. High needs two kinds of evidence. With the shipped weights a single high finding lands in the medium band (30 to 39).
+5. `Finding.weight` becomes the points that finding would score **alone** (at least 1 for anything but `info`, so "weight > 0" keeps meaning "a real flag" for AML routing and the model-only fast-lane block). Finding weights therefore no longer add up to the score; `GET /explain/method` says so and the case explanation shows "combined, not added".
+
+| Findings (default weights) | legacy | calibrated |
+|---|---|---|
+| 1 high | 30 | 30 |
+| 2 high, different families | 60 | 51 |
+| 2 high, same family | 60 | 41 |
+| 4 high, different families | 100 | 76 |
+| 8 high, different families | 100 | 94 |
+| 4 medium, different families | 60 | 48 |
+
+**The weights file** (`gldb-score-weights/1`, JSON): `version`, `created`, `fitted_on_synthetic`, `source` (what was fitted on: kind, seeds, case counts, dataset digest), `method` (estimator, prior strength, prevalence used, ceiling, family discount and cap), `ruleset_version`, and `rules`: `"<rule>:<severity>" -> {p, precision, confirmed, dismissed}`. The loader refuses, loudly, a missing or unreadable file, invalid JSON, another schema, a missing or extra field, a key that is not `<rule>:<high|medium|low>`, a rule that is not a registered check, a `p` outside (0, 0.95], and a wrong date. With `calibrated` selected a bad file stops start-up (`SettingsError`) and scoring raises `ScoreWeightsError`; there is no fallback to other weights or to the legacy rule. An edited file is re-read when its modification time changes. The file's sha256 is part of the settings hash.
+
+**Provenance.** `provenance.score_model` records `{"name", "version"}` and for the calibrated model `weights_version`, `weights_sha256`, `weights_source`, `fitted_on_synthetic`, so a stored case says how it was scored. A case stored before this field existed has none (it was scored by the legacy rule). `settings_hash` lists `score_model` and the weights digest only when the model is not `legacy`, so legacy hashes are unchanged.
+
+**Fitting** (`backend/scripts/fit_score_weights.py`, `scripts/_eval/score_fit.py`, `score_data.py`). Input is a `gldb-score-outcomes/1` dataset: per case the findings and flags exactly as the engine produced them, a case label and a `confirmed`/`dismissed` outcome per flag. Two sources, one format:
+
+- *Synthetic*: the eval's ranking queue (clean, deck, forger, single per company), analysed offline with the fake LLM (no network, no money). A flag of a tampered case is confirmed when it is new against the clean twin of the same company (the rule the recall metric uses), dismissed when the twin raises it too; every flag of a clean case is dismissed.
+- *Reviewer verdicts* (`--source review-log`): confirmed and dismissed flags as `app.effectiveness` reads them. This is agreement with a rule, not ground truth.
+
+Per `(rule, severity)` the script counts the cases in which it fired and was decided (once per case), and estimates precision as a Beta posterior mean. The prior is centred on the severity default with 8 pseudo-observations, so a rare rule stays near its default and a rule never seen keeps it exactly (it is not written to the file). The synthetic sample is reweighted to a stated fraud prevalence (10%, a choice, since real prevalence is unknown) and every rule gets half a pseudo false alarm among the clean cases, so a rule seen a handful of times cannot claim a high precision from zero observed false alarms. `p = 0.55 * precision`; on synthetic data a high rule is never fitted below the legacy 0.30 (a rare rule's low precision is missing evidence there, not evidence against it; a fit on real verdicts has no such floor). Prior strength 50 was chosen on the dev seed among 4, 8, 20, 50 and 100 (ranking is the same for all of them; only the order by planted manipulations moves, towards the severity defaults). Fit on the **dev seed only**; the script refuses to evaluate on a seed that was fitted. It prints the weights, ranking metrics for legacy, the unfitted noisy-OR (ablation) and the calibrated model on each held-out seed and pooled, and a calibration table (score bucket against share of tampered bundles, as sampled and reweighted to the stated prevalence).
+
+**Measured** (offline, fake LLM; seeds 4002 fit, 4101 to 4104 held out; 400 resampled queues at 10% fraud per seed): dev seed 4002 (60 digital and 30 `scan_hq` companies, 360 cases, 270 tampered) is the only data the weights saw. Held-out: digital seeds 4101 to 4104 (4 x 30 companies, 360 tampered cases) and `scan_hq` seeds 4101 and 4102 (2 x 30, 180 tampered; oracle text, so the rules and image forensics are measured, not OCR). Each queue has 30 companies and 3 fraud cases at 10% fraud (kinds cycle deck, forger, single); 400 resampled queues per seed.
+
+| Pooled, held-out seeds only | legacy | noisy-OR, severity defaults (unfitted) | calibrated (fitted) |
+|---|---|---|---|
+| Digital: AUROC, queue order | 1.000 | 1.000 | 1.000 |
+| Digital: position of the first fraud case | 1.00 | 1.00 | 1.00 |
+| Digital: tampered share of the top 10% of the queue | 1.00 | 1.00 | 1.00 |
+| Digital: tampered cases at exactly 100 | 84 of 360 | 0 | 0 |
+| Digital: distinct scores among tampered cases | 10 | 16 | 20 |
+| Scans: AUROC, queue order (score alone, ties half) | 0.943 (0.956) | 0.943 (0.957) | 0.943 (0.957) |
+| Scans: position of the first fraud case | 1.00 | 1.00 | 1.00 |
+| Scans: tampered share of the top 10% of the queue | 0.90 | 0.90 | 0.90 |
+| Scans: tampered cases at exactly 100 | 42 of 180 | 0 | 0 |
+| Scans: distinct scores among tampered cases | 12 | 18 | 20 |
+| All: tampered cases at exactly 100 | 126 of 540 | 0 | 0 |
+| All: Spearman, score against the number of distinct manipulations planted | 0.647 | 0.763 | 0.648 |
+| All: tampered cases the fast lane could take by score and hard stops | 0 | 0 | 0 |
+
+Reading it. Every model ranks the held-out queues alike: the same AUROC, the same first-fraud position, the same share of the top 10%. On clean digital bundles the generator raises almost nothing (score 0), so there is no ranking left to win; on scans the 18 of 180 tampered cases that score under 20 are tampers the checks did not detect, which no scoring model can lift, and all 60 clean scans carry the same low-level image noise (1 to 19 points). What the calibrated model changes is saturation (126 of 540 tampered cases at 100 become 0; a bad case and a catastrophic one now differ) and ties (18 distinct scores among tampered cases become 33). The fit itself did **not** improve on the unfitted noisy-OR: the unfitted model orders cases by how many distinct manipulations were planted better (0.763) than the fitted one (0.648), because on this generator measured precision does not track how bad a case is. Dev-seed numbers (AUROC 0.996 for all three) are optimistic and not used for any claim.
+
+Calibration table, held-out pooled over all renders (the script also prints the share of tampered bundles per bucket, as sampled and reweighted to 10% fraud):
+
+| Score bucket | legacy: cases / tampered | calibrated: cases / tampered |
+|---|---|---|
+| 0 | 119 / 0 | 119 / 0 |
+| 1 to 19 | 96 / 35 | 83 / 22 |
+| 20 to 29 | 10 / 10 | 0 / 0 |
+| 30 to 44 | 92 / 92 | 108 / 108 |
+| 45 to 59 | 10 / 10 | 47 / 47 |
+| 60 to 74 | 19 / 19 | 237 / 237 |
+| 75 to 89 | 182 / 182 | 126 / 126 |
+| 90 to 99 | 66 / 66 | 0 / 0 |
+| 100 | 126 / 126 | 0 / 0 |
+
+Every case from 20 up is tampered in this sample under both models, which is exactly why the table must not be read as "a score of 60 is a 100% chance": the synthetic clean bundles are too clean (digital) or too uniformly noisy (scans) to put any honest clean case up there. Reproduce with `uv run python backend/scripts/fit_score_weights.py --source synthetic --seed 4002 --slots 60 --eval-seed 4101 --eval-seed 4102 --eval-seed 4103 --eval-seed 4104 --out <file>` (digital; the scan datasets are built the same way with `--render scan_hq` and passed with `--dataset` / `--eval-dataset`).
+
+**What this does and does not show.** The weights are fitted on our own generator. They calibrate the score to that generator, they are not probabilities, and the score stays an *ordering signal*. On clean digital bundles the generator raises almost nothing, so measured precision there cannot separate good rules from poor ones: nearly every rule that fires is right, and the fit mostly shrinks rare rules and lifts frequent ones. Real outcomes would change exactly this: reviewer verdicts on real cases supply the false alarms the generator does not (the weights file then names `review_log` as its source and `fitted_on_synthetic` is false, and the score explanation drops the synthetic note), a real prevalence replaces the stated 10%, and families and the ceiling could be checked against real analyst agreement. Until real verdicts exist the right reading of any calibrated score is: "more and stronger independent evidence than the case below it", never "x% likely to be fraud".
+
+**Choice of default.** Held-out ranking is identical for the three models (above), so by the rule we set beforehand (the new model must rank better on held-out seeds to become the default) **`legacy` stays the default** and `calibrated` is opt-in (`GLDB_SCORE_MODEL=calibrated`). The case for switching is not ranking but readability: no saturation at 4 high findings, fewer ties, correlated findings not added. That is a product decision for the bank, best made after real reviewer verdicts have been fitted (`--source review-log`), when the weights stop being synthetic. Existing stored cases keep the score they were made with; a re-run uses the model in force.
 
 ### 4.5 Hard stops and outcome lanes
 
@@ -186,7 +262,7 @@ Reading it: open work first; highest score first; at equal score the case we kno
 
 ## 5. Files owned
 
-`backend/app/findings.py`, `backend/app/score.py` (extends foundation's), `backend/app/queue.py`, tests `backend/tests/test_findings.py`, `test_score.py`, `test_score_basic.py` (may update foundation's), `test_queue.py`, `test_scoring_properties.py`. Reads `core/**`, never edits it. `build_queue_item` (4.9) and its test 21 belong to api-backend (`api/queue.py`, `backend/tests/test_api_queue.py`).
+`backend/app/findings.py`, `backend/app/score.py` (extends foundation's), `backend/app/queue.py`, tests `backend/tests/test_findings.py`, `test_score.py`, `test_score_basic.py` (may update foundation's), `test_queue.py`, `test_scoring_properties.py`. Reads `core/**`, never edits it. `build_queue_item` (4.9) and its test 21 belong to api-backend (`api/queue.py`, `backend/tests/test_api_queue.py`). The calibrated score model: `backend/app/score_model.py` (model, weights file loader), `backend/app/score_weights.default.json` (shipped weights, fitted on synthetic data), `backend/scripts/fit_score_weights.py` with `backend/scripts/_eval/score_fit.py` and `score_data.py` (fit, evaluation, outcome datasets), tests `backend/tests/test_score_model.py` and `test_fit_score_weights.py`.
 
 ## 6. Test plan
 
@@ -218,6 +294,13 @@ All tests use `app.core.testing` (`make_ctx`, `make_doc`, `FIXED_TODAY`); flags 
 | 22 | Priority fixture (6 rows via `Database.list_cases`): open 80, open 80 with lower coverage, open 40, processing, closed 99, awaiting 90 | order: open80-lowcov, open80, open40, processing, awaiting, closed |
 | 23 | AST test (like `test_no_wallclock_in_checks.py`) on `findings.py`, `score.py`, `queue.py` | none calls `date.today`, `datetime.now`, `datetime.utcnow`, `time.time` |
 | 24 | **Honest quirk**: careful-forger bundle (consistent recomputation, no rule fires) | scores 0 and may be `fast`; recorded as a miss in the eval, not hidden; the test asserts the code path, the eval row reports it |
+| 25 | **Saturation** (calibrated): 1, 2, 4, 8 high findings of different rule families; legacy for contrast | calibrated strictly increasing and below 100; legacy 100 for 4 and 8 (`test_score_model.py`) |
+| 26 | **No double counting**: one name error on three documents (same discriminator); several name findings against the same number of independent findings | one finding counted once; same-family findings score less than independent ones and stay under the High band |
+| 27 | Hard stop, fast lane, AML routing and partial case under `calibrated` | a hard-stop finding with a score of 2 is not fast; `weight >= 1` for any real flag so AML routing and the model-only block still work; partial stays partial and the database floor is unchanged |
+| 28 | **Legacy golden**: the 4.4 table and random flag sets under `GLDB_SCORE_MODEL=legacy` | identical to `compute_score`; findings are not rewritten |
+| 29 | Weights file: shipped file loads; 14 kinds of bad file (not JSON, wrong schema, extra or missing field, bad key, unknown rule, `p` out of range, bad date, ...), missing file, directory | each refused with a clear message, start-up fails with `SettingsError`, scoring raises; legacy never reads the file |
+| 30 | Determinism: shuffle flags 12 times; rerun | identical score and findings |
+| 31 | Fit on a tiny fixture: precision ordering, shrinkage of a rare rule, unseen rules absent, prevalence and prior strength, mixed sources refused, review-log outcomes, CLI end to end, refusal to evaluate on the fit seed | `test_fit_score_weights.py` |
 
 ## 7. Acceptance criteria
 
@@ -229,11 +312,12 @@ All tests use `app.core.testing` (`make_ctx`, `make_doc`, `FIXED_TODAY`); flags 
 
 ## 8. Recalibration (plan 8.3, 9)
 
-Weights, thresholds, `FAST_LANE_*` and `REGION_OVERLAP_MIN` are starting guesses. The eval reports ranking (fraud cases in top 5 and top 10 of about 30 generated cases, with the fraud share stated), false alarms per 10 clean bundles and the fast-lane miss count; changes go through a Contract request.
+Per-rule weights of the `calibrated` model are fitted by `backend/scripts/fit_score_weights.py` (4.4a); re-run it after a ruleset change or when reviewer verdicts accumulate. The legacy weights, the band thresholds, `FAST_LANE_*` and `REGION_OVERLAP_MIN` remain starting guesses. The eval reports ranking (fraud cases in top 5 and top 10 of about 30 generated cases, with the fraud share stated), false alarms per 10 clean bundles and the fast-lane miss count; changes go through a Contract request.
 
 ## 9. Known gaps and honest limits
 
-- Weights and bands are guesses until the eval runs; the score is an ordering signal, not a probability.
+- Legacy weights and bands are guesses; the calibrated weights are fitted on synthetic data (4.4a). Either way the score is an ordering signal, not a probability.
+- **Saturation and double counting** (our own review): the legacy model saturates at four high findings and adds correlated findings. The calibrated model addresses both (4.4a); the legacy model keeps the behaviour on purpose (`GLDB_SCORE_MODEL=legacy`).
 - Coverage counts checks, unweighted; 18 of 21 can still hide the one check that mattered. The skipped list is shown for that reason.
 - `Coverage.ratio` is not reduced by unchecked pages; only the fast-lane gate uses `effective_coverage`. The queue and case page show page silence separately from `Coverage.pages_total`/`pages_unchecked`.
 - On an all-digital bundle the image-only forensic checks (`ela_region`, `copy_move`, `noise_mismatch`, `image_*`) count as skipped, so check coverage of a clean digital bundle is below 1.0 by design; `FAST_LANE_MIN_COVERAGE` is recalibrated from the eval's measured clean coverage (R0 decision, architecture.md 4).
@@ -267,7 +351,7 @@ What the interface reads to explain a score, a lane and a classification. Nothin
 
 | Question | Where it is answered |
 |---|---|
-| How is the score made? | `GET /explain/method` `score` (weights, cap, bands, counting rule); `findings[].weight` and `findings[].severity` give each finding's contribution; `score.value` is `min(cap, sum of finding weights)` |
+| How is the score made? | `GET /explain/method` `score` (weights, cap, bands, counting rule, and `model`, `model_version`, `combination`, `note`); `findings[].weight` and `findings[].severity` give each finding's contribution; under `legacy` `score.value` is `min(cap, sum of finding weights)`, under `calibrated` the findings are combined (4.4a) and each weight is what the finding would score alone; `provenance.score_model` says which model scored a stored case |
 | Why is a finding there? | `findings[].summary`, `flag_ids`, `rules`, `document_ids`; the flags carry `evidence` and `explanation` |
 | What blocks the fast lane? | `findings[].hard_stop` and `GET /explain/method` `hard_stop_rules`, `hard_stop_effect`, `fast_lane` |
 | Why this lane? | `case.lane`, `GET /explain/method` `lanes[]` (`how`, `suggested_verdict`), `aml_routing_rules`, `fast_lane.requires` |
