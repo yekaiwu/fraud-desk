@@ -428,6 +428,9 @@ class OpenAICompatClient:
         sleep: Callable[[float], None] = time.sleep,
         http_client: Any | None = None,
     ):
+        from app.core.privacy import assert_outbound_allowed
+
+        assert_outbound_allowed(settings, settings.llm_base_url, "model call")  # private mode
         self.settings = settings
         self.cache = cache
         self._sleep = sleep

@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     # Ask Singapore's open ACRA dataset about an applicant UEN that the registry file does not hold
     # (app/registry_live.py). Off by default: it makes a network call per new UEN.
     registry_live: bool = False
+    # Private mode (docs/local-llm.md section 12, app/core/privacy.py): "on" refuses to start with a hosted
+    # model or key, accepts only a loopback / private / tailnet / allowed LLM host, switches off every outbound
+    # lookup and installs a guard on all outgoing connections.
+    private_mode: Literal["off", "on"] = "off"
+    private_allowed_hosts: str = (
+        ""  # comma-separated hosts (names or IPs) allowed in addition to the private ranges
+    )
     today: date | None = None
 
     # LLM
@@ -336,6 +343,12 @@ class Settings(BaseSettings):
 
     def validate_startup(self) -> None:
         """Fail fast on a configuration that cannot work (architecture.md section 10)."""
+        if self.private_mode == "on":
+            from app.core.privacy import validate_private_settings
+
+            private_problems = validate_private_settings(self)
+            if private_problems:
+                raise SettingsError("private mode: " + "; ".join(private_problems))
         if self.effective_llm_backend() == "anthropic":
             self.validate_anthropic()
         if self.effective_llm_backend() == "openai":
@@ -431,6 +444,8 @@ class Settings(BaseSettings):
             out["ocr_backend"] = self.ocr_backend
         if self.registry_live:
             out["registry_live"] = "on"
+        if self.private_mode == "on":  # listed only when on: other runs keep their provenance hash
+            out["private_mode"] = "on"
         if self.ocr_straighten:  # listed only when on: other runs keep their provenance hash
             out["ocr_straighten"] = "on"
         if self.effective_llm_backend() == "anthropic":

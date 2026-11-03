@@ -286,6 +286,10 @@ def attach_live_entity(ctx: CaseContext) -> None:
     uen = ctx.case.applicant.uen
     if not ctx.settings.registry_live or not uen:
         return
+    from app.core.privacy import outbound_lookups_enabled
+
+    if not outbound_lookups_enabled(ctx.settings):  # private mode: no outbound lookup, ever
+        return
     from app.registry_live import AcraLookup, RegistryUnavailable, with_live_entity
 
     try:
@@ -295,7 +299,9 @@ def attach_live_entity(ctx: CaseContext) -> None:
             ctx.case.applicant.name,
             ctx.today,
             AcraLookup(
-                ctx.settings.data_dir / "registry-cache", vault=vault_from_settings(ctx.settings)
+                ctx.settings.data_dir / "registry-cache",
+                vault=vault_from_settings(ctx.settings),
+                private=ctx.settings.private_mode == "on",
             ),
         )
     except RegistryUnavailable as exc:

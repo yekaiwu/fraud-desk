@@ -119,4 +119,5 @@ def build_provenance(ctx: CaseContext) -> Provenance:
         flags_digest=flags_digest(case.flags),
         created_at=utcnow(),
         catalogue=catalogue_stamp(ctx.overrides),
+        private_mode="on" if s.private_mode == "on" else None,
     )

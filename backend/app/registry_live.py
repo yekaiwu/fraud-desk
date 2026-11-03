@@ -168,7 +168,9 @@ class AcraLookup:
         cache_dir: Path | None = None,
         client: httpx.Client | None = None,
         vault: Vault | None = None,
+        private: bool = False,
     ):
+        self._private = private
         self.cache_dir = cache_dir
         self._client = client
         self._vault = vault if vault is not None else plaintext_vault()
@@ -213,6 +215,8 @@ class AcraLookup:
         hit, entity = self._cached(wanted, now)
         if hit:
             return entity
+        if self._private:  # private mode: a cached answer is fine, a question to data.gov.sg is not
+            raise RegistryUnavailable("private mode: outbound lookups are disabled")
         own = self._client is None
         client = self._client or httpx.Client(timeout=TIMEOUT_S, headers={"User-Agent": USER_AGENT})
         try:

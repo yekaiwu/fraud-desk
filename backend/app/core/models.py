@@ -489,6 +489,8 @@ class Provenance(Strict):
     # {"overrides": [{"rule", "enabled", "severity", "revision"}...], "hash": sha256} when the
     # check catalogue had overrides at analysis time; absent otherwise (docs/data-model.md).
     catalogue: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
+    # "on" when the case was analysed in private mode (GLDB_PRIVATE_MODE); absent otherwise
+    private_mode: str | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------------------
