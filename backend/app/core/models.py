@@ -172,8 +172,17 @@ class Cell(Strict):
     source: CellSource = "text_layer"
     verified: bool | None = None
     alt_raw: str | None = None
+    # Second OCR reader (docs/ingest-and-extraction.md 4.12), photos and scans only. ``agreement`` says
+    # whether an independent reader prints this value the same way (agree), prints other digits there
+    # (differ; ``other_raw`` is what it prints), printed nothing comparable (unread), or whether neither
+    # OCR reader prints the value the model returned (unsupported). Both are left out of the JSON when
+    # no second reader ran.
+    agreement: Literal["agree", "differ", "unread", "unsupported"] | None = Field(
+        default=None, exclude_if=lambda v: v is None
+    )
+    other_raw: str | None = Field(default=None, exclude_if=lambda v: v is None)
 
-    @field_validator("raw", "alt_raw")
+    @field_validator("raw", "alt_raw", "other_raw")
     @classmethod
     def _cap_raw(cls, v: str | None) -> str | None:
         return None if v is None else truncate(v, RAW_MAX)
@@ -346,6 +355,16 @@ class Document(Strict):
 # --------------------------------------------------------------------------------------
 
 
+class ReadingNote(Strict):
+    """Why a flag is "reading unreliable": two readers of the same photo read a figure differently, and
+    the check passes on the other reader's figure. ``severity`` is what the flag would have been."""
+
+    severity: Severity
+    cells: list[
+        str
+    ]  # "where: reader 1 / reader 2", one entry per disagreeing figure the flag rests on
+
+
 class Flag(Strict):
     id: str
     rule: str
@@ -364,6 +383,9 @@ class Flag(Strict):
     # queue.md "Catalogue overrides"). Absent (None, and left out of the JSON) unless an override
     # changed this flag's severity, so every result without overrides is byte-identical.
     code_severity: Severity | None = Field(default=None, exclude_if=lambda v: v is None)
+    # Set when the flag was lowered to "reading unreliable, check by eye" because the readers disagree
+    # (``app/reading_agreement.py``). Left out of the JSON otherwise.
+    reading: ReadingNote | None = Field(default=None, exclude_if=lambda v: v is None)
 
     @field_validator("evidence")
     @classmethod

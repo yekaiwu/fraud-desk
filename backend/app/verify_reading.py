@@ -151,6 +151,7 @@ def shadow_reading(
         ),
         cache=cache,
         page_words={},
+        page_words_second={},
         overrides={},
         semantic_tally={},
         semantic_state={},

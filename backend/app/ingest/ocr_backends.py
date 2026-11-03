@@ -632,6 +632,47 @@ def select_backend(settings: Settings) -> OcrBackend | None:
     return None
 
 
+SECOND_READER_ORDER = (
+    "tesseract",
+    "vision",
+    "rapidocr",
+)  # first one that runs and is not the first reader
+
+
+def select_second_backend(settings: Settings, first: str | None) -> OcrBackend | None:
+    """A local OCR that is not the first reader, for the second reading of photographed pages
+    (``GLDB_MULTI_READER``). ``first`` is the name of the first reader (``"tesseract"``,
+    ``"macos-vision"``, ``"rapidocr"``) or ``None`` when the first reader is the vision model.
+    Returns ``None`` when no other engine runs here; the caller then simply has no second reading."""
+    if settings.ocr_backend == "none":
+        return None
+    taken = {"macos-vision": "vision"}.get(first or "", first)
+    for choice in SECOND_READER_ORDER:
+        if choice == taken:
+            continue
+        try:
+            if choice == "tesseract":
+                return TesseractOcr()
+            if choice == "vision":
+                return MacVisionOcr()
+            return _shared_rapidocr()
+        except OcrUnavailable:
+            continue
+    return None
+
+
+_rapid_lock = threading.Lock()
+_rapid_shared: list[RapidOcr] = []
+
+
+def _shared_rapidocr() -> RapidOcr:
+    """One RapidOCR engine for the whole process: building it loads the models each time."""
+    with _rapid_lock:
+        if not _rapid_shared:
+            _rapid_shared.append(RapidOcr())
+        return _rapid_shared[0]
+
+
 def describe_unavailable(settings: Settings) -> str:
     """Why a text-only deployment has no OCR (shown on the page and in the docs)."""
     if settings.ocr_backend == "none":

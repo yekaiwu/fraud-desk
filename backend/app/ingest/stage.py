@@ -17,7 +17,7 @@ from app.core.costs import LLMBudgetExceeded
 from app.core.errors import LLMNoFixture
 from app.core.models import FileRef, PageInfo, StageOutcome, Word
 from app.ingest.images import ImageProblem, declared_dpi, frame_count, open_image, upright
-from app.ingest.ocr import OcrUnavailable, ocr_page_ex
+from app.ingest.ocr import OcrUnavailable, ocr_page_ex, second_reading
 from app.ingest.pdf import FileProblem, analyse_page, open_pdf, page_size, read_pdf_meta, short
 
 FILE_DEADLINE_S = 60.0  # per file; read at call time so tests can shorten it
@@ -153,7 +153,14 @@ def _ingest_file(ctx: CaseContext, file: FileRef, state: _State) -> list[PageInf
 def _ocr_one(ctx: CaseContext, file_id: str, page: int) -> tuple[list[Word], list[str]] | Exception:
     try:
         with ctx.costs.scope(page=page):
-            return ocr_page_ex(ctx, file_id, page)
+            words, notes = ocr_page_ex(ctx, file_id, page)
+        if (
+            words and ctx.settings.multi_reader
+        ):  # a second opinion on the same picture (local, free)
+            second = second_reading(ctx, file_id, page)
+            if second:
+                ctx.page_words_second[(file_id, page)] = second
+        return words, notes
     except Exception as exc:  # noqa: BLE001 - converted to a page error by the caller
         return exc
 
@@ -210,6 +217,7 @@ def run_stage(ctx: CaseContext) -> StageOutcome:
 def _run(ctx: CaseContext) -> StageOutcome:
     state = _State()
     ctx.page_words.clear()
+    ctx.page_words_second.clear()
     files = sorted(ctx.case.files, key=lambda f: natural_key(f.id))
     for file in files:
         file.pages = []
