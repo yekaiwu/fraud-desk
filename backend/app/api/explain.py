@@ -10,9 +10,11 @@ from typing import Any, get_args
 
 from fastapi import APIRouter
 
-from app import queue
+from app import queue, score_model
+from app.api._common import SettingsDep
 from app.checks.registry import all_checks
 from app.core import models
+from app.core.config import Settings
 from app.core.models import Lane
 from app.core.provenance import ruleset_version
 
@@ -48,18 +50,47 @@ def _lane_how(lane: Lane) -> str:
     )
 
 
-def build_method() -> dict[str, Any]:
+def score_method(settings: Settings | None) -> dict[str, Any]:
+    """How the score is made, read from the model in force (``GLDB_SCORE_MODEL``)."""
+    section: dict[str, Any] = {
+        "weights": dict(models.SCORE_WEIGHTS),
+        "cap": models.SCORE_CAP,
+        "bands": {
+            "medium_from": models.BAND_THRESHOLDS["medium"],
+            "high_from": models.BAND_THRESHOLDS["high"],
+        },
+        "counting": "Each finding counts once, however many flags or documents it covers.",
+    }
+    if settings is None:
+        return section
+    model = score_model.describe_model(settings)
+    section["model"] = model["name"]
+    section["model_version"] = model["version"]
+    section["note"] = score_model.model_note(settings)
+    section["ordering_signal_only"] = True
+    if model["name"] == score_model.CALIBRATED:
+        section["combination"] = "noisy_or"
+        section["counting"] = (
+            "Each finding counts once. Findings are combined as separate pieces of evidence "
+            "(1 minus the product of what each leaves unexplained), findings of one family of "
+            "checks count less each time and the family is capped, so the score approaches 100 "
+            "without a handful of flags reaching it. A finding's weight is the points it would "
+            "score alone; the weights do not add up to the score."
+        )
+        section["family_discount"] = score_model.WITHIN_FAMILY_DISCOUNT
+        section["family_cap"] = score_model.FAMILY_CAP
+        section["weights_version"] = model["weights_version"]
+        section["weights_source"] = model["weights_source"]
+        section["fitted_on_synthetic"] = model["fitted_on_synthetic"]
+    else:
+        section["combination"] = "sum"
+    return section
+
+
+def build_method(settings: Settings | None = None) -> dict[str, Any]:
     fast_min = queue.FAST_LANE_MIN_COVERAGE
     return {
-        "score": {
-            "weights": dict(models.SCORE_WEIGHTS),
-            "cap": models.SCORE_CAP,
-            "bands": {
-                "medium_from": models.BAND_THRESHOLDS["medium"],
-                "high_from": models.BAND_THRESHOLDS["high"],
-            },
-            "counting": "Each finding counts once, however many flags or documents it covers.",
-        },
+        "score": score_method(settings),
         "coverage": {
             "low_coverage_ratio": queue.LOW_COVERAGE_RATIO,
             "fast_lane_min_coverage": fast_min,
@@ -93,5 +124,5 @@ def build_method() -> dict[str, Any]:
 
 
 @router.get("/explain/method")
-def explain_method() -> dict[str, Any]:
-    return build_method()
+def explain_method(settings: SettingsDep) -> dict[str, Any]:
+    return build_method(settings)

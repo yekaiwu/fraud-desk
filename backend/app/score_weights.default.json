@@ -1,0 +1,206 @@
+{
+ "schema": "gldb-score-weights/1",
+ "version": "2026-11-03-synthetic-4002",
+ "created": "2026-11-03",
+ "fitted_on_synthetic": true,
+ "source": {
+  "kind": "synthetic",
+  "seeds": [
+   4002
+  ],
+  "n_cases": 360,
+  "n_tampered": 270,
+  "n_clean": 90,
+  "dataset_sha256": "ef0f546ad63355a189bde68edf32085417754e0b175e3db526e172544ad413b4",
+  "renders": [
+   "digital",
+   "scan_hq"
+  ],
+  "slots": 90,
+  "note": "Our own generator's ranking queue (clean, deck, forger, single per company). A flag is confirmed when a tampered case raises it and its clean twin does not."
+ },
+ "method": {
+  "estimator": "Beta posterior mean of per-(rule, severity) precision",
+  "prior": "centred on the severity default (default p / ceiling)",
+  "prior_strength": 50.0,
+  "prevalence": 0.1,
+  "clean_pseudo_false_alarms": 0.5,
+  "ceiling": 0.55,
+  "family_discount": 0.5,
+  "family_cap": 0.58,
+  "high_floor": 0.3,
+  "unseen_rules": "keep the severity default (high 0.30, medium 0.15, low 0.05)",
+  "dropped_unregistered": []
+ },
+ "ruleset_version": "rs-1c498df8c690",
+ "rules": {
+  "bs_pass_through:medium": {
+   "p": 0.3111,
+   "precision": 0.5656,
+   "confirmed": 59,
+   "dismissed": 0
+  },
+  "bs_running_balance:high": {
+   "p": 0.3,
+   "precision": 0.5233,
+   "confirmed": 9,
+   "dismissed": 0
+  },
+  "bs_totals:high": {
+   "p": 0.3,
+   "precision": 0.5233,
+   "confirmed": 9,
+   "dismissed": 0
+  },
+  "copy_move:low": {
+   "p": 0.0326,
+   "precision": 0.0592,
+   "confirmed": 7,
+   "dismissed": 34
+  },
+  "ela_region:low": {
+   "p": 0.0334,
+   "precision": 0.0607,
+   "confirmed": 44,
+   "dismissed": 76
+  },
+  "file_reuse:low": {
+   "p": 0.0508,
+   "precision": 0.0924,
+   "confirmed": 2,
+   "dismissed": 0
+  },
+  "fs_balance:high": {
+   "p": 0.3,
+   "precision": 0.5204,
+   "confirmed": 7,
+   "dismissed": 0
+  },
+  "fs_subtotals:high": {
+   "p": 0.3419,
+   "precision": 0.6216,
+   "confirmed": 36,
+   "dismissed": 0
+  },
+  "id_checksum:high": {
+   "p": 0.3,
+   "precision": 0.5249,
+   "confirmed": 3,
+   "dismissed": 0
+  },
+  "inv_duplicate:high": {
+   "p": 0.3,
+   "precision": 0.5294,
+   "confirmed": 2,
+   "dismissed": 0
+  },
+  "inv_gst:medium": {
+   "p": 0.226,
+   "precision": 0.4109,
+   "confirmed": 27,
+   "dismissed": 0
+  },
+  "inv_lines:high": {
+   "p": 0.3038,
+   "precision": 0.5523,
+   "confirmed": 18,
+   "dismissed": 0
+  },
+  "inv_total:high": {
+   "p": 0.3,
+   "precision": 0.522,
+   "confirmed": 4,
+   "dismissed": 0
+  },
+  "kyc_shareholdings:high": {
+   "p": 0.3234,
+   "precision": 0.588,
+   "confirmed": 27,
+   "dismissed": 0
+  },
+  "pdf_editor_software:medium": {
+   "p": 0.1482,
+   "precision": 0.2695,
+   "confirmed": 4,
+   "dismissed": 0
+  },
+  "pdf_modified:low": {
+   "p": 0.0556,
+   "precision": 0.1011,
+   "confirmed": 4,
+   "dismissed": 0
+  },
+  "pdf_producer_unexpected:medium": {
+   "p": 0.1482,
+   "precision": 0.2695,
+   "confirmed": 4,
+   "dismissed": 0
+  },
+  "pdf_text_vs_render:medium": {
+   "p": 0.1478,
+   "precision": 0.2687,
+   "confirmed": 1,
+   "dismissed": 0
+  },
+  "x_cash_at_year_end:medium": {
+   "p": 0.1478,
+   "precision": 0.2687,
+   "confirmed": 1,
+   "dismissed": 0
+  },
+  "x_declared_vs_activity:medium": {
+   "p": 0.317,
+   "precision": 0.5763,
+   "confirmed": 62,
+   "dismissed": 0
+  },
+  "x_directors:high": {
+   "p": 0.3853,
+   "precision": 0.7005,
+   "confirmed": 63,
+   "dismissed": 0
+  },
+  "x_invoice_vs_contract:medium": {
+   "p": 0.3348,
+   "precision": 0.6088,
+   "confirmed": 72,
+   "dismissed": 0
+  },
+  "x_invoice_vs_receipts:medium": {
+   "p": 0.3516,
+   "precision": 0.6393,
+   "confirmed": 83,
+   "dismissed": 0
+  },
+  "x_ownership_vs_registry:high": {
+   "p": 0.3799,
+   "precision": 0.6907,
+   "confirmed": 59,
+   "dismissed": 0
+  },
+  "x_remitter_vs_buyer:high": {
+   "p": 0.3785,
+   "precision": 0.6882,
+   "confirmed": 58,
+   "dismissed": 0
+  },
+  "x_remitter_vs_buyer:medium": {
+   "p": 0.147,
+   "precision": 0.2672,
+   "confirmed": 2,
+   "dismissed": 0
+  },
+  "x_revenue_vs_credits:medium": {
+   "p": 0.3348,
+   "precision": 0.6088,
+   "confirmed": 72,
+   "dismissed": 0
+  },
+  "x_sof_support:high": {
+   "p": 0.3785,
+   "precision": 0.6882,
+   "confirmed": 58,
+   "dismissed": 0
+  }
+ }
+}

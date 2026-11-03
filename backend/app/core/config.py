@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     # on does not turn it on.
     semantic_entity: Literal["off", "on"] = "off"
 
+    # scoring model (docs/scoring-and-queue.md 4.4a): ``legacy`` = capped sum of finding weights,
+    # ``calibrated`` = noisy-OR over per-finding probabilities from a fitted weights file. The
+    # weights file defaults to the one shipped with the app (fitted on synthetic data).
+    score_model: Literal["legacy", "calibrated"] = "legacy"
+    score_weights_path: Path | None = None
+
     # modes
     extractor_mode: Literal["text_layer", "llm", "cascade"] = "cascade"
     classifier_mode: Literal["rules", "local", "llm", "cascade"] = "rules"
@@ -227,6 +233,7 @@ class Settings(BaseSettings):
         "verify_scan_flags",
         "agents",
         "alert_file_path",
+        "score_weights_path",
         mode="before",
     )
     @classmethod
@@ -334,6 +341,17 @@ class Settings(BaseSettings):
         except CryptoConfigError as exc:
             raise SettingsError(f"encryption at rest: {exc}") from None
 
+    def validate_score_model(self) -> None:
+        """The calibrated model needs a valid weights file; a missing or bad file stops start-up."""
+        if self.score_model != "calibrated":
+            return
+        from app.score_model import ScoreWeightsError, load_weights
+
+        try:
+            load_weights(self.score_weights_path)
+        except ScoreWeightsError as exc:
+            raise SettingsError(f"GLDB_SCORE_MODEL=calibrated: {exc}") from None
+
     def validate_startup(self) -> None:
         """Fail fast on a configuration that cannot work (architecture.md section 10)."""
         if self.effective_llm_backend() == "anthropic":
@@ -354,6 +372,7 @@ class Settings(BaseSettings):
                     + ", ".join(missing)
                 )
         self.validate_encryption()
+        self.validate_score_model()
         problems = []
         if self.max_pages_per_case <= 0:
             problems.append("GLDB_MAX_PAGES_PER_CASE must be > 0")
@@ -413,6 +432,11 @@ class Settings(BaseSettings):
         }
         if not self.llm_enable_thinking:
             out["llm_enable_thinking"] = "False"
+        if self.score_model != "legacy":  # listed only when not legacy: other hashes unchanged
+            from app.score_model import load_weights
+
+            out["score_model"] = self.score_model
+            out["score_weights_sha256"] = load_weights(self.score_weights_path).sha256
         if self.verify_scan_flags:  # listed only when on: other runs keep their provenance hash
             out["verify_scan_flags"] = "on"
         if self.agents:

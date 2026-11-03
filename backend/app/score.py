@@ -1,14 +1,16 @@
 """Score stage (docs/scoring-and-queue.md 4.3 to 4.8; foundation wrote the basic version).
 
-Flags are grouped into findings (``app.findings``), each finding is counted once, the score is the
-capped sum of finding weights, and coverage makes silence visible. Weights and band thresholds
-come only from ``core.models`` so the eval can recalibrate them. Review never changes any of it.
+Flags are grouped into findings (``app.findings``), each finding is counted once and coverage makes
+silence visible. The score is one of two models (``GLDB_SCORE_MODEL``, ``app.score_model``): the
+``legacy`` capped sum of finding weights, or the ``calibrated`` noisy-OR over per-finding
+probabilities. Band thresholds come only from ``core.models``. Review never changes any of it.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
+from app import score_model
 from app.core.context import CaseContext
 from app.core.models import (
     BAND_THRESHOLDS,
@@ -17,6 +19,7 @@ from app.core.models import (
     Case,
     Coverage,
     Finding,
+    Flag,
     Score,
     StageOutcome,
 )
@@ -91,9 +94,30 @@ def collect_partial_reasons(case: Case) -> list[str]:
 
 
 def compute_score(findings: Sequence[Finding], *, partial: bool, reasons: Sequence[str]) -> Score:
-    """``min(100, sum(finding.weight))``; no score point exists without a flag (4.4)."""
+    """Legacy model: ``min(100, sum(finding.weight))``; no score point exists without a flag (4.4)."""
     value = min(SCORE_CAP, sum(f.weight for f in findings))
     return Score(value=value, band=band_for(value), partial=partial, partial_reasons=list(reasons))
+
+
+def score_findings(
+    findings: list[Finding],
+    flags: Sequence[Flag],
+    *,
+    partial: bool,
+    reasons: Sequence[str],
+    settings,  # noqa: ANN001 - Settings
+) -> tuple[Score, list[Finding]]:
+    """Score under ``settings.score_model``. Legacy returns the findings untouched. Calibrated
+    returns them with ``weight`` = the points the finding would score alone (the findings are
+    combined by a noisy-OR, so the weights no longer add up to the score) and a score that never
+    depends on the order of the findings."""
+    if score_model.active_model(settings) == score_model.LEGACY:
+        return compute_score(findings, partial=partial, reasons=reasons), findings
+    weights = score_model.load_weights(settings.score_weights_path)
+    value, points = score_model.calibrated_points(findings, flags, weights)
+    scored = [f.model_copy(update={"weight": w}) for f, w in zip(findings, points, strict=True)]
+    score = Score(value=value, band=band_for(value), partial=partial, partial_reasons=list(reasons))
+    return score, scored
 
 
 def _unknown_document_warnings(case: Case) -> list[str]:
@@ -113,8 +137,12 @@ def run_stage(ctx: CaseContext) -> StageOutcome:
     case.findings = group_flags(case, case.flags)
     case.coverage = compute_coverage(case, min_prob=min_prob)
     reasons = collect_partial_reasons(case)
-    case.score = compute_score(
-        case.findings, partial=bool(reasons) or case.partial, reasons=reasons
+    case.score, case.findings = score_findings(
+        case.findings,
+        case.flags,
+        partial=bool(reasons) or case.partial,
+        reasons=reasons,
+        settings=ctx.settings,
     )
     case.lane = lane_for(case, min_prob=min_prob)
     case.top_finding = top_finding_line(case)

@@ -489,6 +489,10 @@ class Provenance(Strict):
     # {"overrides": [{"rule", "enabled", "severity", "revision"}...], "hash": sha256} when the
     # check catalogue had overrides at analysis time; absent otherwise (docs/data-model.md).
     catalogue: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
+    # How the score was made: {"name": "legacy"|"calibrated", "version", and for calibrated the
+    # weights file's "weights_version", "weights_sha256", "weights_source", "fitted_on_synthetic"}.
+    # Absent on a case stored before the field existed (those were scored by the legacy rule).
+    score_model: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------------------

@@ -35,7 +35,12 @@ def test_shape_and_values_come_from_the_constants(client: TestClient) -> None:
         "lanes",
         "ruleset_version",
     ]
-    assert body["score"] == {
+    # the original keys are unchanged; the model keys are additive (scoring-and-queue.md 4.4a) and
+    # the default model is the legacy sum
+    score = dict(body["score"])
+    for added in ("model", "model_version", "combination", "note", "ordering_signal_only"):
+        score.pop(added)
+    assert score == {
         "weights": models.SCORE_WEIGHTS,
         "cap": models.SCORE_CAP,
         "bands": {
@@ -44,6 +49,8 @@ def test_shape_and_values_come_from_the_constants(client: TestClient) -> None:
         },
         "counting": "Each finding counts once, however many flags or documents it covers.",
     }
+    assert body["score"]["model"] == "legacy" and body["score"]["combination"] == "sum"
+    assert body["score"]["ordering_signal_only"] is True
     assert body["coverage"]["low_coverage_ratio"] == queue.LOW_COVERAGE_RATIO
     assert body["coverage"]["fast_lane_min_coverage"] == queue.FAST_LANE_MIN_COVERAGE
     assert body["fast_lane"]["max_score"] == queue.FAST_LANE_MAX_SCORE

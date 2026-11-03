@@ -51,6 +51,14 @@ def catalogue_stamp(overrides: Mapping[str, RuleOverride]) -> dict[str, Any] | N
     }
 
 
+def describe_score_model(ctx_settings) -> dict[str, Any]:  # noqa: ANN001 - Settings
+    """Name and version of the scoring model (and, for the calibrated one, the weights file's
+    version and sha256) so a stored case says how it was scored."""
+    from app.score_model import describe_model
+
+    return describe_model(ctx_settings)
+
+
 def _join(values: Iterable[str]) -> str:
     return "+".join(sorted(set(values)))
 
@@ -119,4 +127,5 @@ def build_provenance(ctx: CaseContext) -> Provenance:
         flags_digest=flags_digest(case.flags),
         created_at=utcnow(),
         catalogue=catalogue_stamp(ctx.overrides),
+        score_model=describe_score_model(s),
     )

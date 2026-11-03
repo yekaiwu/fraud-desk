@@ -16,6 +16,7 @@ import subprocess
 from datetime import datetime, timedelta
 from typing import Any
 
+from app import score_model
 from app.core.config import Settings
 from app.core.costs import DailySpend, PriceTable
 from app.core.db import Database, ts
@@ -318,6 +319,7 @@ def snapshot(db: Database, settings: Settings, *, now: datetime) -> dict[str, An
         "owner_named": bool(owner),
         "disk_encryption": disk_encryption(),
         "encryption_at_rest": encryption_status(db, settings),
+        "score_model": score_model.status(settings),
     }
 
 
