@@ -1,5 +1,7 @@
 # Running against the local LLM server
 
+> **Purpose of this page's setup, stated plainly (3 November 2026).** The local Qwen model is a **proof of concept for the in-house option**: it shows that the whole reading path can run on a machine the owner controls, with no data leaving it (see `GLDB_PRIVATE_MODE`), and it is measured in section 12. It is **not** meant to replace the hosted model for the demo, which uses Claude Haiku 5.5 because it is more capable. What it has not been tested on: poor scans, phone photos and tampered documents.
+
 How to point the tool at the owner's own machine (a Mac running Qwen3.8-27B) instead of a hosted model, what changes, and what it can and cannot do. Companion to [ingest-and-extraction.md](ingest-and-extraction.md) (the stages), [cost-efficiency.md](cost-efficiency.md) (budget guard) and the server's own README (`yekaiwu/local-llm-server`). All data in this repo is fictitious.
 
 Status, stated plainly: this page was first written and tested **offline** (fake server over `httpx.MockTransport`, a stub SDK, a fake OCR backend, and a real `ocrmac` run on a generated page). Since then the model has been run live; section 11 records what was checked on 2 November 2026 (where the weights came from, what the servers log, and live runs of the reading path), and **section 12 (3 November 2026) records why that first scan run was slow and wrong, what was changed, eight scanned bundles measured one at a time, the comparison with Claude Haiku, and the private mode**.
