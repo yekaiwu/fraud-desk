@@ -99,3 +99,15 @@ describe("helpers", () => {
     expect(JSON.stringify(out)).not.toContain("undefined");
   });
 });
+
+describe("model calls", () => {
+  it("lists the team's calls on the team step only, not again under the cross-document step", () => {
+    const c = { ...fraud(), agents: team };
+    const call = (purpose: string, stage: "rules" | "crossdoc") => ({ stage, purpose, model: "m", prompt_tokens: 1, completion_tokens: 1, usd: "0.001", seconds: 1, cache_hit: false });
+    c.costs = [call("semantic:txn_labels", "rules"), call("semantic:coherence_fit", "crossdoc"), call("agent:challenger", "crossdoc"), call("agent:case_officer", "crossdoc")];
+    const steps = buildTimeline(c);
+    expect(steps.find((s) => s.key === "crossdoc")!.calls.map((x) => x.purpose)).toEqual(["semantic:coherence_fit"]);
+    expect(steps.find((s) => s.key === "team")!.calls.map((x) => x.purpose)).toEqual(["agent:challenger", "agent:case_officer"]);
+    expect(steps.find((s) => s.key === "rules")!.calls).toHaveLength(1);
+  });
+});

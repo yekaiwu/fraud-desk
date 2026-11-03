@@ -49,6 +49,9 @@ export interface TimelineStep {
   entries: ReviewEntry[];
 }
 
+/** The review team's two model calls are recorded under the cross-document stage; they belong to the team step. */
+const isTeamCall = (x: Cost): boolean => /^agent:/i.test(x.purpose);
+
 const emptyTally = (): SeverityTally => ({ high: 0, medium: 0, low: 0, info: 0 });
 
 export function tallyOf(flags: Pick<Flag, "severity">[]): SeverityTally {
@@ -146,7 +149,7 @@ export function buildTimeline(c: CaseDetail): TimelineStep[] {
       error: rec.error ?? null,
       checks: c.check_runs.filter((r) => r.stage === stage),
       flags,
-      calls: c.costs.filter((x) => x.stage === stage),
+      calls: c.costs.filter((x) => x.stage === stage && !isTeamCall(x)),
     });
     if (stage === "crossdoc" && (c.agents ?? []).length > 0) {
       const agents = c.agents ?? [];
@@ -164,7 +167,7 @@ export function buildTimeline(c: CaseDetail): TimelineStep[] {
         status: agents.some((a) => a.status === "failed") ? "failed" : "ok",
         headline: `Six members looked at the case after the checks: the specialists reported what their checks found, the challenger ruled on ${judged} ${plural(judged, "flag")} (lowered ${lowered}), the case officer wrote a summary.`,
         agents,
-        calls: c.costs.filter((x) => /agent|challenger|case_officer/i.test(x.purpose)),
+        calls: c.costs.filter(isTeamCall),
       });
     }
   }
