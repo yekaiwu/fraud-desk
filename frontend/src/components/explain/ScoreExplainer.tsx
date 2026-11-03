@@ -36,10 +36,17 @@ export function ScoreExplainer({ c }: { c: CaseDetail }) {
   const weights = method ? SEVERITY_ORDER.map((s) => `${severityLabel(s)} ${method.score.weights[s]}`).join(", ") : null;
   return (
     <>
-      <ExplainLead>
-        The risk score adds up points for what the checks found. Each finding counts once, however many flags sit behind it, and adds points by how serious it is
-        {weights ? `: ${weights}.` : "."} {method ? `The score stops at ${method.score.cap}.` : ""}
-      </ExplainLead>
+      {b.combined ? (
+        <ExplainLead>
+          The risk score combines what the checks found. Each finding counts once, however many flags sit behind it, and counts for more the more reliable its check has been. Findings of the same kind count for less each time, so
+          a few related findings cannot push the score to the top and a worse case scores higher than a bad one.
+        </ExplainLead>
+      ) : (
+        <ExplainLead>
+          The risk score adds up points for what the checks found. Each finding counts once, however many flags sit behind it, and adds points by how serious it is
+          {weights ? `: ${weights}.` : "."} {method ? `The score stops at ${method.score.cap}.` : ""}
+        </ExplainLead>
+      )}
 
       <ExplainSection title="This case">
         {b.rows.length === 0 ? (
@@ -50,20 +57,27 @@ export function ScoreExplainer({ c }: { c: CaseDetail }) {
         ) : (
           <>
             <ExplainTable
-              caption="Points added by this case's findings, by severity"
-              columns={[{ label: "Concern" }, { label: "Findings", numeric: true }, { label: "Points each", numeric: true }, { label: "Points", numeric: true }]}
+              caption={b.combined ? "This case's findings, by severity, with the points each would score alone" : "Points added by this case's findings, by severity"}
+              columns={[
+                { label: "Concern" },
+                { label: "Findings", numeric: true },
+                { label: b.combined ? "Alone, each" : "Points each", numeric: true },
+                { label: b.combined ? "Alone, total" : "Points", numeric: true },
+              ]}
               rows={b.rows.map((r) => ({
                 key: r.severity,
                 cells: [severityLabel(r.severity), r.findings, r.pointsEach === null ? "varies" : r.pointsEach, r.subtotal],
               }))}
               foot={[
-                { key: "total", cells: ["Total", b.findingsCounted, "", b.rawTotal] },
+                b.combined
+                  ? { key: "total", cells: ["Combined score", b.findingsCounted, "", b.value] }
+                  : { key: "total", cells: ["Total", b.findingsCounted, "", b.rawTotal] },
                 ...(b.capped && b.cap !== null ? [{ key: "cap", cells: [`Capped at ${b.cap}`, "", "", b.value] }] : []),
               ]}
             />
             <p className="tabular">
-              {totalText(b)}
-              {b.capped ? "." : `, so the score is ${b.value}.`}{" "}
+              {b.combined ? `The findings are combined, not added: the score is ${b.value}` : totalText(b)}
+              {b.capped || b.combined ? "." : `, so the score is ${b.value}.`}{" "}
               <span className="text-muted">
                 ({b.findingsCounted} {plural(b.findingsCounted, "finding")} from {b.flagsBehind} {plural(b.flagsBehind, "flag")}.)
               </span>
@@ -94,10 +108,14 @@ export function ScoreExplainer({ c }: { c: CaseDetail }) {
       </ExplainSection>
 
       <ExplainNote>A high score means stronger or more concerns, not proof of fraud.</ExplainNote>
+      {method?.score.note ? <ExplainNote>{method.score.note}</ExplainNote> : null}
 
       <TechnicalDetail>
         <p>
-          Score = the sum of the points of every finding{method ? `, limited to ${method.score.cap}` : ""}. A hard stop does not change the score; it only blocks the fast lane.
+          {b.combined
+            ? `Score = 100 x (1 - the product of what each finding leaves unexplained), findings of one family discounted and capped (model ${method?.score.model ?? "calibrated"} ${method?.score.model_version ?? ""}).`
+            : `Score = the sum of the points of every finding${method ? `, limited to ${method.score.cap}` : ""}.`}{" "}
+          A hard stop does not change the score; it only blocks the fast lane.
         </p>
         {method ? <p>{method.score.counting}</p> : null}
         <ExplainFacts

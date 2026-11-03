@@ -238,6 +238,14 @@ export interface ExplainMethod {
     weights: Record<Severity, number>; cap: number;
     bands: { medium_from: number; high_from: number };
     counting: string;
+    /** Which scoring model made the scores: "legacy" adds points up, "calibrated" combines findings as a noisy-OR. Absent on an older backend. */
+    model?: "legacy" | "calibrated";
+    model_version?: string;
+    combination?: "sum" | "noisy_or";
+    /** Says what the weights are and are not (for example "fitted on synthetic data"); shown beside the score explanation. */
+    note?: string;
+    fitted_on_synthetic?: boolean;
+    ordering_signal_only?: boolean;
   };
   coverage: { low_coverage_ratio: number; fast_lane_min_coverage: number; definition: string };
   fast_lane: { requires: string[] };

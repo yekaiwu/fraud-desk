@@ -70,6 +70,31 @@ describe("risk score explainer", () => {
     expect(within(panel).getByRole("row", { name: /Capped at 100/ })).toBeInTheDocument();
   });
 
+  it("explains a combined (calibrated) score: no sum, points alone, and the synthetic-data note", async () => {
+    const base = await handlers.getExplainMethod();
+    vi.spyOn(api, "getExplainMethod").mockResolvedValue({
+      ...base,
+      score: {
+        ...base.score,
+        model: "calibrated",
+        model_version: "1",
+        combination: "noisy_or",
+        fitted_on_synthetic: true,
+        ordering_signal_only: true,
+        note: "The weights behind this score were fitted on synthetic cases. Read the score as a way to order the queue, not as a probability of fraud.",
+      },
+    });
+    const c = cappedCase();
+    c.score = { ...c.score!, value: 78 };
+    renderWithSWR(<ExplainScore c={c} />);
+    const { panel } = await open("How the risk score is calculated");
+    expect(await within(panel).findByText(/The findings are combined, not added: the score is 78\./)).toBeInTheDocument();
+    expect(within(panel).queryByText(/Total 120/)).toBeNull();
+    expect(within(panel).getByRole("row", { name: /Combined score 4 78/ })).toBeInTheDocument();
+    expect(within(panel).getByText(/fitted on synthetic cases/)).toBeInTheDocument();
+    expect(within(panel).queryByText(/does not equal the points above/)).toBeNull();
+  });
+
   it("calls a partial score a floor", async () => {
     renderWithSWR(<ExplainScore c={byId("c_loan_partial")} />);
     const { panel } = await open("How the risk score is calculated");

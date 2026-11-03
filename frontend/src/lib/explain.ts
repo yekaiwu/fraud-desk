@@ -27,6 +27,8 @@ export type ScoreBreakdown = {
   bands: { mediumFrom: number; highFrom: number } | null;
   /** False when the recorded score cannot be reproduced from the findings (it is then shown as recorded). */
   consistent: boolean;
+  /** True for the calibrated model: findings are combined, not added, so each finding's points are what it would score alone. */
+  combined: boolean;
 };
 
 /** Findings grouped by severity with the points each adds, using each finding's own recorded weight. Null while there is no score. */
@@ -41,7 +43,8 @@ export function scoreBreakdown(c: Pick<CaseDetail, "findings" | "score" | "parti
     rows.push({ severity, findings: list.length, pointsEach: weights.size === 1 ? list[0].weight : null, subtotal: list.reduce((n, f) => n + f.weight, 0) });
   }
   const rawTotal = rows.reduce((n, r) => n + r.subtotal, 0);
-  const capped = rawTotal > score.value;
+  const combined = method?.score.combination === "noisy_or";
+  const capped = !combined && rawTotal > score.value;
   const cap = method?.score.cap ?? (capped ? score.value : null);
   const expected = cap === null ? rawTotal : Math.min(cap, rawTotal);
   return {
@@ -55,7 +58,8 @@ export function scoreBreakdown(c: Pick<CaseDetail, "findings" | "score" | "parti
     band: score.band,
     partial: c.partial || score.partial,
     bands: method ? { mediumFrom: method.score.bands.medium_from, highFrom: method.score.bands.high_from } : null,
-    consistent: expected === score.value || (cap === null && capped),
+    consistent: combined || expected === score.value || (cap === null && capped),
+    combined,
   };
 }
 
