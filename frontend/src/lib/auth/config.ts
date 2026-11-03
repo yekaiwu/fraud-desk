@@ -13,7 +13,7 @@
  */
 
 export const MIN_USERNAME_CHARS = 3;
-export const MIN_PASSWORD_CHARS = 12;
+export const MIN_PASSWORD_CHARS = 10;
 export const MIN_SECRET_CHARS = 32;
 export const SESSION_COOKIE = "gldb_session";
 export const SESSION_MAX_AGE_S = 12 * 60 * 60;

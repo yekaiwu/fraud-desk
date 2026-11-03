@@ -146,7 +146,7 @@ A new password or session secret signs everybody out. A new proxy secret needs *
 Before you publish:
 
 - [ ] `deploy/status.sh`: both agents running; backend `/cases` without the secret is 401; frontend `/` is 303; listeners only on `127.0.0.1`.
-- [ ] `deploy/.env.production` is mode 600, not in git, not in a backup others can read; password at least 12 characters, session secret at least 32, proxy secret at least 16.
+- [ ] `deploy/.env.production` is mode 600, not in git, not in a backup others can read; password at least 10 characters (longer is better, the demo is on a public address), session secret at least 32, proxy secret at least 16.
 - [ ] Six wrong logins return 429 on the sixth.
 - [ ] Every sample and anything uploaded is fictitious.
 - [ ] If a paid model is on, the daily cap is set (and a monthly limit in the provider's console).

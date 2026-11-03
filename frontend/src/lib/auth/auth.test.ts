@@ -106,7 +106,7 @@ describe("auth config (fail closed)", () => {
     const c = readAuthConfig({ ...good, GLDB_SITE_PASSWORD: "short-pw", GLDB_SESSION_SECRET: "tiny" });
     expect(c.mode).toBe("error");
     const text = c.mode === "error" ? c.problems.join(" ") : "";
-    expect(text).toContain("GLDB_SITE_PASSWORD must be at least 12");
+    expect(text).toContain("GLDB_SITE_PASSWORD must be at least 10");
     expect(text).toContain("GLDB_SESSION_SECRET must be at least 32");
     expect(text).not.toContain("short-pw");
   });
@@ -117,9 +117,9 @@ describe("auth config (fail closed)", () => {
     expect(readAuthConfig({ ...good, GLDB_SITE_USERNAME: "abc" }).mode).toBe("enforce");
   });
 
-  it("whitespace-only does not count as set; 11 chars fails, 12 passes", () => {
-    expect(readAuthConfig({ ...good, GLDB_SITE_PASSWORD: "a".repeat(11) }).mode).toBe("error");
-    expect(readAuthConfig({ ...good, GLDB_SITE_PASSWORD: "a".repeat(12) }).mode).toBe("enforce");
+  it("whitespace-only does not count as set; 9 chars fails, 10 passes", () => {
+    expect(readAuthConfig({ ...good, GLDB_SITE_PASSWORD: "a".repeat(9) }).mode).toBe("error");
+    expect(readAuthConfig({ ...good, GLDB_SITE_PASSWORD: "a".repeat(10) }).mode).toBe("enforce");
     expect(readAuthConfig({ ...good, GLDB_SESSION_SECRET: "a".repeat(31) }).mode).toBe("error");
     expect(readAuthConfig({ ...good, GLDB_SESSION_SECRET: "a".repeat(32) }).mode).toBe("enforce");
   });
@@ -299,9 +299,9 @@ describe("two accounts, officer and boss, and the password length rule", () => {
     expect(await sessionUser(cfg, boss, T0 + 1000)).toBe("boss");
   });
 
-  it("a password of 11 characters is a setup error that stops the site, for either account; 12 is fine", () => {
-    const eleven = "elevenchars";
-    const twelve = "twelvechars!";
+  it("a password of 9 characters is a setup error that stops the site, for either account; 10 is fine", () => {
+    const eleven = "ninechars"; // 9 characters
+    const twelve = "tenchars10"; // 10 characters
     for (const cfg of [readAuthConfig({ ...live, GLDB_SITE_PASSWORD: eleven }), readAuthConfig({ ...live, GLDB_SITE_USERS: JSON.stringify({ boss: eleven }) })]) {
       expect(cfg.mode).toBe("error");
       expect(JSON.stringify(cfg)).not.toContain(eleven);
