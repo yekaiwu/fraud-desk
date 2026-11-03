@@ -1,5 +1,5 @@
 #!/bin/bash
-# Add the five showcase cases (sanctions hit, live register lookup, AI-generated image, hidden instruction,
+# Add the six showcase cases (sanctions hit, live lookup verified and wrong-date, AI-generated image, hidden instruction,
 # receipt that does not add up) to the running demo. Nothing existing is touched.
 #
 #   deploy/add-showcases.sh              add the ones that are not there yet

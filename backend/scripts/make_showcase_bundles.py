@@ -5,10 +5,11 @@
 Writes ``<out>/<slug>/<files>`` and ``<out>/showcases.json`` (reference, use case, applicant, files and
 what the case is meant to show). ``upload_showcases.py`` posts them to a running backend.
 
-The documents are fictitious and carry the specimen footer, with one exception: the sanctioned-counterparty
-invoice names an entity that really is on the UN and UK lists, because the point is that the screening
-finds a real listing. That entity is a listed shipping company, not a person, and only appears as an
-invoice supplier on a document that is marked as a specimen.
+The documents are fictitious and carry the specimen footer, with two kinds of real identity because the
+point of those cases is that an outside source recognises them: the sanctioned-counterparty invoice names an
+entity that really is on the UN and UK lists (a listed shipping company, not a person), and the two lookup
+cases carry the name, UEN and address of Green Link Digital Bank Pte. Ltd., the project sponsor, who agreed
+to it. Only that identity is real; the directors, owners, statements and every figure are generated.
 
 Seeded and deterministic (never reads the clock).
 """
@@ -19,7 +20,6 @@ import argparse
 import io
 import json
 import shutil
-import subprocess
 import sys
 from datetime import date
 from decimal import Decimal
@@ -182,29 +182,48 @@ def inconsistent_receipt() -> bytes:
     )
 
 
-def kyc_new_company(work: Path) -> tuple[dict[str, bytes], str, str]:
-    """A KYC bundle for a company that is in no register, built with a seed the standard demo does not use,
-    so the live ACRA lookup is the only thing that can speak for it."""
-    out = work / "kyc-src"
+# The sponsor's public registration (ACRA open data and GLEIF agree on all of these). Only the identity is
+# real; the directors, owners, statements and every figure in the bundle are generated and fictitious.
+GLDB_NAME = "Green Link Digital Bank Pte. Ltd."
+GLDB_UEN = "202115950G"
+GLDB_INCORPORATED = date(2021, 5, 5)
+GLDB_ADDRESS = "20 Pasir Panjang Road #07-25-28, Mapletree Business City, Singapore 117439"
+
+
+def kyc_gldb(work: Path, incorporated: date) -> tuple[dict[str, bytes], str, str]:
+    """A KYC bundle whose company carries the sponsor's real name, UEN and address. ``incorporated`` is the
+    date printed on the documents: the real one for the matching case, another for the mismatch case.
+    The generator's company is replaced after it is made, so no other part of the bundle changes."""
+    from scripts import make_bundle
+    from scripts._gen import world
+
+    out = work / f"kyc-gldb-{incorporated.isoformat()}"
     if out.exists():
         shutil.rmtree(out)
-    subprocess.run(
-        [
-            sys.executable,
-            str(_BACKEND / "scripts" / "make_bundle.py"),
-            "--scenario", "kyc", "--variant", "clean", "--seed", "7311", "--company-index", "5",
-            "--render", "digital", "--out", str(out),
-        ],
-        check=True,
-        capture_output=True,
-    )  # fmt: skip
+    original = world._make_company
+
+    def make_company(w, rng):  # noqa: ANN001, ANN202
+        original(w, rng)
+        c = w.company
+        c.party.name, c.party.uen, c.party.address = GLDB_NAME, GLDB_UEN, GLDB_ADDRESS
+        c.incorporation = incorporated
+        c.activity = "Digital wholesale banking"
+
+    world._make_company = make_company
+    try:
+        rc = make_bundle.main(
+            [
+                "--scenario", "kyc", "--variant", "clean", "--seed", "7311", "--company-index", "5",
+                "--render", "digital", "--out", str(out),
+            ]
+        )  # fmt: skip
+    finally:
+        world._make_company = original
+    if rc:
+        raise RuntimeError(f"make_bundle failed with {rc}")
     bundle = next((out / "bundles").iterdir())
-    manifest = json.loads((bundle / "manifest.json").read_text())
     files = {p.name: p.read_bytes() for p in sorted((bundle / "digital").glob("*.pdf"))}
-    app = manifest.get("applicant") or manifest.get("company") or {}
-    name = app.get("name") or app.get("company_name") or ""
-    uen = app.get("uen") or ""
-    return files, name, uen
+    return files, GLDB_NAME, GLDB_UEN
 
 
 SHOWCASES = [
@@ -217,15 +236,22 @@ SHOWCASES = [
         "expect": "x_sanctions_screen",
     },
     {
-        "slug": "live-lookup",
-        "reference": "showcase-2-live-registry-lookup",
+        "slug": "lookup-match",
+        "reference": "showcase-2-live-lookup-verified",
         "use_case": "kyc",
-        "shows": "Live lookup: the UEN printed on the documents is asked of the real ACRA register and belongs to a different company, with a different incorporation date.",
+        "shows": "Live lookup, the good case: the sponsor's real name, UEN and incorporation date are asked of the real ACRA register and GLEIF and agree, so no flag is raised and the registry checks run.",
+        "expect": "none from the lookup",
+    },
+    {
+        "slug": "lookup-mismatch",
+        "reference": "showcase-3-live-lookup-wrong-date",
+        "use_case": "kyc",
+        "shows": "Live lookup, the bad case: the same real UEN and name, but the documents print an incorporation date the register does not hold.",
         "expect": "x_entity_vs_registry",
     },
     {
         "slug": "ai-image",
-        "reference": "showcase-3-ai-generated-image",
+        "reference": "showcase-4-ai-generated-image",
         "use_case": "loan",
         "applicant_name": "Kallang Orbit Pte. Ltd.",
         "shows": "AI provenance: an invoice that is a picture carrying an image generator's metadata.",
@@ -233,7 +259,7 @@ SHOWCASES = [
     },
     {
         "slug": "hidden-instruction",
-        "reference": "showcase-4-hidden-instruction",
+        "reference": "showcase-5-hidden-instruction",
         "use_case": "loan",
         "applicant_name": "Kallang Orbit Pte. Ltd.",
         "shows": "Prompt injection: text inside a document that tries to order the AI to approve it. It is treated as data, noted on the document, and the fast lane stays closed.",
@@ -241,7 +267,7 @@ SHOWCASES = [
     },
     {
         "slug": "receipt",
-        "reference": "showcase-5-receipt-does-not-add-up",
+        "reference": "showcase-6-receipt-does-not-add-up",
         "use_case": "loan",
         "applicant_name": "Kallang Orbit Pte. Ltd.",
         "shows": "Arithmetic: a till receipt whose lines, GST and total contradict each other.",
@@ -260,13 +286,14 @@ def build(out: Path) -> list[dict]:
         "hidden-instruction": {"invoice_HMS-2026-1190.pdf": instruction_invoice()},
         "receipt": {"receipt_R-88214.pdf": inconsistent_receipt()},
     }
-    kyc_files, kyc_name, kyc_uen = kyc_new_company(out.parent / ".showcase-work")
-    files_by_slug["live-lookup"] = kyc_files
+    work = out.parent / ".showcase-work"
+    files_by_slug["lookup-match"], gldb_name, gldb_uen = kyc_gldb(work, GLDB_INCORPORATED)
+    files_by_slug["lookup-mismatch"], _, _ = kyc_gldb(work, date(2020, 3, 17))
     manifest = []
     for sc in SHOWCASES:
         entry = dict(sc)
-        if sc["slug"] == "live-lookup":
-            entry["applicant_name"], entry["applicant_uen"] = kyc_name, kyc_uen
+        if sc["slug"].startswith("lookup-"):
+            entry["applicant_name"], entry["applicant_uen"] = gldb_name, gldb_uen
         d = out / sc["slug"]
         d.mkdir()
         names = []
@@ -276,7 +303,7 @@ def build(out: Path) -> list[dict]:
         entry["files"] = names
         manifest.append(entry)
     (out / "showcases.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    shutil.rmtree(out.parent / ".showcase-work", ignore_errors=True)
+    shutil.rmtree(work, ignore_errors=True)
     return manifest
 
 

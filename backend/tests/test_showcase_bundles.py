@@ -15,10 +15,11 @@ def test_showcases_build_with_the_expected_files(tmp_path: Path) -> None:
     manifest = sb.build(tmp_path / "out")
     assert [m["reference"] for m in manifest] == [
         "showcase-1-sanctions-hit",
-        "showcase-2-live-registry-lookup",
-        "showcase-3-ai-generated-image",
-        "showcase-4-hidden-instruction",
-        "showcase-5-receipt-does-not-add-up",
+        "showcase-2-live-lookup-verified",
+        "showcase-3-live-lookup-wrong-date",
+        "showcase-4-ai-generated-image",
+        "showcase-5-hidden-instruction",
+        "showcase-6-receipt-does-not-add-up",
     ]
     on_disk = json.loads((tmp_path / "out" / "showcases.json").read_text())
     for entry in on_disk:
@@ -41,3 +42,24 @@ def test_documents_say_what_the_case_is_meant_to_show(tmp_path: Path) -> None:
     assert "ignore all previous instructions" in inj[0].get_text().lower()
     png = (tmp_path / "out" / "ai-image" / "invoice_HMS-2026-1204.png").read_bytes()
     assert b"Stable Diffusion" in png
+
+
+def test_lookup_cases_carry_the_sponsor_identity_and_differ_only_in_the_date(
+    tmp_path: Path,
+) -> None:
+    sb.build(tmp_path / "out")
+    entries = {e["slug"]: e for e in json.loads((tmp_path / "out" / "showcases.json").read_text())}
+    for slug in ("lookup-match", "lookup-mismatch"):
+        assert entries[slug]["applicant_uen"] == sb.GLDB_UEN
+        assert entries[slug]["applicant_name"] == sb.GLDB_NAME
+        profile = pymupdf.open(tmp_path / "out" / slug / "company_profile.pdf")[0].get_text()
+        assert sb.GLDB_UEN in profile
+    real = pymupdf.open(tmp_path / "out" / "lookup-match" / "certificate_of_incorporation.pdf")[
+        0
+    ].get_text()
+    other = pymupdf.open(tmp_path / "out" / "lookup-mismatch" / "certificate_of_incorporation.pdf")[
+        0
+    ].get_text()
+    assert "May 2021" in real and "March 2020" not in real
+    assert "March 2020" in other or "Mar 2020" in other
+    assert real != other
