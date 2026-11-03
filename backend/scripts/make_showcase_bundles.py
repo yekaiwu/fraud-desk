@@ -208,7 +208,7 @@ def kyc_gldb(work: Path, incorporated: date, seed: int) -> tuple[dict[str, bytes
         c = w.company
         c.party.name, c.party.uen, c.party.address = GLDB_NAME, GLDB_UEN, GLDB_ADDRESS
         c.incorporation = incorporated
-        c.activity = "Digital wholesale banking"
+        c.activity = "Trade finance and settlement services for corporate clients"
 
     world._make_company = make_company
     try:
