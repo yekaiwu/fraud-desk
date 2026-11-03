@@ -469,3 +469,20 @@ def test_a_read_document_with_figures_is_not_an_unread_document() -> None:
     case = scored([], runs(21), docs=[ok])
     assert unread_figure_documents(case) == []
     assert case.lane == "fast"
+
+
+def test_instruction_text_on_a_page_blocks_the_fast_lane() -> None:
+    from app.core.models import StageRecord
+
+    ctx = make_ctx([make_doc("invoice", id="d1")], check_runs=runs(21))
+    ctx.case.stages = [
+        StageRecord(stage="classify", status="ok", detail={"injection_suspected": 1})
+    ]
+    run_stage(ctx)
+    assert ctx.case.lane == "loan"
+    ctx2 = make_ctx([make_doc("invoice", id="d1")], check_runs=runs(21))
+    ctx2.case.stages = [
+        StageRecord(stage="classify", status="ok", detail={"injection_suspected": 0})
+    ]
+    run_stage(ctx2)
+    assert ctx2.case.lane == "fast"

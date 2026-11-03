@@ -102,6 +102,17 @@ def unread_figure_documents(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -
     return out
 
 
+def injection_suspected_pages(case: Case) -> int:
+    """Pages whose text looks like an instruction to the reader (the classifier counts them and
+    changes nothing). A document that talks to its reader is not one to look at last (red-team
+    attack R90: 'ignore previous instructions' text left the case in the fast lane)."""
+    return sum(
+        int(st.detail.get("injection_suspected") or 0)
+        for st in case.stages
+        if st.stage == "classify"
+    )
+
+
 def page_counts(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> tuple[int, int]:
     """``(total_pages, unchecked_pages)`` (section 4.6); see ``unchecked_pages`` for the rule."""
     total = sum(len(file.pages) for file in case.files)
@@ -147,7 +158,7 @@ def fast_lane_eligible(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> boo
     # a signal the model derived is a reason to look at the case now, never one to look last
     if any(f.weight > 0 and f.rules and all(map(is_semantic_rule, f.rules)) for f in case.findings):
         return False
-    if unread_figure_documents(case, min_prob=min_prob):
+    if unread_figure_documents(case, min_prob=min_prob) or injection_suspected_pages(case):
         return False
     # switching a hard-stop check off must not open the fast lane that its flags would have shut
     if any(r.code == "switched_off" and r.rule in HARD_STOP_RULES for r in case.check_runs):
