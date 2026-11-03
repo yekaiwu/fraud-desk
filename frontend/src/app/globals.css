@@ -5,23 +5,23 @@
    scripts/contrast.mjs (WCAG AA: 4.5:1 text, 3:1 large text and UI parts). Re-run it when you change a value. */
 :root {
   /* paper and ink */
-  --paper: #f6f3ec; /* page */
-  --paper-2: #eeeae0; /* sunken wells, hover, table header */
-  --surface: #fffdf8; /* raised cards */
+  --paper: #f5f6f6; /* page */
+  --paper-2: #eceeee; /* sunken wells, hover, table header */
+  --surface: #ffffff; /* raised cards */
   --ink: #14201b; /* body text, strongest */
   --ink-2: #3a4a43; /* secondary text */
   --muted: #5e6d66; /* tertiary text, captions (>= 4.5:1 on paper, paper-2, surface) */
-  --rule: #d9d3c4; /* hairlines, borders */
-  --rule-strong: #857d68; /* control borders (>= 3:1 on paper and surface) */
+  --rule: #e1e4e3; /* hairlines, borders */
+  --rule-strong: #858c89; /* control borders (>= 3:1 on paper and surface) */
 
   /* brand */
   --brand: #0f3d2e; /* deep institutional green: header band, primary buttons */
   --brand-2: #1b5e46; /* links, active states, focus ring */
   --brand-tint: #e3efe8;
-  --brass: #b8893b; /* FILLS ONLY (never text): "needs your attention" accent */
-  --brass-deep: #7a5a1c; /* brass as text */
-  --brass-tint: #f3e8cf;
-  --brass-light: #e3c27f; /* brass on the dark green band, focus ring on dark */
+  --brass: #8c9590; /* FILLS ONLY (never text): neutral "needs your attention" accent (was brass) */
+  --brass-deep: #46504c; /* attention accent as text */
+  --brass-tint: #eef0ef;
+  --brass-light: #d5ded9; /* attention accent on the dark green band, focus ring on dark */
 
   /* risk (the only places red / amber / green appear) */
   --sev-high: #a8231b;
@@ -34,7 +34,7 @@
   --sev-info-tint: #e4ebf3;
 
   /* text on the dark green band */
-  --on-brand: #f6f3ec;
+  --on-brand: #f5f6f6;
   --on-brand-muted: #b7cdc1;
 
   --ring: var(--brand-2);

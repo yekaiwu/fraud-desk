@@ -1,9 +1,9 @@
 // WCAG contrast check for the design tokens in src/app/globals.css. Run: node scripts/contrast.mjs (exit code 1 on any FAIL).
 const P = {
-  paper:"#F6F3EC", paper2:"#EEEAE0", surface:"#FFFDF8", ink:"#14201B", ink2:"#3A4A43", muted:"#5E6D66", rule:"#D9D3C4", ruleStrong:"#857D68", brassLight:"#E3C27F",
-  brand:"#0F3D2E", brand2:"#1B5E46", brandTint:"#E3EFE8", brass:"#B8893B", brassInk:"#7A5A1C", brassTint:"#F3E8CF",
+  paper:"#F5F6F6", paper2:"#ECEEEE", surface:"#FFFFFF", ink:"#14201B", ink2:"#3A4A43", muted:"#5E6D66", rule:"#E1E4E3", ruleStrong:"#858C89", brassLight:"#D5DED9",
+  brand:"#0F3D2E", brand2:"#1B5E46", brandTint:"#E3EFE8", brass:"#8C9590", brassInk:"#46504C", brassTint:"#EEF0EF",
   high:"#A8231B", highTint:"#F8E4E1", medium:"#9A5B00", mediumTint:"#FBEBD0", low:"#2A7050", lowTint:"#E1F0E8", info:"#3D5A80", infoTint:"#E4EBF3",
-  onBrand:"#F6F3EC", onBrandMuted:"#B7CDC1", onBrandBrass:"#E3C27F", white:"#FFFFFF",
+  onBrand:"#F5F6F6", onBrandMuted:"#B7CDC1", onBrandBrass:"#D5DED9", white:"#FFFFFF",
 };
 const lin = c => { c/=255; return c<=0.03928? c/12.92 : ((c+0.055)/1.055)**2.4; };
 const L = h => { const n=parseInt(h.slice(1),16); return 0.2126*lin(n>>16&255)+0.7152*lin(n>>8&255)+0.0722*lin(n&255); };
