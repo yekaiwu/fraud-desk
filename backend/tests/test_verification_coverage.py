@@ -23,7 +23,6 @@ import httpx
 import pytest
 
 from app.checks import registry as check_registry
-from app.core.config import Settings
 from app.sources import gleif as gleif_mod
 from app.sources import onemap as onemap_mod
 from scripts import update_sanctions as U
@@ -201,8 +200,6 @@ def test_a_configured_source_that_cannot_be_reached_counts_as_not_run_and_marks_
 def test_private_mode_blocks_every_outbound_source_and_leaves_coverage_alone(
     runner, monkeypatch
 ) -> None:  # noqa: ANN001
-    monkeypatch.setattr(Settings, "private_mode", "on", raising=False)
-
     def boom(*a, **k):  # noqa: ANN002, ANN003, ANN202
         raise AssertionError("a connection was opened in private mode")
 
@@ -212,6 +209,7 @@ def test_private_mode_blocks_every_outbound_source_and_leaves_coverage_alone(
     rec = analyse(
         runner.base("loan"), runner.work, "private",
         gleif="on", onemap_token="tok-test", iras_api_key="key-test", registry_live=True,
+        private_mode="on",
     )  # fmt: skip
     ctl = runner.control("loan")
     assert rec.lane == "fast" and not rec.partial and rec.medhigh() == []
