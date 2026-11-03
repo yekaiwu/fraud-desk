@@ -1727,7 +1727,7 @@ LIVE_STATUSES = ("live", "registered")  # "Live Company", "Registered"; anything
     stage="crossdoc",
     severity="high",
     use_cases={"kyc"},
-    description="Company name, status and incorporation date match the live company register",
+    description="Company name, status and incorporation date match the live ACRA company register",
     tamper="company name or incorporation date edited against the register",
 )
 def x_entity_vs_registry(ctx: CaseContext) -> list[Flag]:
@@ -1766,12 +1766,12 @@ def x_entity_vs_registry(ctx: CaseContext) -> list[Flag]:
                     region=labelled(cell_region(name_cell), "name"),
                     discriminator="name",
                     evidence=(
-                        f"document: {safe_text(name_cell.value)}; register ({entity.uen}): "
+                        f"document: {safe_text(name_cell.value)}; ACRA register ({entity.uen}): "
                         f"{safe_text(entity.entity_name)}"
                     ),
                     explanation=(
                         f"The company name on this document ({safe_text(name_cell.value)}) is not "
-                        f"the name the register holds for {entity.uen} ({safe_text(entity.entity_name)})."
+                        f"the name the ACRA register holds for {entity.uen} ({safe_text(entity.entity_name)})."
                     ),
                 )
             )
@@ -1785,12 +1785,12 @@ def x_entity_vs_registry(ctx: CaseContext) -> list[Flag]:
                     region=labelled(cell_region(_cell(doc, "incorporation_date")), "date"),
                     discriminator="date",
                     evidence=(
-                        f"document: {stated.isoformat()}; register: "
+                        f"document: {stated.isoformat()}; ACRA register: "
                         f"{entity.incorporation_date.isoformat()}"
                     ),
                     explanation=(
                         f"This document gives {stated.isoformat()} as the incorporation date, but "
-                        f"the register holds {entity.incorporation_date.isoformat()}."
+                        f"the ACRA register holds {entity.incorporation_date.isoformat()}."
                     ),
                 )
             )
@@ -1801,11 +1801,20 @@ def x_entity_vs_registry(ctx: CaseContext) -> list[Flag]:
                 "x_entity_vs_registry",
                 docs=docs,
                 discriminator="status",
-                evidence=f"register status for {entity.uen}: {safe_text(entity.status)}",
+                evidence=f"ACRA register status for {entity.uen}: {safe_text(entity.status)}",
                 explanation=(
-                    f"The register lists this company as '{safe_text(entity.status)}', not as a "
+                    f"The ACRA register lists this company as '{safe_text(entity.status)}', not as a "
                     "live company, so it may not be able to trade or borrow."
                 ),
             )
         )
+    ctx.run_notes["x_entity_vs_registry"] = (
+        f"Asked ACRA (the open company register, live) for {entity.uen}: {safe_text(entity.entity_name)}, "
+        f"{safe_text(entity.status)}, incorporated {entity.incorporation_date.isoformat()}. "
+        + (
+            "The documents agree."
+            if not flags
+            else f"The documents differ on {len(flags)} point(s)."
+        )
+    )
     return flags

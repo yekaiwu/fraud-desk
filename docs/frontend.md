@@ -224,6 +224,8 @@ Visual rules (superseded in part by 6.1: the box is now padded, 2 px, with a 10%
 
 Unit tests (section 12) pin this table: `(.62,.41,.12,.015)` -> `left 62.000% top 41.000% width 12.000% height 1.500%`; `(0,0,1,1)` full page; `(.95,.5,.1,.1)` -> width clamped to `5.000%`; `(.2,.2,0,.1)` -> `null`; `(1,.2,.1,.1)` -> `null`; `(NaN,...)` -> `null`.
 
+**Looked up outside the documents.** The Coverage panel on the case page lists, above the coverage details, every check that ran and left a note (`check_runs[].note`): the outside lookups say what they asked and what came back, whether or not they raised a flag, for example "Asked ACRA (the open company register, live) for 202115950G: GREEN LINK DIGITAL BANK PTE. LTD., Live Company, incorporated 2021-05-05. The documents agree.", "Asked GLEIF for ... (LEI ...): ACTIVE", "Screened 6 name(s) against UN, OFAC, EU, UK lists (snapshot of ..., 33,180 entries): no match." A check that was not run (not configured, unreachable, private mode) is in "Checks that did not run" as before and has no note.
+
 ### 6.1 Where a flag points: box, page, file, case (2026-11)
 
 Not every flag has a box. `lib/flagLocus.ts` puts each flag into one of four kinds from its own data (never from its rule name, so a check added later is handled the same way), and the viewer always answers "Show on document" with something visible:

@@ -35,7 +35,7 @@ from app.names import (
     sorted_rows,
 )
 from app.sources.runner import postal_codes, source_status
-from app.sources.sanctions import SOURCE_LABELS, Hit, Screener, Subject
+from app.sources.sanctions import SOURCE_LABELS, SOURCE_ORDER, Hit, Screener, Subject
 
 # --------------------------------------------------------------------------------------
 # reading the outcome of a source
@@ -330,7 +330,8 @@ def x_sanctions_screen(ctx: CaseContext) -> list[Flag]:
     out = _outcome(ctx, "sanctions", "sanctions")
     screener: Screener = out.data
     flags: list[Flag] = []
-    for subject in _collect_subjects(ctx):
+    subjects = _collect_subjects(ctx)
+    for subject in subjects:
         hits = screener.screen(
             Subject(
                 subject.name,
@@ -345,6 +346,15 @@ def x_sanctions_screen(ctx: CaseContext) -> list[Flag]:
         raise CheckSkipped(
             f"no match in what was screened, but the snapshot is incomplete: {out.reason}"
         )
+    snap = screener.snapshot
+    lists = (
+        ", ".join(sid.upper() for sid in SOURCE_ORDER if snap.source(sid) is not None) + " lists"
+    )
+    ctx.run_notes["x_sanctions_screen"] = (
+        f"Screened {len(subjects)} name(s) against {lists} (snapshot of {snap.built_at.date().isoformat()}, "
+        f"{len(snap.entries):,} entries): "
+        + (f"{len(flags)} possible match(es) for a person to adjudicate." if flags else "no match.")
+    )
     return flags
 
 
@@ -373,6 +383,9 @@ def x_entity_vs_gleif(ctx: CaseContext) -> list[Flag]:
     company is context (an info note, no score)."""
     rec = _outcome(ctx, "gleif", "gleif").data
     if rec is None:
+        ctx.run_notes["x_entity_vs_gleif"] = (
+            "Asked GLEIF: it holds no legal-entity record for this company, which is normal and not a flag."
+        )
         return []
     docs = _usable(ctx, "company_profile", "certificate_of_incorporation")
     flags: list[Flag] = []
@@ -446,6 +459,14 @@ def x_entity_vs_gleif(ctx: CaseContext) -> list[Flag]:
                 "Check that the ownership documents account for them.",
             )
         )
+    ctx.run_notes["x_entity_vs_gleif"] = (
+        f"Asked GLEIF for {safe_text(rec.legal_name)} (LEI {rec.lei}): {rec.entity_status}. "
+        + (
+            "The documents agree."
+            if not [f for f in flags if f.severity != "info"]
+            else "The documents differ."
+        )
+    )
     return flags
 
 

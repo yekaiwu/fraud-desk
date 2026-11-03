@@ -330,6 +330,7 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
                 seconds=seconds,
                 # semantic checks: claims proposed / kept / dropped, so drops are always visible
                 reason=tally.note() if tally is not None else None,
+                note=ctx.run_notes.pop(meta.rule, None),
             )
         )
     case.check_runs.extend(runs)

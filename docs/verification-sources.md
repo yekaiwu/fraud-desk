@@ -173,3 +173,8 @@ A source that is on is listed in the settings hash of the case's provenance; one
 | Sanctions screen on the live snapshot | Loads and screens; a re-ordered name of a listed person is found in the EU, OFAC and UK lists. |
 
 Nothing was sent to a hosted model and nothing was spent.
+
+## Where the lookups show on the case
+
+A lookup that finds nothing wrong would otherwise leave no trace. Each of `x_entity_vs_registry` (the live ACRA register), `x_entity_vs_gleif` and `x_sanctions_screen` writes one sentence about what it asked and what came back into `CheckRun.note` (`ctx.run_notes`, moved onto the run by `run_stage_checks`), and the Coverage panel lists them under "Looked up outside the documents". The flags themselves name the source (`ACRA register: 2021-05-05`).
+

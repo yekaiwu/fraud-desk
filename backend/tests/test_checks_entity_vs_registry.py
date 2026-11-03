@@ -97,3 +97,42 @@ def test_the_owner_and_director_checks_do_not_judge_a_live_entity() -> None:
         x_ownership_vs_registry(ctx)
     with pytest.raises(CheckSkipped):
         x_directors(ctx)
+
+
+def test_the_acra_lookup_leaves_a_note_even_when_it_finds_nothing_wrong() -> None:
+    c = ctx_for([profile()], registry=registry())
+    assert x_entity_vs_registry(c) == []
+    note = c.run_notes["x_entity_vs_registry"]
+    assert note.startswith("Asked ACRA (the open company register, live) for ")
+    assert (
+        "Live Company" in note
+        and "incorporated 2019-05-06" in note
+        and note.endswith("The documents agree.")
+    )
+
+
+def test_the_note_counts_the_differences_and_the_flags_name_acra() -> None:
+    c = ctx_for([profile(incorporated="2015-01-01")], registry=registry())
+    (flag,) = x_entity_vs_registry(c)
+    assert (
+        "ACRA register: 2019-05-06" in flag.evidence
+        and "the ACRA register holds 2019-05-06" in flag.explanation
+    )
+    assert c.run_notes["x_entity_vs_registry"].endswith("The documents differ on 1 point(s).")
+
+
+def test_a_mock_register_entity_is_not_called_acra() -> None:
+    c = ctx_for([profile()], registry=registry(source="mock"))
+    with pytest.raises(CheckSkipped):
+        x_entity_vs_registry(c)
+    assert "x_entity_vs_registry" not in c.run_notes
+
+
+def test_the_runner_puts_the_note_on_the_check_run() -> None:
+    from app.checks.registry import run_stage_checks
+
+    c = ctx_for([profile()], registry=registry())
+    runs = {r.rule: r for r in run_stage_checks(c, "crossdoc")}
+    assert runs["x_entity_vs_registry"].status == "ran"
+    assert (runs["x_entity_vs_registry"].note or "").startswith("Asked ACRA")
+    assert c.run_notes.get("x_entity_vs_registry") is None  # moved onto the run, not left behind

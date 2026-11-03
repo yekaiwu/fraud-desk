@@ -58,6 +58,25 @@ describe("CoveragePanel", () => {
     expect(screen.getByText("A check that did not run is not a clearance.")).toBeInTheDocument();
   });
 
+  it("lists what the outside lookups asked and answered, even when they raised nothing", () => {
+    const c = fraud();
+    c.check_runs.push(
+      { rule: "x_entity_vs_registry", stage: "crossdoc", status: "ran", flags: 0, seconds: 0, note: "Asked ACRA (the open company register, live) for 202115950G: GREEN LINK DIGITAL BANK PTE. LTD., Live Company, incorporated 2021-05-05. The documents agree." },
+      { rule: "x_sanctions_screen", stage: "crossdoc", status: "ran", flags: 3, seconds: 0, note: "Screened 6 name(s) against UN, OFAC, EU, UK lists: 3 possible match(es) for a person to adjudicate." },
+    );
+    render(<CoveragePanel c={c} />);
+    const region = screen.getByRole("region", { name: "Looked up outside the documents" });
+    expect(region).toHaveTextContent("Asked ACRA (the open company register, live) for 202115950G");
+    expect(region).toHaveTextContent("The documents agree.");
+    expect(region).toHaveTextContent("Screened 6 name(s) against UN, OFAC, EU, UK lists");
+    expect(region).toHaveTextContent("(3 flags)");
+  });
+
+  it("shows no lookups block when no check left a note", () => {
+    render(<CoveragePanel c={fraud()} />);
+    expect(screen.queryByRole("region", { name: "Looked up outside the documents" })).toBeNull();
+  });
+
   it("opens the details with the checks that did not run, grouped, without check ids as text", async () => {
     const user = userEvent.setup();
     render(<CoveragePanel c={fraud()} defaultOpen={false} />);

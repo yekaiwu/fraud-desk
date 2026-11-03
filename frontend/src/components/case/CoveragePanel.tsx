@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Globe } from "lucide-react";
 import Link from "next/link";
 import { LOW_COVERAGE_RATIO } from "@/lib/constants";
 import { pageCounts, ruleName } from "@/lib/flags";
@@ -20,6 +20,8 @@ export function CoveragePanel({ c, defaultOpen = true, id = "coverage" }: { c: C
   const cov = c.coverage;
   if (!cov) return null;
   const { unchecked, total } = pageCounts(c);
+  // checks that looked something up outside the documents say what they asked and what came back, flags or not
+  const lookups = c.check_runs.filter((r) => r.status === "ran" && (r.note ?? "").trim() !== "");
   const noSignal = c.check_runs.filter((r) => r.stage === "forensics" && r.status === "ran" && r.flags === 0);
   const groups = groupSkippedChecks(cov.skipped);
   const low = cov.ratio < LOW_COVERAGE_RATIO;
@@ -43,6 +45,23 @@ export function CoveragePanel({ c, defaultOpen = true, id = "coverage" }: { c: C
               <span className="tabular">All {total} {plural(total, "page")} were reviewed.</span>
             </p>
           )}
+          {lookups.length > 0 ? (
+            <div role="region" aria-label="Looked up outside the documents" className="rounded-md border border-rule bg-surface p-3.5">
+              <h4 className="label-caps mb-1.5 flex items-center gap-1.5">
+                <Globe aria-hidden className="h-3.5 w-3.5" />
+                Looked up outside the documents
+              </h4>
+              <ul className="space-y-1.5 text-[0.9375rem]">
+                {lookups.map((r) => (
+                  <li key={r.rule} title={r.rule} className="break-words">
+                    <span className="font-semibold text-ink">{nameOf(r.rule)}</span>
+                    <span className="text-ink-2">: {r.note}</span>
+                    {r.flags > 0 ? <span className="ml-1 font-semibold text-brass-deep">({r.flags} {plural(r.flags, "flag")})</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {didNotRun > 0 ? <p className="text-sm text-ink-2">A check that did not run is not a clearance.</p> : null}
           <Disclosure label="Coverage details" meta={didNotRun > 0 ? `(${didNotRun} ${plural(didNotRun, "check")} did not run)` : undefined} defaultOpen={defaultOpen}>
             <div className="space-y-4 rounded-md border border-rule bg-paper-2/50 p-3.5">

@@ -59,6 +59,9 @@ class CaseContext:
     # key such as "gleif" or "onemap:819829" -> SourceOutcome. Per run, never stored with the case;
     # empty while every source is off. Checks only read it: they never open a connection.
     sources: dict[str, Any] = field(default_factory=dict)
+    # one sentence per check about what it did, written by the check (rule id -> text) and moved onto the
+    # check's run record by the runner; per run
+    run_notes: dict[str, str] = field(default_factory=dict)
 
     @property
     def use_case(self) -> UseCase:

@@ -460,6 +460,9 @@ class CheckRun(Strict):
     code: str | None = Field(default=None, exclude_if=lambda v: v is None)
     flags: int = 0
     seconds: float = 0.0
+    # What the check did, in one sentence for the reviewer, shown even when it raised nothing: an outside
+    # source that was asked and what it answered ("Asked ACRA for ...: found ..."). Left out when None.
+    note: str | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------------------

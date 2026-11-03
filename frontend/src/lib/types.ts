@@ -95,7 +95,9 @@ export interface Coverage { applicable: number; ran: number; ratio: number; skip
 }
 export type UncheckedReason = "no_document" | "unreadable" | "not_checked" | "failed" | "unrecognised_type" | "low_confidence" | "statement_incomplete";
 export interface UncheckedPage { file_id: string; page: number; reason: UncheckedReason }
-export interface CheckRun { rule: string; stage: FlagStage; status: "ran" | "skipped" | "error"; reason?: string | null; code?: string | null; flags: number; seconds: number }
+export interface CheckRun { rule: string; stage: FlagStage; status: "ran" | "skipped" | "error"; reason?: string | null; code?: string | null; flags: number; seconds: number;
+  /** What the check did, in a sentence, even when it raised nothing (an outside source that was asked, and its answer). */
+  note?: string | null }
 export interface Cost {
   stage: StageName; purpose: string; model: string;
   prompt_tokens: number; completion_tokens: number; usd: DecimalString;

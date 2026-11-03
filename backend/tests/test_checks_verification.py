@@ -416,3 +416,28 @@ def test_a_statement_account_number_that_is_an_iban_is_checked_and_plain_numbers
 def test_an_ordinary_reference_is_not_taken_for_an_iban(tmp_path: Path) -> None:
     text = "Invoice INV2024001234567 PO IN24ABCD12345678 ref SG12 3456 7890 total 1,000.00 GST M2-1234567-8"
     assert bank.inv_bank_details_valid(bank_ctx(tmp_path, text)) == []
+
+
+def test_sanctions_and_gleif_leave_a_note_of_what_they_asked(tmp_path: Path) -> None:
+    c = ctx(
+        [company_profile_doc()],
+        settings(tmp_path, sanctions_screen="on"),
+        {"sanctions": screener([LISTED])},
+    )
+    assert v.x_sanctions_screen(c) == []
+    note = c.run_notes["x_sanctions_screen"]
+    assert note.startswith("Screened ") and "name(s) against" in note and note.endswith("no match.")
+    docs = [company_profile_doc(directors=[("Ravi Kumar Subramaniam", None)], shareholders=[])]
+    c2 = ctx(docs, settings(tmp_path, sanctions_screen="on"), {"sanctions": screener([LISTED])})
+    v.x_sanctions_screen(c2)
+    assert "possible match(es) for a person to adjudicate" in c2.run_notes["x_sanctions_screen"]
+
+    s = settings(tmp_path, gleif="on")
+    c3 = ctx([profile()], s, {"gleif": SourceOutcome("ok", data=gleif())})
+    v.x_entity_vs_gleif(c3)
+    assert c3.run_notes["x_entity_vs_gleif"].startswith("Asked GLEIF for ") and c3.run_notes[
+        "x_entity_vs_gleif"
+    ].endswith("The documents agree.")
+    c4 = ctx([profile()], s, {"gleif": SourceOutcome("ok", data=None)})
+    v.x_entity_vs_gleif(c4)
+    assert "holds no legal-entity record" in c4.run_notes["x_entity_vs_gleif"]
