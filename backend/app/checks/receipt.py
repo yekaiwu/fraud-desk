@@ -102,7 +102,7 @@ def _line_amounts(doc: Document) -> list[Decimal]:
     rule="rcpt_lines",
     applies_to={"receipt"},
     severity="medium",
-    use_cases={"aml", "loan"},
+    use_cases=frozenset(),  # listed, and counted in coverage, only when a receipt is in the case
     description="The item lines of a receipt add up to the printed subtotal.",
     tamper="An edited item amount or subtotal on a receipt.",
 )
@@ -151,7 +151,7 @@ def rcpt_lines(ctx: CaseContext) -> list[Flag]:
     rule="rcpt_tax",
     applies_to={"receipt"},
     severity="medium",
-    use_cases={"aml", "loan"},
+    use_cases=frozenset(),  # listed, and counted in coverage, only when a receipt is in the case
     description="The tax on a receipt equals the printed tax rate applied to the subtotal.",
     tamper="An edited tax amount or tax rate on a receipt.",
 )
@@ -209,7 +209,7 @@ def rcpt_tax(ctx: CaseContext) -> list[Flag]:
     rule="rcpt_total",
     applies_to={"receipt"},
     severity="medium",
-    use_cases={"aml", "loan"},
+    use_cases=frozenset(),  # listed, and counted in coverage, only when a receipt is in the case
     description="Subtotal plus tax equals the printed total of a receipt.",
     tamper="An edited receipt total.",
 )
@@ -269,7 +269,7 @@ def rcpt_total(ctx: CaseContext) -> list[Flag]:
     rule="rcpt_dates",
     applies_to={"receipt"},
     severity="medium",
-    use_cases={"aml", "loan"},
+    use_cases=frozenset(),  # listed, and counted in coverage, only when a receipt is in the case
     description="The receipt date is not in the future and is not implausibly old.",
     tamper="A receipt dated after the day it was submitted.",
 )
@@ -327,7 +327,7 @@ def rcpt_dates(ctx: CaseContext) -> list[Flag]:
     rule="rcpt_merchant",
     applies_to={"receipt"},
     severity="low",
-    use_cases={"aml", "loan"},
+    use_cases=frozenset(),  # listed, and counted in coverage, only when a receipt is in the case
     description="A receipt names the merchant that issued it.",
     tamper="A receipt with the merchant's name removed.",
 )
@@ -367,7 +367,7 @@ def _fingerprint(doc: Document) -> str | None:
     rule="rcpt_duplicate",
     applies_to={"receipt"},
     severity="medium",
-    use_cases={"aml", "loan"},
+    use_cases=frozenset(),  # listed, and counted in coverage, only when a receipt is in the case
     description="The same receipt (merchant, date, total and receipt number) is not submitted twice in this case or in an earlier case.",
     tamper="The same receipt submitted twice.",
 )
