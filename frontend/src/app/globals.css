@@ -215,16 +215,20 @@ body {
 }
 
 /* ---- page region overlay (frontend.md section 6) ---- */
+/* Boxes are grown by --pad-x / --pad-y on every side (paddedRegionStyle) so they clearly surround the figure, and they
+   are outlines with a faint tint only: the text under a box stays readable and nothing opaque sits on a figure. */
 .region-box {
+  --pad-x: 8px;
+  --pad-y: 3px;
   position: absolute;
-  background: color-mix(in srgb, var(--region-color) 12%, transparent);
+  background: color-mix(in srgb, var(--region-color) 10%, transparent);
   outline: 2px solid var(--region-color);
-  outline-offset: 2px;
+  outline-offset: 0;
+  border-radius: 3px;
   padding: 0;
   cursor: pointer;
   pointer-events: auto;
 }
-/* 7 px tall boxes stay tappable: the invisible hit area extends 10 px each way */
 .region-box::before {
   content: "";
   position: absolute;
@@ -234,35 +238,119 @@ body {
 .region-box[data-severity="medium"] { outline-style: dashed; }
 .region-box[data-severity="low"] { outline-style: dotted; outline-width: 3px; }
 .region-box[data-severity="info"] { outline-style: double; outline-width: 4px; }
+/* selected: a thicker outline and a see-through glow. Never an opaque ring: rows of a statement are only about
+   15 px apart, and anything opaque round a box would hide the figure on the next line. */
 .region-box[aria-pressed="true"] {
-  box-shadow: 0 0 0 2px #fff inset;
-  background: color-mix(in srgb, var(--region-color) 22%, transparent);
+  outline-width: 3px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--region-color) 28%, transparent);
+  background: color-mix(in srgb, var(--region-color) 16%, transparent);
   animation: region-pulse 0.9s ease-out 1;
 }
 .region-extra {
+  --pad-x: 6px;
+  --pad-y: 1px;
   position: absolute;
-  outline: 1.5px dashed #667085;
-  outline-offset: 1px;
-  background: rgb(102 112 133 / 0.08);
+  outline: 2px dashed #475467;
+  outline-offset: 0;
+  background: rgb(102 112 133 / 0.1);
   pointer-events: none;
 }
-.region-chip {
+/* the letter that stands for a related-evidence box (its name is in the caption) */
+.region-margin-chip.region-margin-chip-extra {
+  background: #fff;
+  color: #475467;
+  border: 2px dashed #475467;
+  box-shadow: none;
+  text-transform: lowercase;
+}
+/* The flag number sits in the page margin, level with its box, so it never covers a figure. */
+.region-margin-chip {
   position: absolute;
-  top: 50%;
   transform: translateY(-50%);
-  min-width: 1rem;
-  padding: 0 0.25rem;
-  border-radius: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
   background: var(--region-color);
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  line-height: 1rem;
-  height: 1rem;
-  text-align: center;
+  line-height: 1;
+  box-shadow: 0 0 0 2px #fff;
   pointer-events: none;
   white-space: nowrap;
 }
+.region-margin-chip[data-selected="true"] {
+  min-width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.82rem;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px color-mix(in srgb, var(--region-color) 40%, transparent);
+}
+/* A flag about the whole page (solid) or the whole file (dashed): a frame inside the page edge and a label. */
+.region-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  outline: 5px solid var(--region-color);
+  outline-offset: -5px;
+  background: color-mix(in srgb, var(--region-color) 5%, transparent);
+}
+.region-frame[data-kind="document"] { outline-style: dashed; }
+.region-frame-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100% - 4.5rem);
+  padding: 0.3rem 0.7rem 0.3rem 0.35rem;
+  border-radius: 999px;
+  background: var(--region-color);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.1;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+.region-frame-tag > .num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--region-color);
+}
+.region-pills {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 45;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: 40%;
+}
+.region-pill {
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  border: 2px solid var(--region-color);
+  background: #fff;
+  color: var(--region-color);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.region-pill[aria-pressed="true"] { background: var(--region-color); color: #fff; }
 @keyframes region-pulse {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--region-color) 60%, transparent); }
   100% { box-shadow: 0 0 0 14px transparent; }

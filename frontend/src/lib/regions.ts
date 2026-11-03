@@ -31,6 +31,22 @@ export function regionStyle(r: Region): { left: string; top: string; width: stri
   return { left: pct(c.x), top: pct(c.y), width: pct(c.w), height: pct(c.h) };
 }
 
+/**
+ * Like `regionStyle`, but grown by a fixed margin on every side (`--pad-x`, `--pad-y` in globals.css), so the box
+ * clearly surrounds the figure instead of sitting tight on its glyphs. The growth is in pixels, so a small figure
+ * is not drawn smaller at a small zoom.
+ */
+export function paddedRegionStyle(r: Region): { left: string; top: string; width: string; height: string } | null {
+  const c = clampRegion(r);
+  if (!c) return null;
+  return {
+    left: `calc(${pct(c.x)} - var(--pad-x))`,
+    top: `calc(${pct(c.y)} - var(--pad-y))`,
+    width: `calc(${pct(c.w)} + 2 * var(--pad-x))`,
+    height: `calc(${pct(c.h)} + 2 * var(--pad-y))`,
+  };
+}
+
 /** Multiple of 200 in [600, 2000], so the server's render cache is shared (api.md section 5). */
 export function pickImageWidth(containerCssPx: number, dpr: number): number {
   const raw = Math.ceil((containerCssPx * dpr) / 200) * 200;

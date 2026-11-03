@@ -39,6 +39,7 @@ from app.alerts import (
 )
 from app.core.config import Settings
 from app.core.db import Database, ts
+from app.core.models import utcnow
 from tests.test_api_support import FIXED_NOW, Env, FakeClock, make_env
 
 WEBHOOK_URL = "https://hooks.example.test/services/T0/B0/TOKEN-WEBHOOK-SECRET"
@@ -538,7 +539,9 @@ def test_a_real_snapshot_drives_the_whole_loop(env_with_cases: Env) -> None:
 def env_with_cases(settings: Settings, db: Database) -> Env:
     from tests.test_monitoring import seed_many
 
-    env = make_env(settings, db, FakeClock(FIXED_NOW))
+    env = make_env(
+        settings, db, FakeClock(utcnow() + timedelta(seconds=30))
+    )  # after the real-clock saves
     seed_many(env, 12, partial=6)
     env.clock.now = datetime.now(tz=FIXED_NOW.tzinfo) + timedelta(seconds=5)
     return env

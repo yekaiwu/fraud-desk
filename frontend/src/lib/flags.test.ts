@@ -24,7 +24,7 @@ describe("flags helpers", () => {
   it("describes where a flag is", () => {
     const f = fraud.flags[0];
     expect(flagLocation(f)).toBe("d1 · transactions row 9 · f1 p1");
-    expect(flagLocation({ ...f, region: null, table: null, field: null })).toBe("d1 · No location on a page");
+    expect(flagLocation({ ...f, region: null, table: null, field: null })).toBe("d1 · whole file");
   });
   it("humanises partial reasons and leaves unknown ones alone", () => {
     expect(humanisePartialReason("stage_failed:rules")).toBe("The rules stage failed");
@@ -74,7 +74,7 @@ describe("plain-language helpers", () => {
     expect(where).toContain("page 1");
     expect(where).toContain("transactions row 9");
     expect(where).not.toMatch(/\bd\d+\b|\bf\d+\b/);
-    expect(flagWhere({ ...fraud.flags[0], region: null, table: null, field: null }, names)).toContain("No location on a page");
+    expect(flagWhere({ ...fraud.flags[0], region: null, table: null, field: null }, names)).toContain("applies to the whole file");
   });
   it("explains unreviewed pages", () => {
     expect(pagesLabelText("f15:2")).toBe("page 2");

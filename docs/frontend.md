@@ -218,11 +218,30 @@ Worked example (data-model.md section 7 flag): `{page 2, x .62, y .41, w .12, h 
 - Desktop, wrapper 700 px wide, 989.9 px tall: box at left 434.0, top 405.9, 84.0 x 14.8 px.
 - Phone 360 px viewport, wrapper 328 px wide (16 px gutters), 463.9 px tall: left 203.4, top 190.2, 39.4 x 7.0 px. Same CSS, no recomputation.
 
-Visual rules: the drawn box is `outline: 2px solid <severity colour>; outline-offset: 2px; background: <colour at 12% alpha>` so the geometry stays exact (do not pad the box itself). Severity is also encoded by line style (high solid, medium dashed 6/3, low dotted, info dash-dot) and by a number label, so it never relies on colour. Minimum touch target: each box is a `<button>` with `::before { content:""; position:absolute; inset:-10px }` so a 7 px tall box is still tappable (at least 24 px). The number chip (flag number, e.g. `3`) sits above the top-left corner; if `y < 0.03` it sits below the box. `extra_regions` (related evidence on the same file and page) draw dashed grey with the region `label`; extra regions on another page are listed in the flag row as "Also on f2 p3" links. Stacking order: info, low, medium, high (high on top); the selected flag gets `z-index` above all and a 2 px white inner ring. Selecting pulses once (`prefers-reduced-motion: reduce` disables it). `pointer-events: auto` only on the boxes.
+Visual rules (superseded in part by 6.1: the box is now padded, 2 px, with a 10% tint and no offset): the drawn box was `outline: 2px solid <severity colour>; outline-offset: 2px; background: <colour at 12% alpha>` so the geometry stays exact (do not pad the box itself). Severity is also encoded by line style (high solid, medium dashed 6/3, low dotted, info dash-dot) and by a number label, so it never relies on colour. Minimum touch target: each box is a `<button>` with `::before { content:""; position:absolute; inset:-10px }` so a 7 px tall box is still tappable (at least 24 px). The number chip (flag number, e.g. `3`) sits above the top-left corner; if `y < 0.03` it sits below the box. `extra_regions` (related evidence on the same file and page) draw dashed grey with the region `label`; extra regions on another page are listed in the flag row as "Also on f2 p3" links. Stacking order: info, low, medium, high (high on top); the selected flag gets `z-index` above all and a 2 px white inner ring. Selecting pulses once (`prefers-reduced-motion: reduce` disables it). `pointer-events: auto` only on the boxes.
 
 `pickImageWidth(containerCssPx, dpr)` = `clamp(ceil(containerCssPx * dpr / 200) * 200, 600, 2000)` (multiples of 200 maximise the server's render cache; api.md allows 200 to 2000). Rotation: regions are in the same rendered orientation as `page.rect` (post-rotation), so no extra transform; mismatch would be a backend bug (section 13).
 
 Unit tests (section 12) pin this table: `(.62,.41,.12,.015)` -> `left 62.000% top 41.000% width 12.000% height 1.500%`; `(0,0,1,1)` full page; `(.95,.5,.1,.1)` -> width clamped to `5.000%`; `(.2,.2,0,.1)` -> `null`; `(1,.2,.1,.1)` -> `null`; `(NaN,...)` -> `null`.
+
+### 6.1 Where a flag points: box, page, file, case (2026-11)
+
+Not every flag has a box. `lib/flagLocus.ts` puts each flag into one of four kinds from its own data (never from its rule name, so a check added later is handled the same way), and the viewer always answers "Show on document" with something visible:
+
+| Kind | When | What "Show on document" does |
+|---|---|---|
+| `box` | a `region` that is part of a page | opens the page, draws the box (padded by `--pad-x`/`--pad-y`, see below) and a numbered chip in the page margin |
+| `page` | a `region` covering at least 90% of the page in both directions (an unreadable or unclassified page) | opens the page and frames it with a solid border and a label "applies to the whole page"; a page-sized box would sit on the page edge and be invisible |
+| `document` | no `region`, but `document_ids` (file metadata, a statistic over several statements, a check against an outside register) | opens the first page of the first document, frames every page of the flag's documents with a dashed border and the label "applies to the whole file", and the caption says it is about the file itself; documents it applies to are links |
+| `case` | neither | nothing to draw, so the caption says the flag concerns the case as a whole |
+
+A region that cannot be drawn (not a number, empty, off the page) counts as no region, so the file is framed rather than nothing shown. Flags of the `page` and `document` kinds also get a small numbered pill in the top right corner of the page so they can be found and chosen from the page itself.
+
+**The caption** (`components/case/FlagCaption.tsx`) sits above the page for the selected flag: number, severity, where it points in words, the explanation, "What was found" (the evidence as label/value rows, `EvidenceRows`), the related evidence by letter, and for a `document` flag the documents as buttons. Everything in it comes from the flag.
+
+**Nothing opaque on the page.** Boxes are outlines with a 10% tint, grown by 8 px sideways and 3 px up and down (statement rows are only about 15 px apart). Flag numbers are chips in the **page margin**, level with the box, on the side nearer to it, kept apart from each other (`placeChips`, using the measured page height); they never sit on a figure. The selected box has a thicker outline and a see-through glow, never an opaque ring. Related evidence (`extra_regions`) is drawn only for the selected flag, as dashed boxes with a lowercase letter in the margin; the names ("opening balance", "previous balance") are in the caption, not on the page, because a label under a figure hides the figure on the next line.
+
+Which checks can produce which kind, from the code and from real runs: [flag-locations.md](flag-locations.md) (regenerate with `backend/scripts/audit_flag_locations.py`).
 
 ## 7. States and partial score
 

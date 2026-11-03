@@ -66,7 +66,7 @@ export function flagLocation(flag: Flag): string {
   if (flag.document_ids.length) parts.push(flag.document_ids.join(", "));
   if (flag.table) parts.push(typeof flag.row === "number" ? `${flag.table} row ${flag.row + 1}` : flag.table);
   else if (flag.field) parts.push(flag.field);
-  parts.push(flag.region ? `${flag.region.file_id} p${flag.region.page}` : "No location on a page");
+  parts.push(flag.region ? `${flag.region.file_id} p${flag.region.page}` : flag.document_ids.length ? "whole file" : "whole case");
   return parts.join(" · ");
 }
 
@@ -201,7 +201,7 @@ export function flagWhere(flag: Flag, names: DocNamer): string {
   else if (flag.document_ids.length) parts.push(flag.document_ids.slice(0, 2).map((d) => names.doc(d)).join(", ") + (flag.document_ids.length > 2 ? ` and ${flag.document_ids.length - 2} more` : ""));
   if (flag.table) parts.push(typeof flag.row === "number" ? `${flag.table.replace(/_/g, " ")} row ${flag.row + 1}` : flag.table.replace(/_/g, " "));
   else if (flag.field) parts.push(flag.field.replace(/_/g, " "));
-  if (!flag.region) parts.push("No location on a page");
+  if (!flag.region) parts.push(flag.document_ids.length ? "applies to the whole file" : "applies to the case as a whole");
   return parts.join(" \u00b7 ");
 }
 

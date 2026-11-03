@@ -33,7 +33,9 @@ def seed_many(env: Env, n: int, *, partial: int = 0, flags: list | None = None) 
             case.stages = [
                 StageRecord(stage="rules", status="ok", warnings=["check_error:x: boom"])
             ]
-            env.db.save_case(case)
+        # saving stamps updated_at with the real clock, and the monitor windows on updated_at: save every case,
+        # not only the partial ones, so all of them sit in the same window however long ago FIXED_NOW was
+        env.db.save_case(case)
 
 
 def test_too_few_cases_gives_no_verdict_rather_than_a_false_all_clear(env: Env) -> None:

@@ -106,7 +106,7 @@ describe("selecting flags", () => {
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
   });
 
-  it("lists a region-less flag with 'No location on a page' and goes to the document's first page", async () => {
+  it("lists a region-less flag as a whole-file flag, goes to the document's first page, frames it and explains why", async () => {
     const user = userEvent.setup();
     const c = getCaseState("c_loan_fraud");
     c.flags[4].region = null;
@@ -114,11 +114,14 @@ describe("selecting flags", () => {
     await openCase("c_loan_fraud");
     const medium = await screen.findByRole("button", { name: /Medium concern/ });
     if (medium.getAttribute("aria-expanded") === "false") await user.click(medium); // groups stay as the officer left them
-    expect(screen.getByText(/No location on a page/)).toBeInTheDocument();
+    expect(screen.getByText(/applies to the whole file/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Flag 5,/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: /Show on document \(flag 5\)/ }));
     expect(await screen.findByText("Page 1 of 1")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /invoice-INV-0042\.pdf/ })).toBeInTheDocument();
+    // the page is not left unmarked: a frame round it, and a caption saying what the flag is and why nothing is circled
+    expect(screen.getByTestId("region-frame")).toHaveAttribute("data-kind", "document");
+    expect(screen.getByTestId("flag-caption")).toHaveTextContent(/about the file itself/);
   });
 });
 

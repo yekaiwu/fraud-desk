@@ -89,7 +89,7 @@ describe("PageViewer page", () => {
     expect(img).toHaveAttribute("loading", "lazy");
     expect(screen.getByRole("region", { name: /Page image/ })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /^Flag \d+,/ }).length).toBeGreaterThan(0);
-    expect(document.querySelector(".region-chip")).toHaveTextContent(/^\d+$/);
+    expect(document.querySelector(".region-margin-chip")).toHaveTextContent(/^\d+$/);
   });
 
   it("shows a key for the outlines on the page, and what is marked", () => {
@@ -139,5 +139,88 @@ describe("PageViewer without files", () => {
   it("says there is nothing to show", () => {
     render(<PageViewer caseId="c" files={[]} flags={[]} selectedFlagId={null} onSelectFlag={vi.fn()} current={{ fileId: "", page: 1 }} onNavigate={vi.fn()} />);
     expect(screen.getByText("No pages to show")).toBeInTheDocument();
+  });
+});
+
+describe("PageViewer: a flag that is not tied to one spot is never left unmarked", () => {
+  // the first flag of the loan-fraud fixture, turned into each kind of location, selected in the viewer
+  function viewWith(change: (f: ReturnType<typeof fraud>["flags"][number]) => void) {
+    const c = fraud();
+    const flag = c.flags[0];
+    change(flag);
+    const numbered = numberFlags(c.findings, c.flags);
+    const r = flag.region;
+    const current = r ? { fileId: r.file_id, page: r.page } : { fileId: c.documents.find((d) => d.id === flag.document_ids[0])!.file_id, page: 1 };
+    render(<PageViewer caseId={c.id} files={c.files} documents={c.documents} flags={numbered.all} selectedFlagId={flag.id} onSelectFlag={() => {}} current={current} onNavigate={() => {}} />);
+    return { c, flag };
+  }
+
+  it("a flag with no region frames the file's page, says so in a caption, and keeps its pill", () => {
+    viewWith((f) => {
+      f.region = null;
+      f.extra_regions = [];
+    });
+    expect(screen.getByTestId("region-frame")).toHaveAttribute("data-kind", "document");
+    expect(screen.getByTestId("flag-caption")).toHaveTextContent(/whole file/);
+    expect(screen.getByRole("group", { name: /whole page or file/i })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Key to the outlines" })).toHaveTextContent("Whole page or file");
+  });
+
+  it("a flag over the whole page frames the page instead of drawing a page-sized box", () => {
+    viewWith((f) => {
+      f.region = { file_id: f.region!.file_id, page: f.region!.page, x: 0, y: 0, w: 1, h: 1, label: "unclassified" };
+    });
+    expect(screen.getByTestId("region-frame")).toHaveAttribute("data-kind", "page");
+    expect(document.querySelector(".region-box[data-flag-id]")?.getAttribute("style") ?? "").not.toContain("100.000%");
+  });
+
+  it("a flag with a region keeps the box and a margin number, and names its related evidence in the caption", () => {
+    viewWith((f) => {
+      f.extra_regions = [{ file_id: f.region!.file_id, page: f.region!.page, x: 0.2, y: 0.2, w: 0.1, h: 0.02, label: "opening balance" }];
+    });
+    expect(document.querySelector(".region-margin-chip")).not.toBeNull();
+    expect(screen.queryByTestId("region-frame")).toBeNull();
+    expect(screen.getByTestId("flag-caption")).toHaveTextContent("opening balance");
+  });
+
+  it("nothing selected: no caption", () => {
+    setup();
+    expect(screen.queryByTestId("flag-caption")).toBeNull();
+  });
+});
+
+describe("PageViewer: every flag of every fixture case, whatever its rule, leaves something visible when selected", () => {
+  type Variant = "as is" | "no region" | "whole page" | "no region, no document";
+  const variants: Variant[] = ["as is", "no region", "whole page", "no region, no document"];
+
+  it("draws a box, a frame or a plain-words caption for each kind of location", () => {
+    let checked = 0;
+    for (const spec of SPECS) {
+      const base = buildCase(spec);
+      for (let i = 0; i < base.flags.length; i++) {
+        for (const variant of variants) {
+          const c = buildCase(spec);
+          const flag = c.flags[i];
+          const r = flag.region;
+          if (variant === "no region" || variant === "no region, no document") flag.region = null;
+          if (variant === "whole page" && r) flag.region = { ...r, x: 0, y: 0, w: 1, h: 1 };
+          if (variant === "no region, no document") flag.document_ids = [];
+          if (variant === "whole page" && !r) continue;
+          if (variant === "as is" && !r) continue; // the fixture's own region-less flags are covered by "no region"
+          const numbered = numberFlags(c.findings, c.flags);
+          const file = c.files[0];
+          const cur = flag.region ? { fileId: flag.region.file_id, page: flag.region.page } : { fileId: c.documents.find((d) => d.id === flag.document_ids[0])?.file_id ?? file.id, page: 1 };
+          const { unmount, container } = render(<PageViewer caseId={c.id} files={c.files} documents={c.documents} flags={numbered.all} selectedFlagId={flag.id} onSelectFlag={() => {}} current={cur} onNavigate={() => {}} />);
+          const label = `${spec.id} flag ${i + 1} (${flag.rule}), ${variant}`;
+          if (variant === "as is") expect(container.querySelector(`.region-box[data-flag-id="${CSS.escape(flag.id)}"]`), label).not.toBeNull();
+          else if (variant === "no region, no document") expect(screen.getByTestId("flag-caption"), label).toHaveTextContent(/case as a whole/);
+          else expect(screen.getByTestId("region-frame"), label).toBeInTheDocument();
+          expect(screen.getByTestId("flag-caption"), label).toBeInTheDocument();
+          unmount();
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
   });
 });

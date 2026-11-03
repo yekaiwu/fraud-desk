@@ -5,12 +5,14 @@ import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { pageUrl } from "@/lib/api";
 import { makeDocNamer } from "@/lib/docNames";
-import { flaggedOnPage, type NumberedFlag } from "@/lib/flags";
+import { locusOf, touchesPage } from "@/lib/flagLocus";
+import type { NumberedFlag } from "@/lib/flags";
 import { severityLabel } from "@/lib/labels";
 import { pickImageWidth } from "@/lib/regions";
 import type { Document, FileRef, Severity } from "@/lib/types";
 import { usePrefersReducedMotion } from "@/lib/useMedia";
 import { Button, EmptyState, Notice, inputClasses } from "../ui";
+import { FlagCaption } from "./FlagCaption";
 import { RegionOverlay, SEVERITY_COLOR } from "./RegionOverlay";
 
 type Zoom = "fit" | 150 | 200;
@@ -59,6 +61,7 @@ export function PageViewer({
   const [nonce, setNonce] = useState(0);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [cw, setCw] = useState(700);
+  const [pageH, setPageH] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const wrapper = useRef<HTMLDivElement>(null);
 
@@ -73,17 +76,17 @@ export function PageViewer({
     return () => ro.disconnect();
   }, [file?.id]);
 
-  const flagFlags = useMemo(() => flags.map((x) => x.flag), [flags]);
+  // What marks a page: a flag with a region on it, or a flag about a whole document that includes it.
+  const countOn = (fileId: string, page: number) => flags.filter(({ flag }) => touchesPage(flag, documents, fileId, page)).length;
   const withFlags = useMemo(() => {
     const seen = new Map<string, { fileId: string; page: number; count: number }>();
     for (const { flag } of flags) {
-      const r = flag.region;
-      if (!r) continue;
-      const k = `${r.file_id}:${r.page}`;
-      seen.set(k, { fileId: r.file_id, page: r.page, count: flaggedOnPage(flagFlags, r.file_id, r.page) });
+      const l = locusOf(flag, documents);
+      const at = l.kind === "box" || l.kind === "page" ? [{ fileId: l.region.file_id, page: l.region.page }] : l.kind === "document" ? l.pages : [];
+      for (const a of at) seen.set(`${a.fileId}:${a.page}`, { fileId: a.fileId, page: a.page, count: flags.filter((x) => touchesPage(x.flag, documents, a.fileId, a.page)).length });
     }
     return [...seen.values()];
-  }, [flags, flagFlags]);
+  }, [flags, documents]);
 
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   const zoomFactor = zoom === "fit" ? 1 : zoom / 100;
@@ -102,17 +105,31 @@ export function PageViewer({
   // bring the selected flag's box into view (no smooth scrolling when reduced motion is requested)
   useEffect(() => {
     if (!selectedFlagId || !wrapper.current) return;
-    const el = Array.from(wrapper.current.querySelectorAll<HTMLElement>("[data-flag-id]")).find((e) => e.dataset.flagId === selectedFlagId);
-    el?.scrollIntoView?.({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    const el = Array.from(wrapper.current.querySelectorAll<HTMLElement>("[data-flag-id]")).find((e) => e.dataset.flagId === selectedFlagId && !e.classList.contains("region-pill"));
+    if (el?.classList.contains("region-frame")) scroller.current?.scrollTo?.({ top: 0, behavior: reduced ? "auto" : "smooth" });
+    else el?.scrollIntoView?.({ block: "center", behavior: reduced ? "auto" : "smooth" });
   }, [selectedFlagId, current.fileId, current.page, reduced]);
+
+  // the page's height in CSS px, so margin chips of neighbouring rows can be kept apart
+  useLayoutEffect(() => {
+    const el = wrapper.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => el.clientHeight > 0 && setPageH(el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [file?.id, current.page, state, zoom]);
 
   if (!file) {
     return <EmptyState compact icon={<ImageOff aria-hidden className="h-6 w-6" />} title="No pages to show" text="This case has no page images to display." />;
   }
   const aspect = natural ? natural.w / natural.h : pageInfo ? pageInfo.width_pt / pageInfo.height_pt : 595.28 / 841.89;
   const pageCount = file.pages.length;
-  const onPage = flags.filter(({ flag }) => flag.region?.file_id === file.id && flag.region.page === current.page);
+  const onPage = flags.filter(({ flag }) => touchesPage(flag, documents, file.id, current.page));
   const here = onPage.length;
+  const selectedNf = selectedFlagId ? (flags.find((x) => x.flag.id === selectedFlagId) ?? null) : null;
+  const hasWide = onPage.some(({ flag }) => locusOf(flag, documents).kind !== "box");
   const severitiesHere = (["high", "medium", "low", "info"] as const).filter((s) => onPage.some((x) => x.flag.severity === s));
   const hasExtras = flags.some(({ flag }) => flag.extra_regions.some((x) => x.file_id === file.id && x.page === current.page));
   const go = (page: number) => onNavigate({ fileId: file.id, page: Math.min(pageCount, Math.max(1, page)) });
@@ -137,7 +154,7 @@ export function PageViewer({
           >
             {files.flatMap((f) =>
               f.pages.map((p) => {
-                const n = flaggedOnPage(flagFlags, f.id, p.page);
+                const n = countOn(f.id, p.page);
                 return (
                   <option key={`${f.id}:${p.page}`} value={`${f.id}:${p.page}`}>
                     {names.page(f.id, p.page)}
@@ -207,6 +224,8 @@ export function PageViewer({
         </div>
       ) : null}
 
+      {selectedNf ? <FlagCaption selected={selectedNf} documents={documents} names={names} onNavigate={onNavigate} current={{ fileId: file.id, page: current.page }} /> : null}
+
       {pageInfo?.error ? (
         <div className="border-t border-rule p-3">
           <Notice variant="warning" title="This page could not be read" role="status">
@@ -248,7 +267,7 @@ export function PageViewer({
               }}
               onError={() => setState("error")}
             />
-            <RegionOverlay flags={flags} current={{ fileId: file.id, page: current.page }} selectedFlagId={selectedFlagId} onSelect={onSelectFlag} showChips={showChips} />
+            <RegionOverlay flags={flags} current={{ fileId: file.id, page: current.page }} selectedFlagId={selectedFlagId} onSelect={onSelectFlag} showChips={showChips} documents={documents} pageHeightPx={pageH} />
           </div>
         )}
       </div>
@@ -265,6 +284,12 @@ export function PageViewer({
                   {severityLabel(s)}
                 </li>
               ))}
+              {hasWide ? (
+                <li className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="inline-block h-3 w-5 rounded-[2px] border-2 border-dashed border-ink-2" />
+                  Whole page or file (numbered pill, top right)
+                </li>
+              ) : null}
               {hasExtras ? (
                 <li className="inline-flex items-center gap-1.5">
                   <span aria-hidden className="inline-block h-3 w-5 rounded-[2px] border border-dashed border-ink-2 bg-ink-2/10" />
