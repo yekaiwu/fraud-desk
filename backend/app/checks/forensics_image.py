@@ -166,6 +166,16 @@ SIG_MARGIN = 2
 SIG_SIZE = 64
 SIG_HASH_SIZE = 16
 SIG_MAX_HAMMING = 6
+# A pasted signature that was rotated, rescaled or lightly re-noised no longer hashes alike
+# (red-team attack R50). For two crops that would be a reuse (different parties) the ink masks
+# are also compared after rotating one by up to +-SIG_ROT_DEG; the same signer's honest repeats
+# are never a reuse (same party), while the signatures of different people overlap below 0.55 in
+# the generator (reuse after a rotation, rescale and noise: 0.8 and more).
+SIG_ROT_DEG = 10
+SIG_ROT_STEP = 2
+SIG_MASK_SIDE = 128
+SIG_TRANSFORM_OVERLAP = 0.80
+SIG_LINE_ART_MAX = 0.30  # denser crops (filled stamps) must match with a strict overlap
 
 RASTER_RULES = ("ela_region", "copy_move", "noise_mismatch")
 # rules whose lone, uncorroborated region is only "low" (findings.NOISY_RASTER_RULES groups them)
@@ -1500,6 +1510,8 @@ class _PageCrop(NamedTuple):
     y: float
     w: float
     h: float
+    mask: bytes = b""  # tight ink mask, SIG_MASK_SIDE on its longer side, one byte per pixel
+    mask_shape: tuple[int, int] = (0, 0)
 
 
 def _normalise_crop(im: Image.Image) -> Image.Image | None:
@@ -1522,6 +1534,79 @@ def _normalise_crop(im: Image.Image) -> Image.Image | None:
     if not SIG_INK_RANGE[0] <= fraction <= SIG_INK_RANGE[1]:
         return None
     return gray.crop((x0, y0, x1, y1)).resize((SIG_SIZE, SIG_SIZE), Image.Resampling.LANCZOS)
+
+
+def _ink_mask(im: Image.Image) -> tuple[bytes, tuple[int, int]]:
+    """Tight ink mask of a signature image, longer side SIG_MASK_SIDE, aspect kept."""
+    if im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info):
+        rgba = im.convert("RGBA")
+        bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        bg.alpha_composite(rgba)
+        gray = bg.convert("L")
+    else:
+        gray = im.convert("L")
+    arr = np.asarray(gray)
+    ink = arr < SIG_INK_GRAY
+    ys, xs = np.where(ink)
+    if not len(ys):
+        return b"", (0, 0)
+    tight = ink[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].astype(np.uint8) * 255
+    h, w = tight.shape
+    k = SIG_MASK_SIDE / max(h, w)
+    small = cv2.resize(
+        tight, (max(1, round(w * k)), max(1, round(h * k))), interpolation=cv2.INTER_AREA
+    )
+    return (small > 50).astype(np.uint8).tobytes(), (small.shape[0], small.shape[1])
+
+
+def _mask_array(mask: bytes, shape: tuple[int, int]) -> np.ndarray:
+    return np.frombuffer(mask, dtype=np.uint8).reshape(shape).astype(bool)
+
+
+def _norm_mask(m: np.ndarray) -> np.ndarray:
+    ys, xs = np.where(m)
+    if not len(ys):
+        return np.zeros((SIG_SIZE, SIG_SIZE), bool)
+    tight = m[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].astype(np.uint8) * 255
+    return cv2.resize(tight, (SIG_SIZE, SIG_SIZE), interpolation=cv2.INTER_AREA) > 100
+
+
+def _rotated(m: np.ndarray, degrees: float) -> np.ndarray:
+    h, w = m.shape
+    d = int(math.hypot(h, w)) + 4
+    canvas = np.zeros((d, d), np.uint8)
+    y0, x0 = (d - h) // 2, (d - w) // 2
+    canvas[y0 : y0 + h, x0 : x0 + w] = m.astype(np.uint8) * 255
+    rot = cv2.getRotationMatrix2D((d / 2, d / 2), degrees, 1.0)
+    return cv2.warpAffine(canvas, rot, (d, d), flags=cv2.INTER_LINEAR) > 100
+
+
+def transform_overlap(a: _Crop, b: _Crop) -> float:
+    """Best overlap of two crops' ink masks over small rotations (any rescale: both are
+    normalised to their ink box). Thin strokes move by a pixel or two under a rotation, so line
+    art is compared with a one-pixel tolerance; denser images (filled stamps) with the strict Dice
+    coefficient. 0.0 when a mask is missing or the ink amounts are not comparable."""
+    if not a.mask or not b.mask:
+        return 0.0
+    ma, mb = _mask_array(a.mask, a.mask_shape), _mask_array(b.mask, b.mask_shape)
+    if not 0.5 <= (int(ma.sum()) + 1) / (int(mb.sum()) + 1) <= 2.0:
+        return 0.0
+    nb = _norm_mask(mb)
+    kernel = np.ones((3, 3), np.uint8)
+    db = cv2.dilate(nb.astype(np.uint8), kernel) > 0
+    best = 0.0
+    for deg in range(-SIG_ROT_DEG, SIG_ROT_DEG + 1, SIG_ROT_STEP):
+        na = _norm_mask(_rotated(ma, deg) if deg else ma)
+        total = int(na.sum() + nb.sum())
+        if not total:
+            continue
+        if max(na.mean(), nb.mean()) <= SIG_LINE_ART_MAX:
+            da = cv2.dilate(na.astype(np.uint8), kernel) > 0
+            score = (int((na & db).sum()) + int((nb & da).sum())) / total
+        else:
+            score = 2.0 * int((na & nb).sum()) / total
+        best = max(best, score)
+    return best
 
 
 def _load_embedded(doc: pymupdf.Document, xref: int) -> Image.Image | None:
@@ -1556,7 +1641,7 @@ def _pdf_page_crops(
     except Exception:  # noqa: BLE001
         return None
     out: list[_PageCrop] = []
-    hashed: dict[int, tuple[str, str] | None] = {}
+    hashed: dict[int, tuple[str, str, bytes, tuple[int, int]] | None] = {}
     with doc:
         for pno in pages:
             if pno < 1 or pno > doc.page_count:
@@ -1587,15 +1672,16 @@ def _pdf_page_crops(
                     hashed[xref] = None
                     im = _load_embedded(doc, xref)
                     norm = _normalise_crop(im) if im is not None else None
-                    if norm is not None:
+                    if norm is not None and im is not None:
                         hashed[xref] = (
                             str(imagehash.phash(norm, hash_size=SIG_HASH_SIZE)),
                             hashlib.sha256(norm.tobytes()).hexdigest(),
+                            *_ink_mask(im),
                         )
                 digest = hashed[xref]
                 if digest is None:
                     continue
-                out.append(_PageCrop(pno, xref, digest[0], digest[1], fx, fy, fw, fh))
+                out.append(_PageCrop(pno, xref, digest[0], digest[1], fx, fy, fw, fh, *digest[2:]))
     return tuple(out)
 
 
@@ -1606,6 +1692,8 @@ class _Crop:
     # the party (UEN key) whose signature this crop is, when the page layout says so (a contract
     # has a seller and a buyer signature); "" = not attributed, the document's parties apply
     party: str = ""
+    mask: bytes = b""
+    mask_shape: tuple[int, int] = (0, 0)
 
 
 def _signature_pages(ctx: CaseContext, f: FileRef) -> tuple[tuple[int, ...], int]:
@@ -1665,6 +1753,8 @@ def _collect_crops(ctx: CaseContext) -> tuple[list[_Crop], list[str], list[str]]
                     CropFingerprint(pc.phash, pc.exact, doc.id, f.id, pc.page, region),
                     pc.xref,
                     _signing_party(doc, region),
+                    pc.mask,
+                    pc.mask_shape,
                 )
             )
     crops.sort(
@@ -1779,7 +1869,19 @@ def _join(items: Sequence[str]) -> str:
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def _clusters(crops: list[_Crop]) -> list[list[int]]:
+def _match(a: _Crop, b: _Crop, docs: dict[str, Document]) -> tuple[bool, str]:
+    """Whether two crops show the same image, and how: exact or near-identical hash, or, for a
+    pair that would count as a reuse, the same ink after a small rotation or rescale."""
+    if a.fp.exact == b.fp.exact:
+        return True, "exact"
+    if _hamming(a.fp.phash, b.fp.phash) <= SIG_MAX_HAMMING:
+        return True, "hash"
+    if _is_reuse(a, b, docs) and transform_overlap(a, b) >= SIG_TRANSFORM_OVERLAP:
+        return True, "transform"
+    return False, ""
+
+
+def _clusters(crops: list[_Crop], docs: dict[str, Document]) -> list[list[int]]:
     parent = list(range(len(crops)))
 
     def find(i: int) -> int:
@@ -1790,8 +1892,7 @@ def _clusters(crops: list[_Crop]) -> list[list[int]]:
 
     for i in range(len(crops)):
         for j in range(i + 1, len(crops)):
-            a, b = crops[i].fp, crops[j].fp
-            if a.exact == b.exact or _hamming(a.phash, b.phash) <= SIG_MAX_HAMMING:
+            if _match(crops[i], crops[j], docs)[0]:
                 parent[find(i)] = find(j)
     groups: dict[int, list[int]] = {}
     for i in range(len(crops)):
@@ -1865,25 +1966,30 @@ def signature_reuse(ctx: CaseContext) -> list[Flag]:
         raise CheckSkipped("no signature or stamp image candidates in any document")
     docs = {d.id: d for d in ctx.case.documents}
     flags: list[Flag] = []
-    for members in _clusters(crops):
+    for members in _clusters(crops, docs):
         group = [crops[i] for i in members]
         reuse_pairs = [
-            (a, b)
+            (a, b, kind)
             for ai, a in enumerate(group)
             for b in group[ai + 1 :]
-            if (a.fp.exact == b.fp.exact or _hamming(a.fp.phash, b.fp.phash) <= SIG_MAX_HAMMING)
-            and _is_reuse(a, b, docs)
+            for ok, kind in [_match(a, b, docs)]
+            if ok and _is_reuse(a, b, docs)
         ]
         if not reuse_pairs:
             continue
         doc_ids = sorted({c.fp.document_id for c in group}, key=natural_key)
-        exact = all(a.fp.exact == b.fp.exact for a, b in reuse_pairs)
-        worst = max(_hamming(a.fp.phash, b.fp.phash) for a, b in reuse_pairs)
-        how = (
-            "exact pixel match"
-            if exact
-            else f"near-identical (hamming {worst}/{SIG_HASH_SIZE * SIG_HASH_SIZE})"
-        )
+        kinds = {k for _a, _b, k in reuse_pairs}
+        if kinds == {"exact"}:
+            how = "exact pixel match"
+        elif "transform" in kinds:
+            best = max(transform_overlap(a, b) for a, b, k in reuse_pairs if k == "transform")
+            how = (
+                "same ink after a small rotation or rescale "
+                f"(overlap {best:.2f}, a pasted image that was adjusted)"
+            )
+        else:
+            worst = max(_hamming(a.fp.phash, b.fp.phash) for a, b, k in reuse_pairs if k == "hash")
+            how = f"near-identical (hamming {worst}/{SIG_HASH_SIZE * SIG_HASH_SIZE})"
         first = group[0].fp
         flags.append(
             make_flag(

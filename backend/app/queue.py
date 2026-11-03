@@ -7,6 +7,7 @@ auto-approved (plan 0.4 theme 1). ``build_queue_item`` lives in ``app/api/queue.
 from __future__ import annotations
 
 from app.core.models import Case, Document, Lane, UncheckedPage, UncheckedReason, Verdict
+from app.core.money import count_amount_tokens
 from app.findings import AML_ROUTING_RULES, HARD_STOP_RULES  # noqa: F401  (re-exported)
 from app.semantic.policy import is_semantic_rule
 
@@ -79,6 +80,39 @@ def unchecked_pages(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> list[U
     return out
 
 
+# A document nobody read that is full of money figures is not "a page nobody needed to read":
+# red-team attacks R101 to R104 (a relabelled column or heading, a rotated page) pushed a forged
+# invoice, statement or financial statement into a document the rules never saw while the case
+# kept its fast lane because one unread document is a small share of the pages.
+UNREAD_FIGURES_MIN = 3
+
+
+def unread_figure_documents(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> list[Document]:
+    """Documents that no rule read (not checked, failed, other, or a doubtful label) and that
+    carry at least ``UNREAD_FIGURES_MIN`` printed money figures."""
+    out: list[Document] = []
+    for doc in case.documents:
+        unread = (
+            doc.status in _UNCHECKED_DOC_STATUS
+            or doc.doc_type in _UNCHECKED_LABELS
+            or doc.classification.probability < min_prob
+        )
+        if unread and count_amount_tokens(w.text for w in doc.words) >= UNREAD_FIGURES_MIN:
+            out.append(doc)
+    return out
+
+
+def injection_suspected_pages(case: Case) -> int:
+    """Pages whose text looks like an instruction to the reader (the classifier counts them and
+    changes nothing). A document that talks to its reader is not one to look at last (red-team
+    attack R90: 'ignore previous instructions' text left the case in the fast lane)."""
+    return sum(
+        int(st.detail.get("injection_suspected") or 0)
+        for st in case.stages
+        if st.stage == "classify"
+    )
+
+
 def page_counts(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> tuple[int, int]:
     """``(total_pages, unchecked_pages)`` (section 4.6); see ``unchecked_pages`` for the rule."""
     total = sum(len(file.pages) for file in case.files)
@@ -123,6 +157,8 @@ def fast_lane_eligible(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> boo
         return False
     # a signal the model derived is a reason to look at the case now, never one to look last
     if any(f.weight > 0 and f.rules and all(map(is_semantic_rule, f.rules)) for f in case.findings):
+        return False
+    if unread_figure_documents(case, min_prob=min_prob) or injection_suspected_pages(case):
         return False
     # switching a hard-stop check off must not open the fast lane that its flags would have shut
     if any(r.code == "switched_off" and r.rule in HARD_STOP_RULES for r in case.check_runs):

@@ -39,6 +39,7 @@ from app.queue import (
     page_counts,
     top_finding_line,
     unchecked_pages,
+    unread_figure_documents,
 )
 from app.score import run_stage
 from tests.test_no_wallclock_in_checks import wallclock_calls
@@ -427,3 +428,61 @@ def test_no_threshold_numbers_duplicated_outside_constants() -> None:
     tree = ast.parse((APP / "score.py").read_text())
     values = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)]
     assert not {15, 30, 60} & {v for v in values if isinstance(v, int) and not isinstance(v, bool)}
+
+
+# ------------------------------------------------------------ red team R101 to R104 (docs/red-team.md)
+
+
+def _words(texts: list[str]):
+    from app.core.models import Word
+
+    return [
+        Word(page=1, text=t, x=0.1, y=0.1 + 0.02 * i, w=0.1, h=0.01) for i, t in enumerate(texts)
+    ]
+
+
+def _case_with_unread_doc(texts: list[str], *, doc_type: str = "other") -> Case:
+    unread = make_doc(
+        doc_type,  # type: ignore[arg-type]
+        id="d2",
+        status="received_not_checked",
+        words=_words(texts),
+    )
+    ok = make_doc("invoice", id="d1")
+    return scored([], runs(21), docs=[ok, unread])
+
+
+def test_unread_document_full_of_figures_blocks_the_fast_lane() -> None:
+    case = _case_with_unread_doc(["Total", "40,803.37", "36,883.40", "3,319.65", "Net"])
+    assert [d.id for d in unread_figure_documents(case)] == ["d2"]
+    assert case.lane == "loan"
+
+
+def test_unread_document_without_figures_keeps_the_fast_lane() -> None:
+    case = _case_with_unread_doc(["Terms", "and", "conditions", "page", "2", "2025", "S1234567D"])
+    assert unread_figure_documents(case) == []
+    assert case.lane == "fast"
+
+
+def test_a_read_document_with_figures_is_not_an_unread_document() -> None:
+    ok = make_doc("invoice", id="d1", words=_words(["1,000.00", "2,000.00", "3,000.00"]))
+    case = scored([], runs(21), docs=[ok])
+    assert unread_figure_documents(case) == []
+    assert case.lane == "fast"
+
+
+def test_instruction_text_on_a_page_blocks_the_fast_lane() -> None:
+    from app.core.models import StageRecord
+
+    ctx = make_ctx([make_doc("invoice", id="d1")], check_runs=runs(21))
+    ctx.case.stages = [
+        StageRecord(stage="classify", status="ok", detail={"injection_suspected": 1})
+    ]
+    run_stage(ctx)
+    assert ctx.case.lane == "loan"
+    ctx2 = make_ctx([make_doc("invoice", id="d1")], check_runs=runs(21))
+    ctx2.case.stages = [
+        StageRecord(stage="classify", status="ok", detail={"injection_suspected": 0})
+    ]
+    run_stage(ctx2)
+    assert ctx2.case.lane == "fast"

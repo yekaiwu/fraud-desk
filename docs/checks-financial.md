@@ -147,6 +147,8 @@ Plan 4.1 says thresholds for the statistical hints "come from the eval": the def
 
 Data read: `bank_statement.fields` and tables `transactions` (`date, description, debit, credit, balance`) and `page_chain` (data-model.md section 6.1). Debits and credits are positive magnitudes; balances are signed. For a row, `amount_signed = credit - debit` (an empty cell is 0).
 
+**A statement whose balance column was not read (red-team R102).** `bs_running_balance` used to skip a statement with no readable balance column without a word whenever another statement of the case was evaluated. Now a text-layer statement with transactions and no balance at all, among statements of the same account (account number, else bank name) that print one, is a `high` flag (evidence: no balance on any of N rows while M other statements print one; the running balance was not checked). A scan is excluded because OCR can miss a column. If it is the only statement, the check is skipped as before.
+
 **Row anchoring (shared by `bs_running_balance`, `bs_totals`, `x_cash_at_year_end`).** A row with both `debit` and `credit` empty and `balance` present is a *balance-only row* (for example "BALANCE B/F"); it carries amount 0 and is checked like any other. A row with both empty and no balance is ignored. A row with both `debit` and `credit` non-empty is *invalid*: it is skipped for arithmetic, and the row's own `balance` (if present) becomes the new anchor.
 
 Fixtures used by the tests (section 9.1): `F-BS-1` (March 2026 statement, 5 rows), `F-BS-2` (April, continues it).

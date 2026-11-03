@@ -649,3 +649,7 @@ Tests: `test_gen_sem_txn.py`, `test_gen_sem_entity.py`, `test_gen_sem_fit.py`, `
 7. **Check semantics (checks-kyc-aml.md).** `x_sof_support` counts only credits attributable to the declared counterparty or cited invoice (the AML planted credits name neither); `x_declared_vs_activity` must use the C5 annotations (crypto share >= 30% of value is planted); name matching must accept the surface forms in 4.7 for same-person pairs. Expose the matcher publicly if the fairness table should also report it directly.
 8. **UBO threshold.** There is no `GLDB_UBO_THRESHOLD_PERCENT` setting (default `25.00`, **[confirm]** Notice 626); `kyc_shareholdings` should read it from settings. The generator prints `25.00` on every ownership chart.
 9. **Tamper tests ownership.** `docs/eval-results/**` and `samples/**` are gitignored build outputs except the committed `baseline.json` and `timed-test.csv`; confirm in `.gitignore` (foundation).
+
+## Independent red team
+
+The in-house tamper catalogue was written by the authors of the checks. A separate attacker, `backend/scripts/red_team/` (71 attacks, 10 families, offline, deterministic, with a control run per attack), and its results are in [red-team.md](red-team.md). The attacks run as tests in `backend/tests/test_red_team.py`.
