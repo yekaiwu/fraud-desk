@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { DISCLAIMER, USE_MOCK } from "@/lib/constants";
 import { useNotificationBadge } from "@/lib/useNotificationSummary";
-import { Guilloche } from "./ui/Guilloche";
 import { Logo, LogoMark } from "./ui/Logo";
 
 /** Routes stay fixed; only the visible labels were made friendlier (Worklist = the case queue). */
@@ -99,7 +98,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <SkipLink />
       <header className="band-dark relative overflow-hidden border-b-[3px] border-brass bg-brand">
-        <Guilloche variant="band" opacity={0.2} className="absolute inset-0 h-full w-full text-brass-light" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand/0 via-brand/10 to-brand/55" />
         <div className={clsx(CONTAINER, "relative")}>
           <div className="flex min-h-16 items-center justify-between gap-4 py-3">

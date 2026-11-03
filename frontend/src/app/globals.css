@@ -47,9 +47,9 @@
   --accent: var(--brand);
 
   /* elevation: soft, ink-tinted, never heavy */
-  --elev-paper: 0 1px 0 rgb(20 32 27 / 0.04), 0 1px 3px rgb(20 32 27 / 0.07);
-  --elev-lift: 0 1px 0 rgb(20 32 27 / 0.04), 0 10px 28px -10px rgb(20 32 27 / 0.2);
-  --elev-sheet: 0 28px 70px -12px rgb(15 61 46 / 0.4);
+  --elev-paper: 0 1px 2px rgb(20 32 27 / 0.06);
+  --elev-lift: 0 4px 12px -4px rgb(20 32 27 / 0.12);
+  --elev-sheet: 0 16px 40px -12px rgb(20 32 27 / 0.25);
 }
 
 /* Anything sitting on the dark green band flips the focus ring to light brass. */
@@ -199,19 +199,13 @@ body {
 }
 
 /* ---- bank-statement rules ---- */
-/* Thin hairline over a thicker line. --rule-top / --rule-bottom can be overridden per use. */
+/* Single hairline under headings. --rule-top can be overridden per use. */
 .rule-statement {
   padding-bottom: 0.7rem;
-  background-image:
-    linear-gradient(var(--rule-top, var(--ink-2)), var(--rule-top, var(--ink-2))),
-    linear-gradient(var(--rule-bottom, var(--brand)), var(--rule-bottom, var(--brand)));
-  background-repeat: no-repeat;
-  background-size: 100% 1px, 100% 2px;
-  background-position: 0 calc(100% - 4px), 0 100%;
+  border-bottom: 1px solid var(--rule-top, var(--rule));
 }
 .rule-statement-soft {
-  --rule-top: var(--rule-strong);
-  --rule-bottom: var(--rule);
+  --rule-top: var(--rule);
 }
 
 /* ---- page region overlay (frontend.md section 6) ---- */

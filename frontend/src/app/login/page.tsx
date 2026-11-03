@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { Guilloche } from "@/components/ui/Guilloche";
 import { Logo } from "@/components/ui/Logo";
 import { Stagger } from "@/components/ui/Stagger";
 import { DISCLAIMER } from "@/lib/constants";
@@ -19,8 +18,6 @@ export default function LoginPage() {
   return (
     <div className="grid flex-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <section aria-label="About Fraud Desk" className="band-dark relative overflow-hidden bg-brand px-6 py-8 sm:px-12 lg:flex lg:min-h-dvh lg:flex-col lg:justify-between lg:px-16 lg:py-14">
-        <Guilloche variant="rosette" opacity={0.12} className="absolute -bottom-40 -right-40 h-[44rem] w-[44rem] text-brass-light" />
-        <Guilloche variant="band" opacity={0.1} className="absolute inset-x-0 top-0 h-48 w-full text-on-brand" />
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[3px] bg-brass lg:block" />
         <Stagger className="relative flex flex-col gap-8 lg:gap-0 lg:contents">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">

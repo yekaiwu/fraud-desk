@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Guilloche } from "@/components/ui/Guilloche";
 
 /** Page container (a copy of the shell's: the shell is a client module and cannot export values to server components). */
 export const WIDE = "mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-10";
@@ -9,7 +8,7 @@ export const WIDE = "mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-10";
 type Tone = "paper" | "sunken" | "dark";
 
 /**
- * One full-width band of the page. Dark bands carry guilloche; every band is a labelled region
+ * One full-width band of the page. Every band is a labelled region
  * (`aria-labelledby` points at its h2).
  */
 export function Section({ id, tone = "paper", labelledBy, className, children }: { id?: string; tone?: Tone; labelledBy: string; className?: string; children: ReactNode }) {
@@ -27,8 +26,6 @@ export function Section({ id, tone = "paper", labelledBy, className, children }:
     >
       {tone === "dark" ? (
         <>
-          <Guilloche variant="band" opacity={0.09} className="absolute inset-x-0 top-0 h-40 w-full text-on-brand" />
-          <Guilloche variant="rosette" opacity={0.07} className="absolute -bottom-52 -right-40 h-[40rem] w-[40rem] text-brass-light" />
         </>
       ) : null}
       <div className={clsx(WIDE, "relative py-16 sm:py-20 lg:py-28")}>{children}</div>
@@ -47,7 +44,7 @@ export function SerialLabel({ no, children, dark = false }: { no: string; childr
   );
 }
 
-/** Editorial section head: serial label, large title, short intro on the right, double rule underneath. */
+/** Editorial section head: serial label, large title, short intro on the right, hairline underneath. */
 export function SectionHead({ no, label, id, title, intro, dark = false }: { no: string; label: string; id: string; title: ReactNode; intro?: ReactNode; dark?: boolean }) {
   return (
     <div className={clsx("reveal rule-statement pb-8", dark && "rule-on-dark")}>

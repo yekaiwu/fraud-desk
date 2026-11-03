@@ -2,15 +2,12 @@ import { ArrowRight, LogIn } from "lucide-react";
 import { LogoMark } from "@/components/ui/Logo";
 import { DISCLAIMER } from "@/lib/constants";
 import { DarkLink, WIDE } from "./parts";
-import { Guilloche } from "@/components/ui/Guilloche";
 import { entrance } from "./TopBar";
 
 export function Closing({ signedIn }: { signedIn: boolean }) {
   const { href, label } = entrance(signedIn);
   return (
       <section aria-labelledby="closing-title" className="band-dark relative overflow-hidden border-t-[3px] border-brass bg-brand">
-        <Guilloche variant="rosette" opacity={0.12} className="absolute -left-48 top-1/2 h-[46rem] w-[46rem] -translate-y-1/2 text-brass-light" />
-        <Guilloche variant="band" opacity={0.1} className="absolute inset-x-0 bottom-0 h-40 w-full text-on-brand" />
         <div className={`${WIDE} relative py-20 text-center sm:py-28`}>
           <h2 id="closing-title" className="mx-auto max-w-3xl font-display text-[clamp(2.25rem,5.4vw,4.5rem)] font-semibold leading-[1.02] tracking-tight text-on-brand">
             See the evidence. Make the call.

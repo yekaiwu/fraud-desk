@@ -1,5 +1,4 @@
 import { ArrowDown, LogIn, ArrowRight } from "lucide-react";
-import { Guilloche } from "@/components/ui/Guilloche";
 import { RiskGauge } from "@/components/ui/RiskGauge";
 import { Stagger } from "@/components/ui/Stagger";
 import { HARD_STOP_LABEL } from "@/lib/labels";
@@ -91,8 +90,6 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
   const { href, label } = entrance(signedIn);
   return (
     <section aria-labelledby="hero-title" className="band-dark relative overflow-hidden bg-brand">
-      <Guilloche variant="band" opacity={0.16} className="absolute inset-x-0 top-0 h-72 w-full text-brass-light" />
-      <Guilloche variant="rosette" opacity={0.1} className="absolute -right-52 top-1/2 h-[56rem] w-[56rem] -translate-y-1/2 text-brass-light" />
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand/0 via-brand/10 to-brand/70" />
       <div className={`${WIDE} relative pb-10 pt-14 sm:pt-20 lg:pb-14 lg:pt-28`}>
         <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:gap-10 xl:gap-20">

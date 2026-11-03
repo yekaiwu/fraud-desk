@@ -33,7 +33,7 @@ export function SectionHeading({
   eyebrow?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
-  /** Draw the double rule underneath. */
+  /** Draw the hairline underneath. */
   rule?: boolean;
   className?: string;
   id?: string;
