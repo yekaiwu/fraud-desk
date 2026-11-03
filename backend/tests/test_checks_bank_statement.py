@@ -988,3 +988,44 @@ def test_pointer_localisation_for_each_row_level_rule() -> None:
     # every flag the module produces is a valid Flag with a 0-based row inside the table
     for flag in [*bs.bs_totals(ctx_of(statement(closing_balance="1.00")))]:
         assert isinstance(flag, Flag) and flag.row is None
+
+
+# ----------------------------------------------------------------------------- red team R102
+# A statement whose balance column could not be read, among statements of the same account that
+# all print one, is no longer skipped silently (docs/red-team.md).
+
+
+def _without_balances(doc: Document) -> Document:
+    for row in doc.tables["transactions"].rows:
+        row.cells["balance"].value = None
+        row.cells["balance"].raw = None
+    return doc
+
+
+def test_rb_missing_balance_column_beside_siblings_is_flagged() -> None:
+    ok = statement(id="d1")
+    hidden = _without_balances(april(id="d2"))
+    flags = run_rb(ok, hidden)
+    (flag,) = [f for f in flags if f.document_ids == ["d2"]]
+    assert flag.rule == "bs_running_balance" and flag.severity == "high"
+    assert "not checked" in flag.evidence
+
+
+def test_rb_missing_balance_column_alone_is_a_skip_not_a_flag() -> None:
+    with pytest.raises(CheckSkipped):
+        run_rb(_without_balances(statement(id="d1")))
+
+
+def test_rb_missing_balance_column_of_another_account_is_not_flagged() -> None:
+    ok = statement(id="d1")
+    other = _without_balances(april(id="d2", account_number="0099999999"))
+    assert run_rb(ok, other) == []
+
+
+def test_rb_scan_statement_without_balances_is_not_flagged() -> None:
+    ok = statement(id="d1")
+    scan = _without_balances(april(id="d2"))
+    for row in scan.tables["transactions"].rows:
+        for cell_ in row.cells.values():
+            cell_.source = "llm_cheap"
+    assert run_rb(ok, scan) == []

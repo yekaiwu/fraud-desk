@@ -166,16 +166,61 @@ def _frac(const: float) -> Fraction:
 def bs_running_balance(ctx: CaseContext) -> list[Flag]:
     flags: list[Flag] = []
     evaluated = 0
+    evaluated_docs: list[Document] = []
+    skipped_docs: list[Document] = []
     for doc in _statements(ctx):
         flag = _check_statement(ctx, doc)
         if flag is _NOT_EVALUATED:
+            skipped_docs.append(doc)
             continue
         evaluated += 1
+        evaluated_docs.append(doc)
         if flag is not None:
             flags.append(flag)
     if evaluated == 0:
         raise CheckSkipped("no statement with an opening balance and a balance column")
+    flags += _missing_balance_flags(skipped_docs, evaluated_docs)
     return flags
+
+
+def _missing_balance_flags(skipped: list[Document], evaluated: list[Document]) -> list[Flag]:
+    """A statement with transactions but no readable balance column, among statements of the same
+    account that all print one, cannot be checked and a template does not drop a column from one
+    month to the next (red-team attack R102: renaming the column heading hid one statement from
+    the running-balance check while the others kept the case in the fast lane)."""
+    out: list[Flag] = []
+    for doc in skipped:
+        table = doc.tables.get("transactions")
+        if table is None or not table.rows:
+            continue
+        if any(r.cells["balance"].money() is not None for r in table.rows):
+            continue  # it has balances; it was skipped for another reason (no opening balance)
+        if any(c.source != "text_layer" for c in table.rows[0].cells.values()):
+            continue  # a scan: a column OCR missed is not a statement that dropped its column
+        key = _acct_key(doc) or _ftext(doc, "bank_name").upper()
+        if not key:
+            continue
+        siblings = [d for d in evaluated if (_acct_key(d) or _ftext(d, "bank_name").upper()) == key]
+        if not siblings:
+            continue
+        out.append(
+            make_flag(
+                "bs_running_balance",
+                docs=[doc],
+                table="transactions",
+                severity="high",
+                evidence=(
+                    f"no balance could be read on any of {len(table.rows)} rows, while "
+                    f"{len(siblings)} other statement(s) of the same account print one; "
+                    "the running balance of this statement was not checked"
+                ),
+                explanation=(
+                    "This statement shows no readable balance column although the other "
+                    "statements of the account do, so its running balance could not be checked."
+                ),
+            )
+        )
+    return out
 
 
 _NOT_EVALUATED = object()
