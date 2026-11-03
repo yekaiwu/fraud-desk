@@ -1594,7 +1594,153 @@ def _cand_flags(ctx: CaseContext, rule: str) -> list[Flag]:
     tamper="white box and retyped figure, hidden text",
 )
 def pdf_text_vs_render(ctx: CaseContext) -> list[Flag]:
-    return _cand_flags(ctx, "pdf_text_vs_render")
+    return _cand_flags(ctx, "pdf_text_vs_render") + _encoding_flags(ctx)
+
+
+# --------------------------------------------------------------------------------------
+# Text layer that contradicts the glyphs: a ToUnicode map that disagrees with the font encoding
+# --------------------------------------------------------------------------------------
+
+_GLYPH_NAMES = {
+    **{
+        name: str(i)
+        for i, name in enumerate(
+            ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine")
+        )
+    },
+    "comma": ",",
+    "period": ".",
+    "hyphen": "-",
+    "minus": "-",
+    "slash": "/",
+    "colon": ":",
+    "space": " ",
+}
+_STANDARD_FONT = re.compile(r"(helvetica|arial|times|courier)", re.I)
+_BF_BLOCK = re.compile(rb"beginbf(char|range)(.*?)endbf(?:char|range)", re.S)
+_HEX = rb"<([0-9A-Fa-f\s]*)>"
+MAX_ENCODING_LIES = 5
+
+
+def _utf16(hexstr: bytes) -> str:
+    raw = bytes.fromhex("".join(hexstr.decode().split()) or "00")
+    return raw.decode("utf-16-be", errors="replace") if len(raw) % 2 == 0 else raw.decode("latin-1")
+
+
+def _tounicode_map(cmap: bytes) -> dict[int, str]:
+    """One-byte source codes of a ToUnicode CMap -> text (bfchar and bfrange)."""
+    out: dict[int, str] = {}
+    for kind, body in _BF_BLOCK.findall(cmap):
+        if kind == b"char":
+            for src, dst in re.findall(_HEX + rb"\s*" + _HEX, body):
+                if len(src.strip()) == 2:
+                    out[int(src, 16)] = _utf16(dst)
+        else:
+            for lo, hi, dst in re.findall(_HEX + rb"\s*" + _HEX + rb"\s*" + _HEX, body):
+                if len(lo.strip()) == 2 and len(hi.strip()) == 2:
+                    base = _utf16(dst)
+                    for k, code in enumerate(range(int(lo, 16), int(hi, 16) + 1)):
+                        if base:
+                            out[code] = base[:-1] + chr(ord(base[-1]) + k)
+    return out
+
+
+def _expected_chars(font: pikepdf.Dictionary) -> dict[int, str] | None:
+    """What a reader sees for each one-byte code, when the font's own encoding says so
+    (a simple font with a named or differenced standard encoding); None when it cannot be known
+    without the glyph shapes (symbolic, built-in or CID fonts)."""
+    subtype = str(font.get("/Subtype", ""))
+    if subtype not in ("/Type1", "/TrueType"):
+        return None
+    codecs = {"/WinAnsiEncoding": "cp1252", "/MacRomanEncoding": "mac_roman"}
+    enc = font.get("/Encoding")
+    base_codec: str | None = None
+    diffs: dict[int, str] = {}
+    if isinstance(enc, pikepdf.Name):
+        base_codec = codecs.get(str(enc))
+    elif isinstance(enc, pikepdf.Dictionary):
+        base_codec = codecs.get(str(enc.get("/BaseEncoding", "")))
+        code = 0
+        for item in enc.get("/Differences", []):
+            if isinstance(item, pikepdf.Name):
+                ch = _GLYPH_NAMES.get(str(item)[1:])
+                if ch is None and len(str(item)) == 2:
+                    ch = str(item)[1:]
+                if ch is not None:
+                    diffs[code] = ch
+                code += 1
+            else:
+                code = int(item)
+    elif enc is None and _STANDARD_FONT.search(str(font.get("/BaseFont", ""))):
+        base_codec = "ascii"
+    if base_codec is None and not diffs:
+        return None
+    out: dict[int, str] = {}
+    if base_codec is not None:
+        for code in range(32, 127):
+            with contextlib.suppress(UnicodeDecodeError):
+                out[code] = bytes([code]).decode(base_codec)
+    out.update(diffs)
+    return out
+
+
+def _encoding_lies(data: bytes) -> list[tuple[int, str, str, str, str]]:
+    """(page, font, base font, drawn, extracted) for every code whose ToUnicode text differs
+    from the letter or digit the font's encoding draws."""
+    found: list[tuple[int, str, str, str, str]] = []
+    with pikepdf.open(io.BytesIO(data)) as pdf:
+        for pno, page in enumerate(pdf.pages, start=1):
+            res = page.get("/Resources")
+            fonts = res.get("/Font") if res is not None else None
+            if fonts is None:
+                continue
+            for name, font in fonts.items():
+                tu = font.get("/ToUnicode")
+                if tu is None:
+                    continue
+                expected = _expected_chars(font)
+                if expected is None:
+                    continue
+                mapping = _tounicode_map(tu.read_bytes())
+                for code, drawn in expected.items():
+                    got = mapping.get(code)
+                    if got is None or got == drawn:
+                        continue
+                    if (drawn.isascii() and drawn.isalnum()) or drawn in ",.":
+                        found.append(
+                            (pno, str(name)[1:], str(font.get("/BaseFont", ""))[1:], drawn, got)
+                        )
+    return found
+
+
+def _encoding_flags(ctx: CaseContext) -> list[Flag]:
+    flags: list[Flag] = []
+    for f in _pdf_files(ctx):
+        try:
+            lies = _encoding_lies(_read_bytes(ctx, f.id))
+        except Exception:  # noqa: BLE001 - an unreadable file is reported by the other analyses
+            continue
+        if not lies:
+            continue
+        shown = "; ".join(
+            f"page {p} font {_safe(n, 20)} ({_safe(b, 24)}) draws '{_safe(d, 4)}' but its text "
+            f"layer says '{_safe(g, 6)}'"
+            for p, n, b, d, g in lies[:MAX_ENCODING_LIES]
+        )
+        more = f"; +{len(lies) - MAX_ENCODING_LIES} more" if len(lies) > MAX_ENCODING_LIES else ""
+        flags.append(
+            make_flag(
+                "pdf_text_vs_render",
+                docs=_docs_of_file(ctx, f.id),
+                evidence=f"font text map contradicts its glyphs: {shown}{more}",
+                explanation=(
+                    "A font in the PDF stores different text from the characters it draws, so "
+                    "the figures a reader sees are not the figures in the text layer."
+                ),
+                discriminator=f"{f.id}enc",
+            )
+        )
+    return flags
 
 
 @check(
