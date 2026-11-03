@@ -198,6 +198,18 @@ def summarise_case(
         "coverage_ratio": case.coverage.ratio if case.coverage else None,
         "coverage": case.coverage.model_dump(mode="json") if case.coverage else None,
         "findings": len(case.findings),
+        # the scoring inputs, so a scoring model can be re-run offline (scripts/fit_score_weights.py)
+        "findings_detail": [
+            {
+                "group_key": fd.group_key,
+                "severity": fd.severity,
+                "rules": list(fd.rules),
+                "flag_ids": list(fd.flag_ids),
+                "hard_stop": fd.hard_stop,
+                "weight": fd.weight,
+            }
+            for fd in case.findings
+        ],
         "flags": flags,
         "check_runs": {r.rule: {"status": r.status, "reason": r.reason} for r in case.check_runs},
         "stages": stages,

@@ -48,6 +48,8 @@ def slot_plan(seed: int, n_slots: int = 30) -> list[tuple[int, str]]:
     names = (["loan"] * 12 + ["kyc"] * 9 + ["aml"] * 9)[:30]
     if n_slots < 30:
         names = [("loan", "kyc", "aml")[i % 3] for i in range(n_slots)]
+    elif n_slots > 30:  # a larger queue (score fitting) repeats the 12/9/9 mix; 30 is unchanged
+        names = (names * (-(-n_slots // 30)))[:n_slots]
     rng = random.Random(f"{seed}:ranking:scenarios")
     rng.shuffle(names)
     return list(enumerate(names))
@@ -85,6 +87,7 @@ def build_cases(
     n_slots: int = 30,
     today=FIXED_TODAY,  # noqa: ANN001
     log: Callable[[str], None] = print,
+    render: str = "digital",
 ) -> tuple[QueueFile, dict[int, dict[str, Path]]]:
     """Generate the four forms of every slot under ``samples/ranking/q<seed>/cases/`` and write
     ``queue.json`` and the queue's own registry."""
@@ -93,7 +96,8 @@ def build_cases(
     from scripts._eval.tamper_core import TamperNotApplicable
     from scripts.make_tampered import apply_tamper
 
-    qdir = samples / "ranking" / f"q{seed}"
+    # a scan queue (score fitting) lives beside the digital one; "digital" keeps every path as it was
+    qdir = samples / "ranking" / (f"q{seed}" if render == "digital" else f"q{seed}-{render}")
     cases_dir = qdir / "cases"
     plan = slot_plan(seed, n_slots)
     uploads = upload_orders(seed, n_slots, 1)[0]
@@ -107,7 +111,12 @@ def build_cases(
         random.Random(f"{seed}:ranking:single:{slot}").shuffle(singles)
         for kind, variant in (("clean", "clean"), ("deck", "fraud"), ("forger", "forger")):
             spec = BundleSpec(
-                scenario=scenario, variant=variant, company_index=idx, seed=seed, today=today
+                scenario=scenario,
+                variant=variant,
+                company_index=idx,
+                seed=seed,
+                today=today,
+                renders=list(dict.fromkeys(["digital", render])),
             )  # type: ignore[arg-type]
             out = cases_dir / f"{slot:02d}-{kind}"
             m = make_bundle.build_bundle(spec, out)
@@ -125,7 +134,7 @@ def build_cases(
                     seed=seed,
                     instance=slot,
                     out_dir=out,
-                    render="digital",
+                    render=render,
                     base_dir=base_dir,
                 )
             except TamperNotApplicable as exc:
@@ -149,7 +158,7 @@ def build_cases(
         )
     make_bundle.build_registry(qdir / "registry.json", manifests)
     qf = QueueFile(
-        queue_id=f"q{seed}", seed=seed, slots=slots, assignments=assignments(seed, n_slots)
+        queue_id=qdir.name, seed=seed, slots=slots, assignments=assignments(seed, n_slots)
     )
     write_json_file(qdir / "queue.json", qf.model_dump(mode="json"))
     return qf, paths
