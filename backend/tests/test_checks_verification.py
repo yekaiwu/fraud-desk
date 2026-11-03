@@ -441,3 +441,28 @@ def test_sanctions_and_gleif_leave_a_note_of_what_they_asked(tmp_path: Path) -> 
     c4 = ctx([profile()], s, {"gleif": SourceOutcome("ok", data=None)})
     v.x_entity_vs_gleif(c4)
     assert "holds no legal-entity record" in c4.run_notes["x_entity_vs_gleif"]
+
+
+def test_a_possible_match_does_not_say_names_are_shared_by_people_when_the_entry_is_a_company(
+    tmp_path: Path,
+) -> None:
+    inv = invoice_doc("d4", supplier="Northern Trading Company Pte Ltd")
+    listed = entry("9", ["Northern Trading Company"], kind="entity")
+    listed["programs"] = ["DPRK"]
+    listed["listed_on"] = "2016-03-02"
+    c = ctx([inv], settings(tmp_path, sanctions_screen="on"), {"sanctions": screener([listed])})
+    (f,) = v.x_sanctions_screen(c)
+    assert "A name alone does not identify a company" in f.explanation
+    assert "registration number, country and address" in f.explanation
+    assert (
+        "shared by many people" not in f.explanation and "the person is listed" not in f.explanation
+    )
+    assert "the list gives: programme DPRK, listed 2016-03-02" in f.evidence
+
+
+def test_a_possible_match_on_a_person_says_what_to_compare(tmp_path: Path) -> None:
+    docs = [company_profile_doc(directors=[("Ravi Kumar Subramaniam", None)], shareholders=[])]
+    c = ctx(docs, settings(tmp_path, sanctions_screen="on"), {"sanctions": screener([LISTED])})
+    (f,) = v.x_sanctions_screen(c)
+    assert "A name alone does not identify a person: many people share one." in f.explanation
+    assert "date of birth, nationality and ID number" in f.explanation

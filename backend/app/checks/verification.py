@@ -273,6 +273,21 @@ def _matched_on(hit: Hit) -> str:
     return ", ".join(parts)
 
 
+def _listing_details(entry: dict) -> str:
+    """What the list says about the entry besides its name (programme, country, date listed), so the person
+    adjudicating can compare it with the document without opening the list."""
+    bits = []
+    programs = [safe_text(p, 40) for p in (entry.get("programs") or [])[:3]]
+    if programs:
+        bits.append("programme " + ", ".join(programs))
+    countries = [safe_text(n, 30) for n in (entry.get("nationality") or [])[:2]]
+    if countries:
+        bits.append("country " + ", ".join(countries))
+    if entry.get("listed_on"):
+        bits.append("listed " + safe_text(entry["listed_on"], 12))
+    return ("; the list gives: " + ", ".join(bits)) if bits else ""
+
+
 def _sanctions_flag(subject: _Subject, hit: Hit) -> Flag:
     entry = hit.entry
     docs = list({w.doc.id: w.doc for w in subject.where}.values())
@@ -285,6 +300,7 @@ def _sanctions_flag(subject: _Subject, hit: Hit) -> Flag:
         f"document: {safe_text(subject.name)} ({', '.join(subject.roles)}"
         + (f"; id {shown_ids}" if shown_ids else "")
         + f"); list: {ref}: {safe_text(hit.listed_name)}; matched on: {_matched_on(hit)}"
+        + _listing_details(entry)
     )
     if level == "high":
         explanation = (
@@ -298,9 +314,20 @@ def _sanctions_flag(subject: _Subject, hit: Hit) -> Flag:
             "from the document. Probably a different person with the same name; a person should confirm."
         )
     else:
+        if entry["kind"] == "entity":
+            care = (
+                "A name alone does not identify a company: unrelated companies can share one. Compare the "
+                "registration number, country and address of the list entry with this company before "
+                "treating it as listed."
+            )
+        else:
+            care = (
+                "A name alone does not identify a person: many people share one. Compare the date of birth, "
+                "nationality and ID number of the list entry with this person before treating them as listed."
+            )
         explanation = (
             f"Possible match, a person must adjudicate: {safe_text(subject.name)} resembles {ref} "
-            f"({_matched_on(hit)}). Names are shared by many people; nothing here says the person is listed."
+            f"({_matched_on(hit)}). {care} Nothing here says it is the listed one."
         )
     return make_flag(
         "x_sanctions_screen",
