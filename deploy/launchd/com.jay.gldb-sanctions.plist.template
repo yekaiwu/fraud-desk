@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template: deploy/install.sh fills __ROOT__ (install dir), __HOME__ and __PATH__ and writes the result to
+     ~/Library/LaunchAgents/com.jay.gldb-sanctions.plist. Do not load this file directly. A timer, not a service:
+     it rebuilds the sanctions-list snapshot every day at 03:15 (and on the next wake if the Mac was asleep). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jay.gldb-sanctions</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__ROOT__/deploy/run-sanctions-update.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__ROOT__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/gldb/sanctions.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/gldb/sanctions.log</string>
+</dict>
+</plist>

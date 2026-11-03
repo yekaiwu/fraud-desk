@@ -16,7 +16,7 @@ done
 [ "$(uname)" = "Darwin" ] || { echo "macOS only (uname=$(uname))." >&2; exit 1; }
 
 UID_NUM="$(id -u)"
-for label in com.jay.gldb-frontend com.jay.gldb-backend; do
+for label in com.jay.gldb-frontend com.jay.gldb-backend com.jay.gldb-sanctions; do
   launchctl bootout "gui/$UID_NUM/$label" 2>/dev/null && echo "stopped $label" || echo "$label was not loaded"
   rm -f "$HOME/Library/LaunchAgents/$label.plist"
 done

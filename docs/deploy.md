@@ -168,3 +168,7 @@ Full description, threat model and limits: [encryption-at-rest.md](encryption-at
 ## Not on macOS
 
 The two services are plain commands; `deploy/run-backend.sh` and `deploy/run-frontend.sh` show the exact environment and arguments (they read `deploy/.env.production`). Run them under systemd, a container or any supervisor, bind both to `127.0.0.1`, and keep the same environment variables. `deploy/install.sh` and the launchd templates are the only macOS-specific parts.
+
+## Daily sanctions-list refresh
+
+`deploy/install.sh` also installs a launchd timer, `com.jay.gldb-sanctions`, that runs `deploy/run-sanctions-update.sh` every day at 03:15 (or on the next wake if the Mac was asleep). It rebuilds the sanctions snapshot from the official UN, OFAC, EU and UK lists (`backend/scripts/update_sanctions.py`, [verification-sources.md](verification-sources.md) section 2) and logs to `~/Library/Logs/gldb/sanctions.log`. The screening check (`GLDB_SANCTIONS_SCREEN=on`) refuses to run on a snapshot older than `GLDB_SANCTIONS_MAX_AGE_DAYS` (7 by default) and marks the case partial instead, so the timer keeps it fresh. The timer does nothing until the first run, so build the first snapshot by hand: `uv run --no-sync python backend/scripts/update_sanctions.py` from the install directory with `deploy/.env.production` loaded. Private mode refuses the update script. Run once on demand with `launchctl kickstart gui/$(id -u)/com.jay.gldb-sanctions`.

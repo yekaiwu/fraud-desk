@@ -27,7 +27,7 @@ ENV_FILE="$ROOT/deploy/.env.production"
 LOG_DIR="$HOME/Library/Logs/gldb"
 AGENT_DIR="$HOME/Library/LaunchAgents"
 UID_NUM="$(id -u)"
-LABELS=(com.jay.gldb-backend com.jay.gldb-frontend)
+LABELS=(com.jay.gldb-backend com.jay.gldb-frontend com.jay.gldb-sanctions)
 
 say() { printf '\n==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }

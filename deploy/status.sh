@@ -6,7 +6,7 @@ UID_NUM="$(id -u)"
 LOG_DIR="$HOME/Library/Logs/gldb"
 
 echo "== launchd agents"
-for label in com.jay.gldb-backend com.jay.gldb-frontend; do
+for label in com.jay.gldb-backend com.jay.gldb-frontend com.jay.gldb-sanctions; do
   if out="$(launchctl print "gui/$UID_NUM/$label" 2>/dev/null)"; then
     state="$(printf '%s\n' "$out" | awk '/^[[:space:]]*state = /{print $3; exit}')"
     pid="$(printf '%s\n' "$out" | awk '/^[[:space:]]*pid = /{print $3; exit}')"
