@@ -79,7 +79,7 @@ chmod 600 "$ENV_FILE"
 # Validate what the services will actually read (fail now, not at 3 a.m.).
 set -a; . "$ENV_FILE"; set +a
 [ "${#GLDB_SITE_USERNAME}" -ge 3 ]  || die "GLDB_SITE_USERNAME in $ENV_FILE must be at least 3 characters."
-[ "${#GLDB_SITE_PASSWORD}" -ge 12 ] || die "GLDB_SITE_PASSWORD in $ENV_FILE must be at least 12 characters."
+[ "${#GLDB_SITE_PASSWORD}" -ge 10 ] || die "GLDB_SITE_PASSWORD in $ENV_FILE must be at least 10 characters."
 [ "${#GLDB_SESSION_SECRET}" -ge 32 ] || die "GLDB_SESSION_SECRET in $ENV_FILE must be at least 32 characters."
 [ "${#GLDB_PROXY_SECRET}" -ge 16 ]   || die "GLDB_PROXY_SECRET in $ENV_FILE must be at least 16 characters."
 case "${GLDB_BACKEND_URL:-}" in http://127.0.0.1:8000|http://localhost:8000) ;; *) die "GLDB_BACKEND_URL must point at the loopback backend (http://127.0.0.1:8000)." ;; esac
