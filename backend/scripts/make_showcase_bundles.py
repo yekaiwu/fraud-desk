@@ -190,14 +190,15 @@ GLDB_INCORPORATED = date(2021, 5, 5)
 GLDB_ADDRESS = "20 Pasir Panjang Road #07-25-28, Mapletree Business City, Singapore 117439"
 
 
-def kyc_gldb(work: Path, incorporated: date) -> tuple[dict[str, bytes], str, str]:
+def kyc_gldb(work: Path, incorporated: date, seed: int) -> tuple[dict[str, bytes], str, str]:
     """A KYC bundle whose company carries the sponsor's real name, UEN and address. ``incorporated`` is the
     date printed on the documents: the real one for the matching case, another for the mismatch case.
-    The generator's company is replaced after it is made, so no other part of the bundle changes."""
+    The generator's company is replaced after it is made, so no other part of the bundle changes. Each case
+    needs its own seed: the same people and statements in two cases would trip the file-reuse check."""
     from scripts import make_bundle
     from scripts._gen import world
 
-    out = work / f"kyc-gldb-{incorporated.isoformat()}"
+    out = work / f"kyc-gldb-{seed}"
     if out.exists():
         shutil.rmtree(out)
     original = world._make_company
@@ -213,7 +214,7 @@ def kyc_gldb(work: Path, incorporated: date) -> tuple[dict[str, bytes], str, str
     try:
         rc = make_bundle.main(
             [
-                "--scenario", "kyc", "--variant", "clean", "--seed", "7311", "--company-index", "5",
+                "--scenario", "kyc", "--variant", "clean", "--seed", str(seed), "--company-index", "5",
                 "--render", "digital", "--out", str(out),
             ]
         )  # fmt: skip
@@ -287,8 +288,8 @@ def build(out: Path) -> list[dict]:
         "receipt": {"receipt_R-88214.pdf": inconsistent_receipt()},
     }
     work = out.parent / ".showcase-work"
-    files_by_slug["lookup-match"], gldb_name, gldb_uen = kyc_gldb(work, GLDB_INCORPORATED)
-    files_by_slug["lookup-mismatch"], _, _ = kyc_gldb(work, date(2020, 3, 17))
+    files_by_slug["lookup-match"], gldb_name, gldb_uen = kyc_gldb(work, GLDB_INCORPORATED, 7311)
+    files_by_slug["lookup-mismatch"], _, _ = kyc_gldb(work, date(2020, 3, 17), 7312)
     manifest = []
     for sc in SHOWCASES:
         entry = dict(sc)
