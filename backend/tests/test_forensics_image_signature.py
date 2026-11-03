@@ -381,3 +381,60 @@ def test_party_keys_table() -> None:
     sof = make_doc("source_of_funds_declaration", id="d1", fields={"declarant_name": "Tan Ah Kow"})
     assert len(fi.party_keys(sof)) == 1
     assert fi.party_keys(make_doc("company_profile", id="d1")) == set()
+
+
+# --------------------------------------------------------------------------------------
+# red team R50: a pasted signature that was rotated, rescaled and re-noised
+# --------------------------------------------------------------------------------------
+
+
+def _adjusted(png: bytes, degrees: float, scale: float, noise: float = 0.0) -> bytes:
+    import numpy as np
+
+    im = Image.open(io.BytesIO(png)).convert("RGBA")
+    w, h = im.size
+    small = im.resize((int(w * scale), int(h * scale)), Image.Resampling.BICUBIC)
+    canvas = Image.new("RGBA", (w, h), (255, 255, 255, 0))
+    canvas.alpha_composite(small, ((w - small.width) // 2, (h - small.height) // 2))
+    canvas = canvas.rotate(degrees, resample=Image.Resampling.BICUBIC)
+    if noise:
+        arr = np.asarray(canvas).astype(np.int16)
+        arr[..., :3] += np.random.default_rng(5).normal(0, noise, arr[..., :3].shape).astype(
+            np.int16
+        )
+        canvas = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA")
+    return png_bytes(canvas)
+
+
+def test_rotated_rescaled_renoised_copy_is_flagged_as_the_same_ink() -> None:
+    sig = signature_png(2)
+    moved = _adjusted(sig, 5.0, 0.9, noise=3.0)
+    ctx = case(
+        [invoice("d1", "f1"), contract("d2", "f2")],
+        [pdf_file("f1", [(sig, LOWER_RIGHT)]), pdf_file("f2", [(moved, LOWER_RIGHT)])],
+    )
+    flags = fi.signature_reuse(ctx)
+    assert len(flags) == 1
+    assert "same ink after a small rotation or rescale" in flags[0].evidence
+
+
+def test_the_same_signer_adjusting_the_signature_is_still_not_reuse() -> None:
+    sig = signature_png(2)
+    moved = _adjusted(sig, 5.0, 0.9, noise=3.0)
+    ctx = case(
+        [invoice("d1", "f1"), invoice("d2", "f2")],  # same supplier on both
+        [pdf_file("f1", [(sig, LOWER_RIGHT)]), pdf_file("f2", [(moved, LOWER_RIGHT)])],
+    )
+    assert fi.signature_reuse(ctx) == []
+
+
+def test_different_scribbles_stay_apart_under_the_rotation_search() -> None:
+    for a, b in [(1, 9), (2, 5), (3, 7), (4, 11), (6, 8)]:
+        ctx = case(
+            [invoice("d1", "f1"), contract("d2", "f2")],
+            [
+                pdf_file("f1", [(signature_png(a), LOWER_RIGHT)]),
+                pdf_file("f2", [(signature_png(b), LOWER_RIGHT)]),
+            ],
+        )
+        assert fi.signature_reuse(ctx) == [], (a, b)
