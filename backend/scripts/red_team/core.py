@@ -374,6 +374,54 @@ def check_visible(b: Bundle, out: Outcome) -> list[str]:
     return missing
 
 
+class Runner:
+    """Runs attacks one at a time, keeping the clean bases and their control runs."""
+
+    def __init__(self, cache: Path, seed: int = SEED):
+        self.cache = cache
+        self.seed = seed
+        self.work = Path(tempfile.mkdtemp(prefix="rt-work-", dir=cache))
+        self.bases: dict[str, Bundle] = {}
+        self.controls: dict[str, RunRec] = {}
+
+    def close(self) -> None:
+        shutil.rmtree(self.work, ignore_errors=True)
+
+    def base(self, scenario: str) -> Bundle:
+        if scenario not in self.bases:
+            self.bases[scenario] = build_base(scenario, self.cache)
+        return self.bases[scenario]
+
+    def control(self, scenario: str) -> RunRec:
+        """The unmodified clean base through the same pipeline."""
+        if scenario not in self.controls:
+            self.controls[scenario] = analyse(self.base(scenario), self.work, f"ctl-{scenario}")
+        return self.controls[scenario]
+
+    def run(self, a: Attack) -> Result:
+        base, ctrl = self.base(a.scenario), self.control(a.scenario)
+        if a.control is not None:  # same conversion, no forgery: what the pipeline says about it
+            ck = f"{a.scenario}:{a.control.__name__}"
+            if ck not in self.controls:
+                cb = base.copy()
+                a.control(cb, random.Random(f"{self.seed}:{ck}"))
+                self.controls[ck] = analyse(cb, self.work, f"ctl-{a.control.__name__}")
+            ctrl = self.controls[ck]
+        b = base.copy()
+        rng = random.Random(f"{self.seed}:{a.id}")
+        try:
+            out = a.build(b, rng)
+            changed = b.files != base.files
+            run = analyse(b, self.work, a.id)
+            return judge(a, out, run, ctrl, changed, check_visible(b, out))
+        except Exception as exc:  # an attack that crashes is reported, never hidden
+            return Result(
+                a.id, a.family, a.title, a.scenario, a.consistent, a.sanity, a.forensic_only,
+                "", [], "error", False, [], [], [], None, None, None, None, None, "", "", [], [],
+                False, "error", error=f"{type(exc).__name__}: {exc}",
+            )  # fmt: skip
+
+
 def run_all(
     attacks: list[Attack],
     cache: Path,
@@ -381,63 +429,13 @@ def run_all(
     only: set[str] | None = None,
     log: Callable[[str], None] = print,
 ) -> list[Result]:
-    work = Path(tempfile.mkdtemp(prefix="rt-work-", dir=cache))
-    bases: dict[str, Bundle] = {}
-    controls: dict[str, RunRec] = {}
+    runner = Runner(cache, seed)
     results: list[Result] = []
     try:
         for a in attacks:
             if only and a.id not in only:
                 continue
-            if a.scenario not in bases:
-                bases[a.scenario] = build_base(a.scenario, cache)
-                controls[a.scenario] = analyse(bases[a.scenario], work, f"ctl-{a.scenario}")
-            base, ctrl = bases[a.scenario], controls[a.scenario]
-            if (
-                a.control is not None
-            ):  # same conversion, no forgery: what the pipeline says about it
-                ck = f"{a.scenario}:{a.control.__name__}"
-                if ck not in controls:
-                    cb = base.copy()
-                    a.control(cb, random.Random(f"{seed}:{ck}"))
-                    controls[ck] = analyse(cb, work, f"ctl-{a.control.__name__}")
-                ctrl = controls[ck]
-            b = base.copy()
-            rng = random.Random(f"{seed}:{a.id}")
-            try:
-                out = a.build(b, rng)
-                changed = b.files != base.files
-                run = analyse(b, work, a.id)
-                res = judge(a, out, run, ctrl, changed, check_visible(b, out))
-            except Exception as exc:  # an attack that crashes is reported, never hidden
-                res = Result(
-                    a.id,
-                    a.family,
-                    a.title,
-                    a.scenario,
-                    a.consistent,
-                    a.sanity,
-                    a.forensic_only,
-                    "",
-                    [],
-                    "error",
-                    False,
-                    [],
-                    [],
-                    [],
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    "",
-                    "",
-                    [],
-                    [],
-                    False,
-                    "error",
-                    error=f"{type(exc).__name__}: {exc}",
-                )
+            res = runner.run(a)
             results.append(res)
             log(
                 f"{a.id:8s} {res.verdict:9s} silent={res.silent!s:5s} lane={res.lane} "
@@ -447,5 +445,5 @@ def run_all(
                 + (f" NOTVISIBLE {res.not_visible}" if res.not_visible else "")
             )
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        runner.close()
     return results
