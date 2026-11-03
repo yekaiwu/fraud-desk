@@ -93,7 +93,9 @@ def test_rules_are_not_applicable_to_kyc_cases_without_an_invoice() -> None:
     # Applicable = use case matches OR the documents are present (docs/architecture.md section 4),
     # so a KYC case that carries no invoice does not count the invoice rules.
     ctx = ctx_of(make_statement(), use_case="kyc")
-    assert not [r for r in run_stage_checks(ctx, "rules") if r.rule.startswith("inv_")]
+    # (inv_bank_details_valid also reads bank statements, so a statement lists it)
+    runs = run_stage_checks(ctx, "rules")
+    assert not [r for r in runs if r.rule.startswith("inv_") and r.rule != "inv_bank_details_valid"]
 
 
 def test_invoice_rules_run_on_a_kyc_case_that_carries_an_invoice() -> None:
