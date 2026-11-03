@@ -306,6 +306,24 @@ describe("flag decisions and second approval", () => {
     expect(cards).toHaveLength(2);
   });
 
+  it("'Open Decision & activity' opens the tab and scrolls the tabs into view, so the button never looks dead", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const user = userEvent.setup();
+    await openCase("c_kyc_fraud");
+    await user.click(await screen.findByRole("button", { name: /Mark as not a concern.*\(flag 1\)/ }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText(/Reviewer name/), "a.tan");
+    await user.type(within(dialog).getByLabelText(/Reason \(required/), "Chart is an old draft.");
+    await user.click(within(dialog).getByRole("button", { name: "Mark this as not a concern" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    scroll.mockClear();
+    await user.click(await screen.findByRole("button", { name: "Open Decision & activity" }));
+    expect(screen.getByRole("tab", { name: /Decision & activity/ })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
+    expect(scroll.mock.contexts.some((el) => (el as Element).getAttribute("role") === "tablist")).toBe(true);
+  });
+
   it("blocks the same name in another case or with spaces, then accepts a different reviewer", async () => {
     const spy = vi.spyOn(mock, "postReview");
     const user = userEvent.setup();

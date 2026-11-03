@@ -180,6 +180,16 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
     return () => window.removeEventListener("keydown", onKey);
   }, [numbered, flagId, select, c.files, loc]);
 
+  // A button elsewhere on the page that opens a tab must also bring the tabs into view: the panel is further down,
+  // so without this the tab changes under the reader's eyes and the button looks dead.
+  const openTab = useCallback(
+    (id: string) => {
+      goTab(id);
+      window.setTimeout(() => document.querySelector('[role="tablist"]')?.scrollIntoView?.({ block: "start", behavior: "smooth" }), 60);
+    },
+    [goTab],
+  );
+
   const goFindings = useCallback(() => {
     goTab("findings");
     document.getElementById("findings-region")?.scrollIntoView?.({ block: "start" });
@@ -342,7 +352,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
               goTab("findings");
               document.getElementById("coverage")?.scrollIntoView?.({ block: "start" });
             }}
-            onGoReview={() => goTab("review")}
+            onGoReview={() => openTab("review")}
             onRerun={() => setRerunOpen(true)}
             currentHref={currentHref}
           />
@@ -361,7 +371,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
           onRecord={() => setDecisionOpen(true)}
           onShowFindings={goFindings}
           onShowUnreviewed={goUnreviewed}
-          onOpenActivity={() => goTab("review")}
+          onOpenActivity={() => openTab("review")}
           onRerun={() => setRerunOpen(true)}
           onAddDocs={() => setDocsOpen(true)}
           onOpenTrail={() => setTrailOpen(true)}
