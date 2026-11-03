@@ -161,3 +161,15 @@ A source that is on is listed in the settings hash of the case's provenance; one
 ## 9 Tests
 
 `test_sources_adapters.py` (GLEIF, OneMap, IRAS against fake transports: results, "none", every failure as unavailable, caching, token renewal, no secrets in logs, time budget), `test_sources_runner.py` (private mode blocks every source, the existing ACRA lookup included; unreachable sources make the case partial; snapshot states), `test_sanctions.py` (the four parsers on samples in the real formats, dates, matcher levels, snapshot staleness, update script with a fake transport), `test_checks_verification.py` (the five checks; not configured, private mode and unavailable never flag), `test_verification_coverage.py` (a full pipeline run of the clean loan bundle keeps its fast lane in every configuration), `test_sanctions_fairness.py`. No test touches the network.
+
+## 10 Live smoke test (3 November 2026, once)
+
+| Source | Result |
+|---|---|
+| `update_sanctions.py` against the real internet | UN 1,007, OFAC 19,484, EU 6,269 and UK 6,420 entries downloaded and parsed in 37 s (2.2, 29.3, 25.9 and 22.1 MB); snapshot of 33,180 entries written with URL, time and sha256 per list; no problem reported for a 7-day limit. The MAS page was fetched and recorded as a reference with its maintenance notice. The OFSI CSV (`ConList.csv`) answered HTTP 409 on an earlier look and is not used. |
+| GLEIF (`GleifLookup`) | Singapore Airlines Limited found by UEN `197200078R`: LEI `549300ZG62N2599PWR15`, status ACTIVE, registered as `197200078R`, postal code 819829, no parent. A made-up UEN and name: none, not an error. |
+| OneMap | **Not tested**: no token was available (`GLDB_ONEMAP_TOKEN` unset). The search endpoint answered an anonymous request for postal code 819829 (Airline House) while the file was being studied, but the token-authenticated path, the `Bearer` header form and the email/password renewal have not been run live. |
+| IRAS GST register | **Not tested and not testable**: needs an API Marketplace account; the documentation page was down. |
+| Sanctions screen on the live snapshot | Loads and screens; a re-ordered name of a listed person is found in the EU, OFAC and UK lists. |
+
+Nothing was sent to a hosted model and nothing was spent.
