@@ -144,7 +144,7 @@ Ranking and ids: sort findings by `(SEVERITY_RANK, not hard_stop, -len(document_
 2. `base` = `{"kyc": "edd", "aml": "aml", "loan": "loan"}[case.use_case]`. If any finding with `weight > 0` has a rule in `AML_ROUTING_RULES`, `base = "aml"` (suspected laundering routes to AML whatever the bundle type; plan 7.3).
 3. If `fast_lane_eligible(case)` return `"fast"`, else `base`.
 
-`fast_lane_eligible` (all must hold): `case.status != "error"`; `case.score.partial` is False; `case.score.value <= FAST_LANE_MAX_SCORE` (20); no finding has `hard_stop`; `effective_coverage(case) >= FAST_LANE_MIN_COVERAGE` (0.80). The fast lane is a **label** for "look at this last": a person still decides, `approve` still needs a reason, nothing is auto-approved (plan 0.4 theme 1, principle 2).
+`fast_lane_eligible` (all must hold): `case.status != "error"`; `case.score.partial` is False; `case.score.value <= FAST_LANE_MAX_SCORE` (20); no finding has `hard_stop`; no document that no rule read (not checked, failed, `other` or a doubtful label) carries at least 3 printed money figures (`queue.unread_figure_documents`, red-team R101 to R104); no page of the case was counted by the classifier as instruction-like text (`queue.injection_suspected_pages`, R90); `effective_coverage(case) >= FAST_LANE_MIN_COVERAGE` (0.80). The fast lane is a **label** for "look at this last": a person still decides, `approve` still needs a reason, nothing is auto-approved (plan 0.4 theme 1, principle 2).
 
 Lane to deck outcome (plan 0.5, 7.3): `edd` = refer for EDD review, `aml` = escalate for AML investigation (STR assessment), `loan` = reject or escalate, `fast` = quick confirmation. Lanes are a recommendation shown beside the verdict form; they never preselect a verdict.
 
