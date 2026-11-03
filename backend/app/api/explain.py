@@ -75,6 +75,7 @@ def build_method() -> dict[str, Any]:
                 "that could not be checked as not completed",
                 "No finding that blocks the fast lane, and no hard-stop check switched off in the "
                 "check catalogue",
+                "No document that no rule could read but that carries printed money figures",
             ],
         },
         "hard_stop_rules": sorted(queue.HARD_STOP_RULES),

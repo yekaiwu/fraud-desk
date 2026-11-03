@@ -113,3 +113,13 @@ def total(values: Iterable[Decimal | None]) -> Decimal:
         if v is not None:
             out += v
     return out
+
+
+# A printed figure as a reader would call it an amount: two decimals, or thousands separators.
+_AMOUNT_TOKEN = re.compile(r"^\(?-?(?:\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})\)?$")
+
+
+def count_amount_tokens(texts: Iterable[str]) -> int:
+    """How many of ``texts`` look like a printed money figure (``1,234.56``, ``(12,000)``, ``0.15``).
+    Years, IDs, quantities without separators and page numbers do not."""
+    return sum(1 for t in texts if _AMOUNT_TOKEN.match(t.strip()))
