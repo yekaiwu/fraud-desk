@@ -460,4 +460,16 @@ describe("timeline tab", () => {
     expect(within(list).getByRole("button", { name: /Case received/ })).toBeInTheDocument();
     expect(within(list).getByRole("button", { name: /Scoring the case/ })).toBeInTheDocument();
   });
+
+  it("takes the full width on a desktop (the page viewer steps aside) and sends Show on document back to the findings", async () => {
+    const user = userEvent.setup();
+    setViewport(1280);
+    await openCase("c_loan_fraud", "tab=timeline");
+    await screen.findByRole("list", { name: "Steps of this case, in order" });
+    expect(screen.queryByRole("region", { name: "Page viewer" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    await user.click(screen.getAllByRole("button", { name: "Show on document" })[0]);
+    expect(await screen.findByRole("tab", { name: /Findings/ })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("region", { name: "Page viewer" })).toBeInTheDocument();
+  });
 });

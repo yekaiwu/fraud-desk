@@ -1,5 +1,6 @@
 "use client";
 
+import clsx from "clsx";
 import { Keyboard, Stamp } from "lucide-react";
 import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -315,7 +316,16 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
     ),
     documents: <DocumentsPanel c={c} onShowDocument={showDocument} onShowPage={showPage} />,
     graph: graph ? <EntityGraph graph={graph} onSelectEdge={selectEdge} /> : null,
-    timeline: <CaseTimeline c={c} onShowFlag={(id) => select(id, { reveal: true })} />,
+    timeline: (
+      <CaseTimeline
+        c={c}
+        onShowFlag={(id) => {
+          // the viewer is not on this tab: go back to the findings, with the flag selected and its page open
+          goTab("findings");
+          select(id, { reveal: true });
+        }}
+      />
+    ),
     review: (
       <ReviewPanel
         c={c}
@@ -381,8 +391,9 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
           actions={<CaseActions c={c} isCurrent={isCurrent} onRerun={() => setRerunOpen(true)} onAddDocs={() => setDocsOpen(true)} onDelete={() => setDeleteOpen(true)} />}
         />
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,58fr)_minmax(0,42fr)]">
-          {isLg ? <div className="min-w-0 self-start lg:sticky lg:top-4">{viewer}</div> : null}
+        {/* the timeline is tables of steps and needs the width: on that tab the page viewer steps aside */}
+        <div className={clsx("grid gap-6", tab === "timeline" ? "lg:grid-cols-1" : "lg:grid-cols-[minmax(0,58fr)_minmax(0,42fr)]")}>
+          {isLg && tab !== "timeline" ? <div className="min-w-0 self-start lg:sticky lg:top-4">{viewer}</div> : null}
           <div id="findings-region" className="min-w-0 scroll-mt-4">
             <div className="flex items-end justify-between gap-2">
               <Tabs group={GROUP} label="Case sections" tabs={tabs} value={tab} onValueChange={goTab} className="min-w-0 flex-1" />
