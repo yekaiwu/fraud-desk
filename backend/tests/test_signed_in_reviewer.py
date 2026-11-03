@@ -94,3 +94,75 @@ def test_a_second_approver_must_be_a_different_account_even_if_the_typed_names_d
         headers={**PROXY, "X-Gldb-Reviewer": "bob.lim"},
     )
     assert other.status_code == 201, other.text
+
+
+def test_officer_dismisses_a_high_flag_boss_countersigns_and_officer_cannot_countersign_himself(
+    env: Env,
+) -> None:
+    """The two-person story through the gate: the signed-in account decides who the reviewer is."""
+    case = env.seed(flags=[HIGH])
+
+    def review(who: str, **body: object):  # noqa: ANN202
+        return env.client.post(
+            f"/cases/{case.id}/review",
+            json=review_body(**body),  # type: ignore[arg-type]
+            headers={**PROXY, "X-Gldb-Reviewer": who},
+        )
+
+    def disposition() -> str:
+        flags = env.client.get(f"/cases/{case.id}", headers=PROXY).json()["flags"]
+        return next(f["disposition"] for f in flags if f["id"] == HIGH.id)
+
+    first = review(
+        "officer", kind="flag_decision", decision="dismiss", reviewer="whoever", flag_ids=[HIGH.id]
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["entry"]["status"] == "pending_second_approval"
+    assert first.json()["entry"]["reviewer"] == "officer"
+    assert disposition() == "pending_second_approval"
+    assert (
+        len(env.client.get(f"/cases/{case.id}", headers=PROXY).json()["pending_second_approvals"])
+        == 1
+    )
+
+    # officer cannot countersign his own dismissal, whatever name he types
+    for typed in ("officer", "Officer ", "boss"):
+        own = review(
+            "officer",
+            kind="second_approval",
+            decision="approve",
+            reviewer=typed,
+            target_entry_id="r1",
+        )
+        assert own.status_code == 409, own.text
+        assert own.json()["error"]["code"] == "second_approver_must_differ"
+    assert disposition() == "pending_second_approval"
+
+    ok = review(
+        "boss", kind="second_approval", decision="approve", reviewer="whoever", target_entry_id="r1"
+    )
+    assert ok.status_code == 201, ok.text
+    assert ok.json()["entry"]["reviewer"] == "boss"
+    assert disposition() == "dismissed"
+    assert {e["actor"] for e in env.audit(case.id)} >= {"officer", "boss"}
+
+
+def test_boss_can_also_decline_and_the_flag_goes_back_to_open(env: Env) -> None:
+    case = env.seed(flags=[HIGH])
+
+    def h(who: str) -> dict[str, str]:
+        return {**PROXY, "X-Gldb-Reviewer": who}
+
+    env.client.post(
+        f"/cases/{case.id}/review",
+        json=review_body("flag_decision", "dismiss", reviewer="x", flag_ids=[HIGH.id]),
+        headers=h("officer"),
+    )
+    r = env.client.post(
+        f"/cases/{case.id}/review",
+        json=review_body("second_approval", "decline", reviewer="x", target_entry_id="r1"),
+        headers=h("boss"),
+    )
+    assert r.status_code == 201, r.text
+    flags = env.client.get(f"/cases/{case.id}", headers=PROXY).json()["flags"]
+    assert next(f["disposition"] for f in flags if f["id"] == HIGH.id) == "open"

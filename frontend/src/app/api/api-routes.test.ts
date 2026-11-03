@@ -204,3 +204,60 @@ describe("/api catch-all proxy", () => {
     expect((await r.json()).error.code).toBe("network_error");
   });
 });
+
+describe("two accounts, officer and boss (the shape of the demo)", () => {
+  // made-up values; the real passwords never appear in this repository
+  const OFFICER_PW = "officer test password";
+  const BOSS_PW = "boss test password!";
+  const ctx = (...path: string[]) => ({ params: Promise.resolve({ path }) });
+
+  beforeEach(() => {
+    // the single login is officer, one more account comes from GLDB_SITE_USERS
+    env({ GLDB_SITE_USERNAME: "officer", GLDB_SITE_PASSWORD: OFFICER_PW, GLDB_SITE_USERS: JSON.stringify({ boss: BOSS_PW }) });
+  });
+
+  const cookieOf = async (username: string, password: string, ip: string) => {
+    const r = await login(post({ username, password }, { "x-forwarded-for": ip }));
+    expect(r.status).toBe(200);
+    return /gldb_session=([^;]+)/.exec(r.headers.get("set-cookie")!)![1];
+  };
+  const reviewerSeenByTheBackend = async (cookie: string, forged?: string) => {
+    let seen: Headers | undefined;
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      seen = init.headers as Headers;
+      return new Response('{"reviewer":null}', { status: 200, headers: { "content-type": "application/json" } });
+    });
+    const req = new NextRequest("http://127.0.0.1:3000/api/me", { headers: { cookie: `gldb_session=${cookie}`, ...(forged ? { "x-gldb-reviewer": forged } : {}) } });
+    expect((await GET(req, ctx("me"))).status).toBe(200);
+    return seen!.get("x-gldb-reviewer");
+  };
+
+  it("both accounts can sign in, and a wrong password never can", async () => {
+    await cookieOf("officer", OFFICER_PW, "203.0.113.21");
+    await cookieOf("boss", BOSS_PW, "203.0.113.22");
+    await cookieOf("  BOSS ", BOSS_PW, "203.0.113.23"); // the name is not case-sensitive
+    expect((await login(post({ username: "boss", password: OFFICER_PW }, { "x-forwarded-for": "203.0.113.24" }))).status).toBe(401);
+    expect((await login(post({ username: "officer", password: "wrong" }, { "x-forwarded-for": "203.0.113.25" }))).status).toBe(401);
+  });
+
+  it("each session tells the backend who is signed in, so officer and boss are two different reviewers", async () => {
+    const officer = await cookieOf("officer", OFFICER_PW, "203.0.113.31");
+    const boss = await cookieOf("boss", BOSS_PW, "203.0.113.32");
+    expect(await reviewerSeenByTheBackend(officer)).toBe("officer");
+    expect(await reviewerSeenByTheBackend(boss)).toBe("boss");
+  });
+
+  it("a reviewer name sent by the browser is thrown away: officer cannot pose as boss", async () => {
+    const officer = await cookieOf("officer", OFFICER_PW, "203.0.113.41");
+    expect(await reviewerSeenByTheBackend(officer, "boss")).toBe("officer");
+  });
+
+  it("a session cookie signed for one account's name with the other's password does not work", async () => {
+    const forged = await signSession(SECRET, `boss\u0000${OFFICER_PW}`, Date.now(), undefined, "boss");
+    const f = vi.fn();
+    vi.stubGlobal("fetch", f);
+    const r = await GET(new NextRequest("http://127.0.0.1:3000/api/me", { headers: { cookie: `gldb_session=${forged}` } }), ctx("me"));
+    expect(r.status).toBe(401);
+    expect(f).not.toHaveBeenCalled();
+  });
+});

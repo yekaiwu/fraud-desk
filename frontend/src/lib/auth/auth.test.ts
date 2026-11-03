@@ -281,3 +281,31 @@ describe("personal accounts", () => {
     expect(await sessionUser(cfg, legacy, T0 + 1000)).toBe(USERNAME);
   });
 });
+
+describe("two accounts, officer and boss, and the password length rule", () => {
+  // made-up passwords: the real ones never appear in this repository
+  const OFFICER_PW = "officer test password";
+  const BOSS_PW = "boss test password!";
+  const live = { NODE_ENV: "production", GLDB_SESSION_SECRET: SECRET, GLDB_SITE_USERNAME: "officer", GLDB_SITE_PASSWORD: OFFICER_PW, GLDB_SITE_USERS: JSON.stringify({ boss: BOSS_PW }) };
+
+  it("officer from the single login plus boss from the list are two accounts", async () => {
+    const cfg = readAuthConfig(live);
+    expect(cfg.mode).toBe("enforce");
+    if (cfg.mode !== "enforce") return;
+    expect(Object.keys(cfg.users).sort()).toEqual(["boss", "officer"]);
+    const officer = await signSession(SECRET, `officer\u0000${OFFICER_PW}`, T0, undefined, "officer");
+    const boss = await signSession(SECRET, `boss\u0000${BOSS_PW}`, T0, undefined, "boss");
+    expect(await sessionUser(cfg, officer, T0 + 1000)).toBe("officer");
+    expect(await sessionUser(cfg, boss, T0 + 1000)).toBe("boss");
+  });
+
+  it("a password of 11 characters is a setup error that stops the site, for either account; 12 is fine", () => {
+    const eleven = "elevenchars";
+    const twelve = "twelvechars!";
+    for (const cfg of [readAuthConfig({ ...live, GLDB_SITE_PASSWORD: eleven }), readAuthConfig({ ...live, GLDB_SITE_USERS: JSON.stringify({ boss: eleven }) })]) {
+      expect(cfg.mode).toBe("error");
+      expect(JSON.stringify(cfg)).not.toContain(eleven);
+    }
+    expect(readAuthConfig({ ...live, GLDB_SITE_PASSWORD: twelve, GLDB_SITE_USERS: JSON.stringify({ boss: twelve }) }).mode).toBe("enforce");
+  });
+});
