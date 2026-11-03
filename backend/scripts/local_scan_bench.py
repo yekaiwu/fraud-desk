@@ -233,7 +233,7 @@ def main() -> int:
         wall_seconds=round(wall, 1),
         status=case.status,
         partial=case.partial,
-        partial_reason=getattr(case, "partial_reason", None),
+        partial_reason=list(case.partial_reasons),
         documents=len(case.documents),
         fields=f"{fok}/{fn}",
         table_cells=f"{tok}/{tn}",

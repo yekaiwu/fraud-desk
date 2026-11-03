@@ -221,6 +221,10 @@ A photo of a page on a desk is skewed, has a dark border and uneven light. For i
 It leaves a picture alone when no outline covering at least 40% of the frame is found, or when the page already fills the frame upright. It is **off by default** (`GLDB_OCR_STRAIGHTEN=on` enables it): on 15 clean simulated photo bundles it left 8 with a false alarm against 6 with it off, so the word-level gain did not carry through (docs/limitations.md section 12). Measured on simulated phone photos, straightening cut Tesseract's word misses from 1.8% to 0.34% (docs/anthropic-haiku.md section 5). Not measured on real photos, where shadows, curl, glare, fingers and cluttered backgrounds will defeat the outline search some of the time.
 
 
+### 4.12 Scans: parser first, compact tables (opt-in, for the local model)
+
+Two settings change how a scanned document is read, both off by default so the hosted path is unchanged (measured in [local-llm.md](local-llm.md) section 12). `GLDB_SCAN_RULES_FIRST=true`: the cascade runs the text-layer parser of the document type on the OCR words; the result is kept only if the layout is recognised, the validator reports no failing page and no required field is missing (warning `scan_rules:`), otherwise the model reads the document as before (warning `scan_rules_declined: <why>`). On a scan the parser does not derive `is_ubo=false` for an untagged ownership-chart box (a missed badge is not evidence). `GLDB_LLM_COMPACT_TABLES=true`: the response schema returns each table of the document types that have no enum column as a list of rows of strings or nulls in a column order stated in the system prompt (registered as `extract:<type>:compact` when used); `expand_compact_tables` rebuilds the row objects before validation, padding a short row with null and noting `compact_row_length`.
+
 ## 5. Behaviour: `LLMClient`
 
 ### 5.1 `get_llm_client(settings, cache)`
