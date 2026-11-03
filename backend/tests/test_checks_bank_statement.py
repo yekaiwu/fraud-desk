@@ -1048,10 +1048,14 @@ def test_a_credit_cell_with_two_amounts_is_named_not_counted_as_nothing() -> Non
     assert flag.rule == "bs_running_balance" and flag.row == 1
     assert "reads '2,195.81 2,415.39', not one amount, and was counted as 0.00" in flag.evidence
     assert "the printed balance fits 2,195.81" in flag.evidence
-    assert "2,415.39" not in flag.evidence.split("the printed balance fits")[1]  # only the amount that fits
+    assert (
+        "2,415.39" not in flag.evidence.split("the printed balance fits")[1]
+    )  # only the amount that fits
     assert "holds more than one amount" in flag.explanation and "fits 2,195.81" in flag.explanation
     assert "+ 0.00 =" in flag.evidence  # the arithmetic is still shown as it was done
-    assert any(r.label == "credit (not one amount)" for r in flag.extra_regions)  # the cell is pointed at
+    assert any(
+        r.label == "credit (not one amount)" for r in flag.extra_regions
+    )  # the cell is pointed at
 
 
 def test_an_unreadable_amount_that_fits_no_reading_still_says_so_without_inventing_one() -> None:
