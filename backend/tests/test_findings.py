@@ -489,3 +489,58 @@ def test_sentence_does_not_end_at_a_company_form_abbreviation() -> None:
     assert sentence(text) == "Kestrel Capital Holdings Pte. Ltd. holds 25.00% per the registry"
     assert sentence("Mr. Tan owns it. He signed.") == "Mr. Tan owns it"
     assert sentence("One. Two") == "One"
+
+
+# ----------------------------------- the same wrong fact on two documents, or one name on several lists
+
+
+def test_the_same_acra_difference_on_two_documents_is_one_finding_scored_once() -> None:
+    case = case_with()
+    date = [
+        fl("x_entity_vs_registry", ["d1"], disc="date", field="incorporation_date"),
+        fl("x_entity_vs_registry", ["d2"], disc="date", field="incorporation_date"),
+    ]
+    (finding,) = group_flags(case, date)
+    assert finding.group_key == "acra_entity:date" and len(finding.flag_ids) == 2
+    assert finding.document_ids == ["d1", "d2"]
+    one = group_flags(case, date[:1])
+    assert (
+        finding.weight == one[0].weight
+    )  # a second document with the same wrong date adds nothing
+
+    mixed = [*date, fl("x_entity_vs_registry", ["d1"], disc="name", field="company_name")]
+    assert sorted(f.group_key for f in group_flags(case, mixed)) == [
+        "acra_entity:date",
+        "acra_entity:name",
+    ]
+
+
+def test_acra_and_gleif_differences_stay_separate_findings() -> None:
+    case = case_with()
+    flags = [
+        fl("x_entity_vs_registry", ["d1"], disc="name", field="company_name"),
+        fl("x_entity_vs_gleif", ["d1"], disc="name", field="company_name"),
+    ]
+    assert sorted(f.group_key for f in group_flags(case, flags)) == [
+        "acra_entity:name",
+        "gleif_entity:name",
+    ]
+
+
+def test_one_name_on_three_sanctions_lists_is_one_counterparty() -> None:
+    case = case_with()
+    where = {"field": "supplier_name"}
+    three = [
+        fl("x_sanctions_screen", ["d4"], "medium", disc=f"{lst}_1~acme", **where)
+        for lst in ("eu", "ofac", "uk")
+    ]
+    (finding,) = group_flags(case, three)
+    assert finding.group_key == "sanctions:d4:-:-:supplier_name" and len(finding.flag_ids) == 3
+    other_place = fl("x_sanctions_screen", ["d4"], "medium", disc="eu_1~beta", field="buyer_name")
+    other_doc = fl("x_sanctions_screen", ["d5"], "medium", disc="eu_1~acme", field="supplier_name")
+    keys = sorted(f.group_key for f in group_flags(case, [*three, other_place, other_doc]))
+    assert keys == [
+        "sanctions:d4:-:-:buyer_name",
+        "sanctions:d4:-:-:supplier_name",
+        "sanctions:d5:-:-:supplier_name",
+    ]

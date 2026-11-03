@@ -23,7 +23,7 @@ SUMMARY_MAX_CHARS = 300
 REGION_OVERLAP_MIN = 0.5  # starting guess, recalibrated from the eval (section 8)
 _EPS = 1e-9
 
-GroupKind = Literal["per_doc", "per_file", "shared", "bundle", "anchor", "region"]
+GroupKind = Literal["per_doc", "per_file", "shared", "bundle", "anchor", "region", "field"]
 
 
 class GroupFamily(NamedTuple):
@@ -62,6 +62,12 @@ FAMILIES: tuple[GroupFamily, ...] = (
     GroupFamily("director", "shared", frozenset({"x_directors"})),
     GroupFamily("entity", "shared", frozenset({"x_entity", "fs_entity", "bs_holder"})),
     GroupFamily("remitter", "shared", frozenset({"x_remitter_vs_buyer"})),
+    # the same wrong fact printed on several documents is one finding with one instance per document: the
+    # incorporation date on both the certificate and the profile differs from ACRA once, not twice
+    GroupFamily("acra_entity", "shared", frozenset({"x_entity_vs_registry"})),
+    GroupFamily("gleif_entity", "shared", frozenset({"x_entity_vs_gleif"})),
+    # one name on one document, several lists: a supplier on the EU, OFAC and UK lists is one counterparty
+    GroupFamily("sanctions", "field", frozenset({"x_sanctions_screen"})),
     GroupFamily(
         "dup",
         "shared",
@@ -315,6 +321,11 @@ def _key(flag: Flag, case: Case, region_n: int | None) -> str:
     if fam.kind == "shared":
         disc = flag_discriminator(flag)
         return f"{fam.prefix}:{disc}" if disc else _default_key(flag)
+    if fam.kind == "field":
+        where = (
+            f"{flag.table or '-'}:{flag.row if flag.row is not None else '-'}:{flag.field or '-'}"
+        )
+        return f"{fam.prefix}:{_subject(flag)}:{where}"
     if fam.kind == "bundle":
         return f"{fam.prefix}:{flag.rule}"
     if fam.kind == "anchor":
