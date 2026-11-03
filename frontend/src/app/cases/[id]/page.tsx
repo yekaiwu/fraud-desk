@@ -20,6 +20,7 @@ import { DocumentsPanel, NotCheckedList } from "@/components/case/DocumentsPanel
 import { EntityGraph } from "@/components/case/EntityGraph";
 import { FindingsPanel, type DecideTarget, type SelectOpts } from "@/components/case/FindingsPanel";
 import { FlagDecisionDialog } from "@/components/case/FlagDecisionDialog";
+import { CaseTimeline } from "@/components/case/CaseTimeline";
 import { PageViewer } from "@/components/case/PageViewer";
 import { ProcessingStepper } from "@/components/case/ProcessingStepper";
 import { RecommendationHero } from "@/components/case/RecommendationHero";
@@ -71,6 +72,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
     t.push({ id: "documents", label: isLg ? "Documents" : "Docs" });
     if (showGraph) t.push({ id: "graph", label: "Graph" });
     t.push({ id: "review", label: "Decision & activity", count: pending > 0 ? pending : undefined });
+    t.push({ id: "timeline", label: "Timeline" });
     return t;
   }, [c.findings, isLg, showGraph, pending]);
 
@@ -313,6 +315,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
     ),
     documents: <DocumentsPanel c={c} onShowDocument={showDocument} onShowPage={showPage} />,
     graph: graph ? <EntityGraph graph={graph} onSelectEdge={selectEdge} /> : null,
+    timeline: <CaseTimeline c={c} onShowFlag={(id) => select(id, { reveal: true })} />,
     review: (
       <ReviewPanel
         c={c}

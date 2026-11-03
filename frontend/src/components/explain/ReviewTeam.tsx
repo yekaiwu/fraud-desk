@@ -23,9 +23,16 @@ function Generated({ label, text }: { label: string; text: string }) {
   );
 }
 
-function Member({ r }: { r: AgentReport }) {
+function Member({ r, onShowFlag }: { r: AgentReport; onShowFlag?: (flagId: string) => void }) {
   const model = r.agent === "challenger" || r.agent === "case_officer";
   const lowered = r.verdicts.filter((v) => v.action === "lowered");
+  const flagLabel = (id: string) => (onShowFlag ? (
+    <button type="button" onClick={() => onShowFlag(id)} className="num break-all text-left text-xs text-brand-2 underline underline-offset-2">
+      {id}
+    </button>
+  ) : (
+    <span className="num text-xs">{id}</span>
+  ));
   return (
     <li className="space-y-1.5 rounded-lg border border-rule bg-surface px-3.5 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -56,19 +63,37 @@ function Member({ r }: { r: AgentReport }) {
           </ul>
         </div>
       ) : null}
-      {lowered.length > 0 ? (
+      {r.flag_ids.length > 0 && r.agent !== "case_officer" && r.agent !== "challenger" ? (
         <div>
-          <p className="label-caps">Flags lowered, with the passage that explains each</p>
-          <ul className="mt-0.5 space-y-1 text-sm">
-            {lowered.map((v) => (
-              <li key={v.flag_id} className="break-words">
-                <span className="num text-xs">{v.flag_id}</span>: {v.reason}
+          <p className="label-caps">Flags it passed on ({r.flag_ids.length})</p>
+          <ul className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+            {r.flag_ids.map((id) => (
+              <li key={id}>{flagLabel(id)}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {r.verdicts.length > 0 ? (
+        <div>
+          <p className="label-caps">
+            Its rulings ({r.verdicts.length}): {r.verdicts.length - lowered.length} kept, {lowered.length} lowered
+          </p>
+          <ul className="mt-0.5 space-y-1.5 text-sm">
+            {r.verdicts.map((v) => (
+              <li key={v.flag_id} className="break-words rounded-md border border-rule bg-paper/60 px-2.5 py-1.5">
+                {flagLabel(v.flag_id)}{" "}
+                <Badge variant={v.action === "lowered" ? "medium" : "neutral"} icon={null}>
+                  {v.verdict === "upheld" ? "Upheld" : "Doubtful"}, {v.action === "lowered" ? "lowered to info" : "kept"}
+                </Badge>
+                <span className="block text-ink-2">{v.reason}</span>
                 {v.quote ? (
-                  <>
-                    {" "}
-                    <q className="text-ink">{v.quote}</q> ({v.document_id})
-                  </>
-                ) : null}
+                  <span className="block">
+                    Quote: <q className="text-ink">{v.quote}</q>
+                    {v.document_id ? ` (${v.document_id})` : ""}
+                  </span>
+                ) : (
+                  <span className="block text-xs text-muted">No passage quoted, so the flag stands.</span>
+                )}
               </li>
             ))}
           </ul>
@@ -81,6 +106,17 @@ function Member({ r }: { r: AgentReport }) {
         </p>
       ) : null}
     </li>
+  );
+}
+
+/** The six members and what each handed on, without a heading: the timeline puts them inside its own step. */
+export function TeamMembers({ agents, onShowFlag }: { agents: AgentReport[]; onShowFlag?: (flagId: string) => void }) {
+  return (
+    <ul className="space-y-2">
+      {agents.map((r) => (
+        <Member key={r.agent} r={r} onShowFlag={onShowFlag} />
+      ))}
+    </ul>
   );
 }
 

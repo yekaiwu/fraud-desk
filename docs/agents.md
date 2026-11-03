@@ -2,7 +2,7 @@
 
 A case is looked at by six named members, in this order, after the cross-document checks and before
 scoring. The trail of what each one saw, handed on and changed is stored on the case (`Case.agents`)
-and shown in the analysis trail under "The review team".
+and shown in the analysis trail under "The review team" and, with every ruling of the challenger, as a step of the case's Timeline tab (frontend.md 5.3).
 
 | Member | What it is | Model call | Can it change a flag? |
 |---|---|---|---|

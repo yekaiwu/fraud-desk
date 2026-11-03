@@ -407,7 +407,7 @@ describe("layout and a11y", () => {
     setViewport(1280);
     await openCase("c_aml_graph");
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Documents", "Graph", "Decision & activity"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Documents", "Graph", "Decision & activity", "Timeline"]);
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", tabs[0].id);
     tabs[0].focus();
     await user.keyboard("{ArrowRight}");
@@ -420,7 +420,7 @@ describe("layout and a11y", () => {
     setViewport(390);
     await openCase("c_aml_graph");
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Page", "Docs", "Graph", "Decision & activity"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Page", "Docs", "Graph", "Decision & activity", "Timeline"]);
     expect(screen.queryByRole("region", { name: /Page image/ })).toBeNull();
     await user.click(screen.getAllByRole("button", { name: /Show on document.*flag 1/ })[0]);
     expect(await screen.findByRole("region", { name: /Page image/ })).toBeInTheDocument();
@@ -447,5 +447,17 @@ describe("layout and a11y", () => {
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(opener).toHaveFocus();
+  });
+});
+
+describe("timeline tab", () => {
+  it("opens from the tab list and shows every step the case went through, each opening to its output", async () => {
+    const user = userEvent.setup();
+    await openCase("c_loan_fraud");
+    await user.click(await screen.findByRole("tab", { name: "Timeline" }));
+    const list = await screen.findByRole("list", { name: "Steps of this case, in order" });
+    expect(within(list).getAllByRole("button").length).toBeGreaterThan(4);
+    expect(within(list).getByRole("button", { name: /Case received/ })).toBeInTheDocument();
+    expect(within(list).getByRole("button", { name: /Scoring the case/ })).toBeInTheDocument();
   });
 });
