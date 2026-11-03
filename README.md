@@ -37,7 +37,10 @@ Fraud Desk reads a document bundle, runs the checks an analyst would do by hand,
 > - **73 checks across 13 document types.** 68 are rules: statement, invoice, receipt and financial-statement arithmetic, ID and ownership records, cross-document reconciliation, name matching across transliterations, a live company-register lookup (Singapore's open ACRA data, opt-in), five checks against outside sources, all off until configured and never a flag when the source cannot be reached (sanctions lists built from the official UN, OFAC, EU and UK downloads, GLEIF, OneMap, the IRAS GST register, and offline IBAN and BIC form; see [docs/verification-sources.md](docs/verification-sources.md)), and file forensics (metadata, signature integrity, bytes added after a signature, text-layer anomalies, reused signatures; see [docs/forensics.md](docs/forensics.md)). 5 ask a model about meaning: transaction labels, three "does this fit the company" questions (goods, income, coherence) and name linking. The first four are on whenever a model is configured (`GLDB_SEMANTIC=off` turns them off); **name linking (`sem_entity_link`) is off by default, with its own switch `GLDB_SEMANTIC_ENTITY`, until its fairness gap across name groups is closed and the bank agrees to it.** All five quote the exact text they rely on, never rank above medium and cannot clear a case on their own ([docs/semantic-signals.md](docs/semantic-signals.md)).
 > - **Review team.** Four specialists group the checks by what they examine, a challenger may lower a judgement flag only by quoting the documents, and a case officer writes a plain-English summary and next steps for each flagged case ([docs/agents.md](docs/agents.md)). On a fresh seed the challenger lowered no flag, so it changed neither false alarms nor recall.
 > - **Review workflow.** Reasons on every verdict, a second approver for high-severity dismissals, an append-only audit log and an exportable case pack.
-> - **Reads scans on your machine.** Tesseract reads the page and Claude Haiku 5.5 turns the text into fields, about 2.6 times cheaper per case than Haiku reading page images. A page image goes to the model only when that page's arithmetic does not add up. Qwen 3.8 27B run locally was also tested ([docs/anthropic-haiku.md](docs/anthropic-haiku.md)).
+> - **Encrypted at rest.** The application itself encrypts stored uploads, page images, case data, review entries and the model-response cache (AES-256-GCM, opt-in with `GLDB_ENCRYPT_AT_REST`), with the key kept in a file outside the data folder, a migration and key-rotation tool, and the status shown in monitoring ([docs/encryption-at-rest.md](docs/encryption-at-rest.md)).
+> - **An in-house option.** The whole reading path also runs on a local model (Qwen 3.8 27B) as a proof of concept, and `GLDB_PRIVATE_MODE` refuses any hosted model and blocks every outbound call ([docs/local-llm.md](docs/local-llm.md)). The demo uses Claude Haiku 5.5, which is more capable.
+> - **Tested by an independent attacker.** A red team of 71 attacks in 10 families tried to get forged bundles through; 25 of the 50 counted got through, and every gap is kept as a permanent test ([docs/red-team.md](docs/red-team.md)).
+> - **Reads scans on your machine.** Tesseract reads the page and Claude Haiku 5.5 turns the text into fields, about 2.6 times cheaper per case than Haiku reading page images. A page image goes to the model only when that page's arithmetic does not add up. A local model can do the reading instead, as an in-house proof of concept ([docs/anthropic-haiku.md](docs/anthropic-haiku.md), [docs/local-llm.md](docs/local-llm.md)).
 > - **Predictable model spend.** Per-case and per-day dollar caps.
 > - **Notifications tab.** Monitoring alerts, incidents and tests appear on the page itself with a badge, what to do about each and an acknowledgement that needs a reason, even with no outside channel set up. The accountable person is shown as an open item until the bank names one ([docs/ai-incidents.md](docs/ai-incidents.md)).
 
@@ -83,24 +86,27 @@ Fraud Desk reads a document bundle, runs the checks an analyst would do by hand,
 
 ```mermaid
 flowchart LR
-  A([Upload a bundle]) --> B[Ingest<br/>text layer, OCR or vision]
+  A([Upload a bundle]) --> B[Ingest<br/>text layer or OCR]
   B --> C[Classify each page]
-  C --> D[Extract the fields]
+  C --> D[Extract the fields<br/>with a completeness check]
   D --> E[Checks and forensics]
-  E --> F[Cross-document checks]
-  F --> G[Score with coverage]
+  E --> F[Cross-document checks<br/>and opt-in outside sources]
+  F --> K[Second reading<br/>of scan flags]
+  K --> R[Review team]
+  R --> G[Score with coverage]
   G --> H[[Ranked worklist]]
   H --> I{{A person decides}}
   I --> J[(Audit log)]
+  G -.-> N[Notifications tab]
 ```
 
-Reads PDFs and images: text layer first, then Tesseract OCR for scans, with Claude Haiku 5.5 turning the text into fields. Also tested: Haiku reading the page images, and Qwen 3.8 27B run locally. **A reader for scans is required: without one, scanned pages are reported as unreadable and the score is marked partial.** All extracted text is treated as untrusted input from the person being checked, and the model has no tools, so all it can do is fill a schema.
+Reads PDFs and images: text layer first, then Tesseract OCR for scans, with Claude Haiku 5.5 turning the text into fields. Each page the OCR reads is checked for completeness (every item line must have an amount); an incomplete page is re-read from its image and, if it still fails, reported as incomplete, never as a mismatch. A flag on scanned pages must be reproduced by a different reading of the same pages or it is kept as information only, a second OCR reader for photos is built and off by default, and a local model can do the reading instead (in-house proof of concept). Optional lookups (company register, sanctions lists, GLEIF, OneMap, IRAS) are off until configured, and a source that cannot be reached never becomes a flag. **A reader for scans is required: without one, scanned pages are reported as unreadable and the score is marked partial.** All extracted text is treated as untrusted input from the person being checked, and the model has no tools, so all it can do is fill a schema.
 
 ## Try it and try to break it
 
 No install needed: a hosted demo is open to invited testers. The most useful thing you can do is use it the way a forger or a careless customer would, then tell us what you saw.
 
-**Use fictitious documents only.** Make your own (a word processor and "save as PDF" is enough), photograph or scan a printed page, or use the ten demo cases already in the worklist (open one, then read its pages and its evidence). Never upload anything real: no genuine IDs, bank statements, invoices or company records. Page text and images are sent to a third-party model for reading, so real data must never go in.
+**Use fictitious documents only.** Make your own (a word processor and "save as PDF" is enough), photograph or scan a printed page, or use the demo cases already in the worklist (open one, then read its pages and its evidence). Never upload anything real: no genuine IDs, bank statements, invoices or company records. Page text and images are sent to a third-party model for reading, so real data must never go in.
 
 <details open>
 <summary><b>What to try</b></summary>
@@ -122,24 +128,27 @@ No install needed: a hosted demo is open to invited testers. The most useful thi
 
 ## How well does it work?
 
-Early results from our own evaluation, on synthetic data generated by the team that wrote the checks. **Treat every number as an upper bound.** Testing on documents we did not write is the next step.
+Our own evaluation, on synthetic data written by the team that wrote the checks, plus a few outside tests on public data. **Treat every number as an upper bound: no real business document has been tested.** The verdicts are our own reading of each result.
 
-| Document form | Reader | Core recall | Tampered cases | Clean bundles falsely flagged |
-|:--|:--|:--|:--|:--|
-| Digital PDF | Text layer | **1.00** [0.99-1.00] | 465 | 0 of 33 |
-| Scan, high quality | Tesseract, then Claude Haiku 5.5 on the text | **1.00** [0.74-1.00] | 11 | 1 of 2 |
-| Scan, high quality | Claude Haiku 5.5 on the page image | **1.00** [0.74-1.00] | 11 | 1 of 2 |
-| Scan, high quality | Oracle | 0.83 [0.70-0.91] | 47 | 0 of 3 |
-| Photo of a page | Oracle | 0.67 [0.45-0.83] | 21 | 0 of 3 |
-| Scan, low quality | Oracle | 0.62 [0.41-0.79] | 21 | 0 of 3 |
+| What was measured | Result | Verdict |
+|:--|:--|:--|
+| Digital PDFs: core tampers caught | 464 / 465 on the development seed, 465 / 465 on a held-out seed; 0 of 33 clean bundles falsely flagged | Good |
+| Scans (Tesseract, then Haiku on the text): tampered bundles caught | 38 / 40 on a fresh seed, four edit types | Good |
+| Scans: clean bundles falsely flagged | 3 / 75 on the current code; 8 / 150 over all fresh seeds (5.3%, 95% interval 2.7% to 10%) | Good |
+| Invoices made by someone else (public set, synthetic companies) | totals read on 48 / 48 labelled invoices; 1 / 70 untouched images flagged (1.4%) | Good |
+| Receipts recognised | 3 of 20 non-invoice images; the rest are reported "not checked" | Mixed |
+| Phone photos (simulated): clean bundles falsely flagged | 6 / 15 (40%); a second OCR reader is built, off, and did not measurably help | Weak |
+| Independent red team: counted attacks that got through | 25 / 50 (50%, interval 37% to 63%) | Weak |
+| In-house local model, clean scanned bundles read end to end | 8 / 8 at about 7 s a page, about as accurate as Haiku on the 3 compared; not tested on poor scans, photos or tampered cases | Mixed (proof of concept) |
+| Cost per case with Haiku | about $0.006 digital, about $0.098 scanned | |
 
-*Core recall is the share of tampered cases where the expected check fired on a new flag; brackets are 95% intervals. An oracle is handed the right answer instead of reading the page, so those rows test the checks, not the reading. All rows are the held-out seed 9001 on the final code (digital and oracle rows run 2026-10-27, the two real-reader rows 2026-10-31: AML and KYC bundles, 8 tamper types, one pass, 1 or 2 cases per type, loan left out). [docs/validation-report.md](docs/validation-report.md) lists the development-set figures, which are slightly higher.*
+*Core recall is the share of tampered cases where the expected check fired on a new flag; intervals are 95% Wilson. A false alarm is a medium or high flag on an untouched document. Scans were read by Tesseract and Claude Haiku 5.5, one pass per seed with the code frozen. Digital figures predate the latest checks and were not re-run. Details, small-sample caveats and the earlier numbers are in [docs/limitations.md](docs/limitations.md) and [docs/validation-report.md](docs/validation-report.md).*
 
-**Misses.** Digital has one known miss: a forger who recomputes every figure consistently. On the development seed Haiku reading images missed the same kind of forgery on a scan (a paid invoice's credit removed and the chain recomputed); on the held-out seed neither real reader missed it, from one case each, so do not read that as a fix. Recall counts a new flag against the same scan of the clean bundle, so scan noise can inflate it, and 11 cases leave a wide interval.
+**What the red team found.** One independent attacker, one try per attack, on our synthetic documents, offline. The attacks that got through are mostly silent gaps that need an outside reference: revenue and cost of sales grossed up together, a deleted contract-reference line, an invented supplier with a valid UEN, round-trip invoices, and company or date edits with no registry to disagree. Four detection gaps were fixed (a text map that contradicts the glyphs, an unsigned update that replaces text, an unreadable balance column, a rotated and re-noised signature), the fast lane is now closed for unread money figures and for text that talks to the reader, and 17 known evasions are kept as expected-failure tests so they cannot be forgotten. This is a map of weaknesses, not a real-world detection rate.
 
-**Reading quality and cost.** On the 2 held-out clean bundles both readers read every statement row exactly (row recall and precision 1.000). Tesseract plus Haiku text cost **$0.34 for the 13 cases against $0.87 for Haiku on the images** (about $0.026 against $0.067 a case) and ran faster (115 s against 170 s a case). The clean-bundle false alarms differ in kind: Tesseract's was account-holder and name matching on a bundle where Haiku-on-images raised none (names read wrongly from the text; we did not tune on it), and Haiku-on-images flagged a passport check on the other bundle. On the development seed, the same Tesseract setup raised no flag on either clean bundle and caught 11 of 11, against 10 of 11 and 1 of 2 flagged for Haiku on images (598 of 604 statement rows, 0.99), but we tuned the Tesseract settings and small text repairs (a stray comma after an amount, a `$` read for the `S` of an ID number) on those development bundles, so only the held-out rows count. Apple Vision, which we used first, read 0.70 of statement rows and falsely flagged all 3 clean bundles; RapidOCR dropped the spaces between words and could not be parsed.
+**Misses.** A forger who recomputes every figure consistently still passes the arithmetic (0 of 10 caught); only an outside source (the bank, neighbouring months, a registry) can show what the number was. Phone photos are the weak area: the remaining errors are statement columns read wrongly by the model, not misread digits, so photographed documents should go to a person.
 
-**Scans, measured on a wider sample (development seed only).** The 13-case comparison above was too small to show how fragile scan reading is. A sweep of 30 clean scanned bundles (10 each of loan, KYC and AML, from a seed used for tuning) raised a false alarm on **24 of 30 (80%)** with Tesseract plus Haiku text at first, and on **12 of 30 (40%)** with Haiku reading page images; a re-run of the digital version of the same bundles differed in 1 of 30 (the model's transaction labels vary slightly). Findings and fixes: look-alike characters in ID numbers and in `PTE LTD`, invoice numbers clipped by table mode, Haiku returning one row for a 22-row page, and name checks that compared a whole noisy bank description with the buyer's name. After those fixes the arithmetic false alarms disappeared and 12 of 30 still raised a cross-document name or ID flag. A flag raised on scanned pages must now be reproduced by a second, different reading of the same pages (the other of Tesseract text and Haiku on the image); a flag it does not reproduce stays on the case as `info` with that reason and no longer adds to the score. On the same development bundles that gives **3 of 30 clean bundles with a false alarm (10%, 95% interval 3% to 26%)** and 8 of 8 tampered bundles caught. Those are tuning data. On two fresh seeds that were never used for tuning (9101 and 9102, run once with the code frozen), **3 of 45 clean bundles (6.7%, 95% interval 2% to 18%) raised a rule-based false alarm, and 3 more raised a model-based `sem_coherence_fit` flag that the digital version of the same bundle did not, so 6 of 45 (13%, interval 6% to 26%) raised any flag at medium or above**; 16 of 16 tampered bundles (seed 9101: T01, T10, T58, T59) were caught. A third fresh seed (9103, run once with the code frozen, with the review team on) gave **2 of 30 clean bundles with a rule-based false alarm and 3 of 30 with any flag, and 29 of 32 tampered scans caught** (T01 4 of 4, T10 4 of 4, T58 10 of 10, T59 11 of 14). The 3 misses are true payer-mismatch flags that the second reading did not reproduce and set aside, so the second reading costs some recall. Pooled over the three fresh seeds that is **5 of 75 clean bundles with a rule-based false alarm (6.7%, interval 3% to 15%), 9 of 75 with any flag (12%, interval 6% to 21%), and 45 of 48 tampered scans caught (94%, interval 83% to 98%)**. That does not demonstrate an industry-grade false-alarm rate: 75 bundles cannot show a rate under 10% with confidence (the upper bound is 15% for rule-based flags), the model-based flags are not yet put through the second reading, only scans rendered at high quality were run through the full pipeline (Tesseract alone misses 0.4% of words on those, 1.3% on low-quality scans with about 30 times as many wrong amounts and dates, and 16% on the generator's phone-photo renders; those are about 130 dpi and probably harsher than real photos, and a free follow-up at phone resolution with the page straightened gave 0.34%, in a script that is not part of the product and on synthetic photos only, see docs/anthropic-haiku.md), the tampered sample is small, and the data is synthetic. On seed 9101 the 46 cases cost $4.50 in model calls ($0.10 a case) and took 313 s on average. The second reading roughly doubles the model cost and time of a case that has a scan flag, and of no other case.
+**The score.** The default score is the original capped sum of points per finding. A non-saturating model with weights fitted on our synthetic cases is built and opt-in (`GLDB_SCORE_MODEL=calibrated`); it ranked no better on unseen data, so it is not the default. Either way the score orders the queue and is not a probability of fraud.
 
 **What the model-based checks add.** The 68 rule checks are arithmetic, comparisons and name matching, so a document whose numbers are all consistent passes them. The five model-based checks read meaning, and each one quotes the text it relies on:
 
@@ -160,16 +169,23 @@ Digital PDFs are the strongest case. Scans and photos score lower, and real-worl
 - Amounts are `Decimal` in Python and decimal strings in JSON. A letter touching a digit is not an amount (`S8222222A`).
 - Every flag carries evidence and never changes after scoring; review actions are separate append-only entries.
 - All model calls go through one client interface; tests use a fake. No network and no key in tests.
+- An outside lookup that cannot be reached never becomes a flag: the check is skipped and the case is marked partial. A lookup that is not configured does not lower coverage.
+- Stored data can be encrypted by the application, with keys kept outside the data folder; private mode can forbid every outbound call.
 
 ## Current limits
 
 <details>
 <summary><b>Read this before relying on any number above</b></summary>
 
-- **Synthetic data, our own checks.** The mock bundles and the tamper catalogue are written by the same people who wrote the checks. Bands and thresholds are starting guesses. The risk score can be the original capped sum of points per finding (`GLDB_SCORE_MODEL=legacy`) or a combination of per-finding probabilities with weights fitted on our own synthetic cases (`calibrated`, [docs/scoring-and-queue.md](docs/scoring-and-queue.md) section 4.4a); either way it orders the queue and is not a probability of fraud.
-- **Scans are only as good as the reader.** Three of the five recall rows above come from an oracle that is handed the right answer; the two real-reader rows are 11 tampered cases each on two clean bundles. Tesseract reads clean scans well but misreads small print, so on a poor scan expect wrong digits; the fallback to a page image only helps pages whose arithmetic fails. With no reader for scans, scanned or image-only pages are reported as unreadable and the score is partial.
-- **The mock registry is a JSON file** written by the generator, not a live company-registry or identity lookup.
-- **One process, SQLite;** jobs are not durable across restarts. The hosted login is one shared username and password with self-declared reviewer names, and there are no roles.
+- **Synthetic data, our own checks.** The mock bundles and the tamper catalogue are written by the same people who wrote the checks, and no real business document has been tested. An independent red team got past the pipeline on half of the counted attacks. Bands and thresholds are starting guesses, and the score is an ordering signal, not a probability of fraud.
+- **Scans are only as good as the reader.** Tesseract reads clean scans well but misreads small print, IDs and UENs; on a poor scan expect wrong digits, and photos are weak (6 of 15 clean bundles falsely flagged). The fallback to a page image only helps pages whose arithmetic fails. With no reader for scans, scanned or image-only pages are reported as unreadable and the score is partial.
+- **Receipts and long slips.** Most photographed receipts are still not recognised (16 of 20 non-invoice images) and are reported "not checked"; rows the OCR loses entirely cannot be counted.
+- **Registries.** The registry is a JSON file written by the generator unless the opt-in live lookups are on. ACRA open data, GLEIF, OneMap and the IRAS GST register check names, status, dates and addresses, not who owns or runs a company; owner and director checks need a registry the bank has. OneMap and IRAS were built against fake services and not tested live. Singpass and Myinfo are not connected: they need the bank to apply.
+- **Names.** About 30% of real same-person aliases are not accepted (India 35.2%, Malaysia 20.7%, Singapore 17.0%), almost all of them not matchable from the name alone, and the name-linking model check is off until its fairness gap is closed. The bank defines what fair means.
+- **Encryption** protects stored data against disk, backup and volume theft. It does not protect against someone who controls the running application or the key on the same machine; the applicant name and case reference stay readable so the queue can search; page images still go to the model provider.
+- **Alerts** appear on the Notifications tab only while the monitor is scheduled, and a stopped process cannot alert. The accountable person is deliberately unnamed, and the thresholds are unapproved, until the bank decides.
+- **Local model.** It is a proof of concept for the in-house option: slower than Haiku, tested only on clean scans, and LM Studio's own server logs prompts in full, so real data must use the gateway and llama-server pair instead.
+- **One process, SQLite;** jobs are not durable across restarts and nothing has been load-tested. The hosted demo uses one shared login with self-declared reviewer names; personal reviewer accounts can be configured, and there are no roles.
 - The local classifier is a stub; it needs `torch` and `transformers`, which are deliberately not installed by default.
 - **Not yet validated on real cases, and not compliance advice.** Fraud Desk is decision support for a human reviewer.
 
@@ -177,7 +193,7 @@ Digital PDFs are the strongest case. Scans and photos score lower, and real-worl
 
 ## For developers
 
-Source, specs and the evaluation design are in this repository: start at [docs/README.md](docs/README.md) (`architecture.md`, `data-model.md`, `api.md`, and `test-data-and-eval.md`). Code contributions: [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+Source, specs and the evaluation design are in this repository: start at [docs/README.md](docs/README.md) (`architecture.md`, `data-model.md`, `api.md`, and `test-data-and-eval.md`). Newer areas: [encryption-at-rest.md](docs/encryption-at-rest.md), [verification-sources.md](docs/verification-sources.md), [red-team.md](docs/red-team.md), [ai-incidents.md](docs/ai-incidents.md) (alerts and the Notifications tab), [scoring-and-queue.md](docs/scoring-and-queue.md), [local-llm.md](docs/local-llm.md) and [limitations.md](docs/limitations.md). Code contributions: [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
 
 ## Contributors
 
