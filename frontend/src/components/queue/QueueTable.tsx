@@ -9,6 +9,13 @@ import { ExplainChecksColumn, ExplainRiskColumn } from "../explain/ListExplainer
 import { ExplainLanes } from "../explain/NextStepExplainer";
 import { QueueCard, QueueTableRow } from "./QueueRow";
 
+/** "Select and delete" mode: which cases are ticked, and how to tick one or all rows of this page. */
+export type Selection = { selected: ReadonlySet<string>; onToggle: (id: string) => void; onToggleAll: () => void };
+
+function allTicked(items: QueueItem[], s: Selection): boolean {
+  return items.length > 0 && items.every((i) => s.selected.has(i.case_id));
+}
+
 export type SortKey = "score" | "coverage" | "age";
 
 function ariaSort(q: QueueQuery, key: SortKey): "ascending" | "descending" | "none" {
@@ -38,6 +45,8 @@ function SortHeader({ label, k, q, onSort, className, addon }: { label: string; 
   );
 }
 
+export { allTicked };
+
 export function rankBase(query: QueueQuery): number {
   return ((query.page ?? 1) - 1) * (query.page_size ?? PAGE_SIZE);
 }
@@ -47,7 +56,7 @@ export function showsRank(query: QueueQuery): boolean {
   return (query.sort ?? "priority") === "priority" && !query.order;
 }
 
-export function QueueTable({ items, query, ageNow, onSort }: { items: QueueItem[]; query: QueueQuery; ageNow: number; onSort: (k: SortKey) => void }) {
+export function QueueTable({ items, query, ageNow, onSort, selection }: { items: QueueItem[]; query: QueueQuery; ageNow: number; onSort: (k: SortKey) => void; selection?: Selection }) {
   const rank = showsRank(query);
   const base = rankBase(query);
   return (
@@ -56,6 +65,17 @@ export function QueueTable({ items, query, ageNow, onSort }: { items: QueueItem[
         <caption className="sr-only">Cases ranked by priority: open cases first, then highest risk, least checked and longest waiting.</caption>
         <thead className="bg-paper-2">
           <tr className="border-y border-rule">
+            {selection ? (
+              <th scope="col" className={clsx(head, "w-12 pr-1")}>
+                <input
+                  type="checkbox"
+                  checked={allTicked(items, selection)}
+                  onChange={selection.onToggleAll}
+                  aria-label="Select all cases on this page"
+                  className="h-5 w-5 cursor-pointer accent-brand-2"
+                />
+              </th>
+            ) : null}
             {rank ? (
               <th scope="col" className={head}>
                 <span aria-hidden>#</span>
@@ -81,7 +101,7 @@ export function QueueTable({ items, query, ageNow, onSort }: { items: QueueItem[
         </thead>
         <tbody>
           {items.map((it, i) => (
-            <QueueTableRow key={it.case_id} item={it} rank={rank ? base + i + 1 : null} ageNow={ageNow} />
+            <QueueTableRow key={it.case_id} item={it} rank={rank ? base + i + 1 : null} ageNow={ageNow} selection={selection ? { checked: selection.selected.has(it.case_id), onToggle: () => selection.onToggle(it.case_id) } : undefined} />
           ))}
         </tbody>
       </table>
@@ -89,13 +109,13 @@ export function QueueTable({ items, query, ageNow, onSort }: { items: QueueItem[
   );
 }
 
-export function QueueCards({ items, query, ageNow }: { items: QueueItem[]; query: QueueQuery; ageNow: number }) {
+export function QueueCards({ items, query, ageNow, selection }: { items: QueueItem[]; query: QueueQuery; ageNow: number; selection?: Selection }) {
   const rank = showsRank(query);
   const base = rankBase(query);
   return (
     <ul aria-label="Cases ranked by priority" className="grid gap-3 lg:grid-cols-2 lg:gap-4">
       {items.map((it, i) => (
-        <QueueCard key={it.case_id} item={it} rank={rank ? base + i + 1 : null} ageNow={ageNow} />
+        <QueueCard key={it.case_id} item={it} rank={rank ? base + i + 1 : null} ageNow={ageNow} selection={selection ? { checked: selection.selected.has(it.case_id), onToggle: () => selection.onToggle(it.case_id) } : undefined} />
       ))}
     </ul>
   );

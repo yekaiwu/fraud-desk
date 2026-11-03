@@ -200,11 +200,31 @@ export function StatusLine({ item }: { item: QueueItem }) {
 /** Attention is shown as a brass edge on the row; everything else is the paper. */
 export const EDGE = "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-brass before:content-['']";
 
-export function QueueTableRow({ item, rank, ageNow }: { item: QueueItem; rank: number | null; ageNow: number }) {
+/** The tick box of "Select and delete" mode. Inside a row it is an own-click control, so ticking it never opens the case. */
+export type RowSelection = { checked: boolean; onToggle: () => void };
+
+export function SelectBox({ item, selection, className }: { item: QueueItem; selection: RowSelection; className?: string }) {
+  return (
+    <input
+      type="checkbox"
+      checked={selection.checked}
+      onChange={selection.onToggle}
+      aria-label={`Select ${applicantOf(item)}${item.reference ? `, ${item.reference}` : ""}`}
+      className={clsx("h-5 w-5 cursor-pointer accent-brand-2", className)}
+    />
+  );
+}
+
+export function QueueTableRow({ item, rank, ageNow, selection }: { item: QueueItem; rank: number | null; ageNow: number; selection?: RowSelection }) {
   const edge = needsAttention(item);
   const first = "relative px-3 py-4 align-top first:pl-5";
   return (
-    <tr onClick={openRowLink} className="cursor-pointer border-t border-rule bg-surface transition-colors hover:bg-brand-tint/60 focus-within:bg-brand-tint/80">
+    <tr onClick={openRowLink} className={clsx("cursor-pointer border-t border-rule bg-surface transition-colors hover:bg-brand-tint/60 focus-within:bg-brand-tint/80", selection?.checked && "bg-brand-tint/50")}>
+      {selection ? (
+        <td className="w-12 py-4 pl-5 pr-1 align-top">
+          <SelectBox item={item} selection={selection} />
+        </td>
+      ) : null}
       {rank !== null ? (
         <td className={clsx(first, "w-12 font-display text-lg text-muted tabular", edge && EDGE)}>{rank}</td>
       ) : null}
@@ -233,12 +253,18 @@ export function QueueTableRow({ item, rank, ageNow }: { item: QueueItem; rank: n
   );
 }
 
-export function QueueCard({ item, rank, ageNow }: { item: QueueItem; rank: number | null; ageNow: number }) {
+export function QueueCard({ item, rank, ageNow, selection }: { item: QueueItem; rank: number | null; ageNow: number; selection?: RowSelection }) {
   const laneBadge = laneBadgeFor(item);
   const edge = needsAttention(item);
   const analysing = isAnalysing(item);
   return (
-    <li className={clsx("relative rounded-lg border border-rule bg-surface p-4 shadow-paper transition-colors hover:bg-brand-tint/40 focus-within:bg-brand-tint/60", edge && "border-l-[3px] border-l-brass")}>
+    <li className={clsx("relative rounded-lg border border-rule bg-surface p-4 shadow-paper transition-colors hover:bg-brand-tint/40 focus-within:bg-brand-tint/60", edge && "border-l-[3px] border-l-brass", selection?.checked && "bg-brand-tint/50")}>
+      {selection ? (
+        // above the card's stretched link (its ::after covers the card), so the box takes its own clicks
+        <div className="relative z-10 mb-3 -mt-1">
+          <SelectBox item={item} selection={selection} />
+        </div>
+      ) : null}
       <div className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-3">
         <div className="min-w-0">
           <ApplicantLink item={item} />

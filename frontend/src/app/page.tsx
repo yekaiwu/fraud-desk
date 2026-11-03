@@ -5,7 +5,9 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import { QueueFilters, SORT_LABELS, activeFilterCount, lanePanelId, laneTabId } from "@/components/queue/QueueFilters";
 import { NoMatches, NothingWaiting, QueueError, QueueSkeleton } from "@/components/queue/QueueStates";
-import { QueueCards, QueueTable } from "@/components/queue/QueueTable";
+import { BatchDeleteDialog, type BatchResult } from "@/components/queue/BatchDeleteDialog";
+import { QueueCards, QueueTable, type Selection } from "@/components/queue/QueueTable";
+import { SelectionBar } from "@/components/queue/SelectionBar";
 import { ShortcutsDialog } from "@/components/queue/ShortcutsDialog";
 import { WorklistHeader } from "@/components/queue/WorklistHeader";
 import { bandCounts, laneCounts, pickNext, summarise } from "@/components/queue/worklist";
@@ -59,6 +61,42 @@ function QueueView() {
   }, []);
   const sinceFetch = Math.max(0, (clock.now - clock.fetched) / 1000);
 
+  // "Select and delete": tick boxes on the rows, one confirmation for the whole batch
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const pageIds = data?.items.map((i) => i.case_id) ?? [];
+  const selection: Selection | undefined = selecting
+    ? {
+        selected,
+        onToggle: (id) =>
+          setSelected((prev) => {
+            const next = new Set(prev);
+            if (!next.delete(id)) next.add(id);
+            return next;
+          }),
+        onToggleAll: () => setSelected((prev) => (pageIds.length > 0 && pageIds.every((id) => prev.has(id)) ? new Set([...prev].filter((id) => !pageIds.includes(id))) : new Set([...prev, ...pageIds]))),
+      }
+    : undefined;
+  // a tick belongs to the rows you can see: a new page, filter or sort starts the selection again
+  const viewKey = key[1];
+  const [selView, setSelView] = useState(viewKey);
+  if (selView !== viewKey) {
+    setSelView(viewKey);
+    setSelected(new Set());
+  }
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+    setConfirmOpen(false);
+  };
+  const batchDone = (r: BatchResult) => {
+    setSelected(new Set(r.failed.map((f) => f.id)));
+    if (r.failed.length === 0) stopSelecting();
+    void mutate();
+    void mutateScope();
+  };
+
   const [help, setHelp] = useState(false);
   useWorklistKeys(useCallback(() => setHelp(true), []));
 
@@ -107,12 +145,15 @@ function QueueView() {
             Sorted: <span className="font-semibold text-ink">{sortDescription(query)}</span>
           </p>
         </div>
+        <div className="mb-3 flex justify-end">
+          <SelectionBar selecting={selecting} count={selected.size} pageCount={data.items.length} onStart={() => setSelecting(true)} onDone={stopSelecting} onSelectPage={() => setSelected((prev) => new Set([...prev, ...data.items.map((i) => i.case_id)]))} onClear={() => setSelected(new Set())} onDelete={() => setConfirmOpen(true)} />
+        </div>
         {wide ? (
           <div className="overflow-hidden rounded-lg border border-rule bg-surface shadow-paper">
-            <QueueTable items={data.items} query={query} ageNow={sinceFetch} onSort={onSort} />
+            <QueueTable items={data.items} query={query} ageNow={sinceFetch} onSort={onSort} selection={selection} />
           </div>
         ) : (
-          <QueueCards items={data.items} query={query} ageNow={sinceFetch} />
+          <QueueCards items={data.items} query={query} ageNow={sinceFetch} selection={selection} />
         )}
         {data.has_next || page > 1 ? (
           <nav aria-label="Pagination" className="mt-4 flex items-center justify-between gap-3">
@@ -144,6 +185,7 @@ function QueueView() {
         <div>{body}</div>
       </div>
       <ShortcutsDialog open={help} onClose={() => setHelp(false)} />
+      <BatchDeleteDialog open={confirmOpen} ids={[...selected]} onClose={() => setConfirmOpen(false)} onDone={batchDone} />
     </Stagger>
   );
 }
