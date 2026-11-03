@@ -91,6 +91,10 @@ Six small cases that the standard bundles do not cover. They are on the hosted d
 
 Say: the live lookup and the sanctions screen are opt-in outside sources, off unless an operator turns them on (`docs/verification-sources.md`); when a source cannot be reached the case says it is partial and never invents a flag. If the open ACRA service answers 429 (it rate-limits), the case is marked partial with the reason; wait a minute and use **Rerun**.
 
+### 3b. The three-upload version (for a short slot)
+
+`backend/scripts/make_showcase_bundles.py --out DIR --variant 1 --extras` writes the showcase documents that join three existing bundles, with the bundle's own company as the invoice buyer so the cross-document checks stay quiet. The demo folder is then three uploads: (1) the Photoshop/PDF-forensics bundle plus the bad receipt (AML: file and arithmetic tampering with no AI), (2) the model-based bundle plus the AI-looking invoice and the invoice with instruction text (AML: meaning, AI provenance, prompt injection), (3) the Green Link Digital Bank KYC bundle with the wrong incorporation date plus the invoice from the sanctioned shipping company (KYC: live register and sanctions). Clear the worklist first (Select and delete): demos 1 and 2 use the same files as the standard demo cases and would otherwise raise duplicate-document flags. The live registry file (`GLDB_REGISTRY_PATH`) holds the generator's 37 companies so these uploads never wait on the rate-limited ACRA service; only Green Link Digital Bank is looked up live.
+
 ## 4. The ranked queue
 
 **Clicks.** Upload six cases of the same kind in any order (for example the clean and fraud bundles of the three use cases from `samples/bundles/`). Open `/`: the default sort is **priority** (status, then score high to low, then coverage low to high). Point at rank 1 to 6 and at the **Fast lane** chip on the clean cases (a person still confirms them). Use the use-case segmented control and the lane filter to show the queue narrowing.

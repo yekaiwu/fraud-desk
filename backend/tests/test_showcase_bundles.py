@@ -79,3 +79,15 @@ def test_variant_one_shares_no_file_with_variant_zero(tmp_path: Path) -> None:
         }
 
     assert digests(tmp_path / "a") and not digests(tmp_path / "a") & digests(tmp_path / "b")
+
+
+def test_extras_bill_the_bundle_company_so_cross_document_checks_stay_quiet(tmp_path: Path) -> None:
+    listed = sb.demo_extras(tmp_path / "x", 1)
+    assert set(listed) == {"receipt", "jurong-kiln", "gldb"}
+    kiln = sb.DEMO_BUYERS["jurong-kiln"]
+    for name in listed["jurong-kiln"]:
+        path = tmp_path / "x" / "jurong-kiln" / name
+        if path.suffix == ".pdf":
+            assert kiln.name in pymupdf.open(path)[0].get_text()
+    gldb = pymupdf.open(tmp_path / "x" / "gldb" / listed["gldb"][0])[0].get_text()
+    assert sb.GLDB_NAME in gldb and "Chonmyong Shipping Co" in gldb
