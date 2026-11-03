@@ -23,6 +23,10 @@ API_MD_SECTION_2: set[tuple[str, str]] = {
     ("POST", "/monitoring/alerts/test"),
     ("POST", "/monitoring/alerts/{}/acknowledge"),
     ("GET", "/monitoring/readiness"),
+    # the in-app notification feed (api.md section 9b): about the monitor, never about a case
+    ("GET", "/monitoring/notifications"),
+    ("GET", "/monitoring/notifications/summary"),
+    ("POST", "/monitoring/notifications/read"),
     ("POST", "/monitoring/thresholds/approve"),
     ("GET", "/health"),
     ("POST", "/cases"),

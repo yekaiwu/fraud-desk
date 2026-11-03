@@ -230,6 +230,27 @@ CREATE TABLE IF NOT EXISTS alert_deliveries (
     error TEXT
 );
 
+-- The in-app notification feed (app/notifications.py): what the Notifications page lists. Metric names,
+-- numbers, thresholds, incident ids and the severity only; never a case's content or an analyst's free text.
+-- Like alert_state and audit_log it is stored as plain text (queue-style data, no case content), so it
+-- stays listable whether or not encryption at rest is on. ``event`` makes an announcement idempotent.
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    category TEXT NOT NULL,
+    key TEXT NOT NULL,
+    event TEXT,
+    severity TEXT NOT NULL DEFAULT 'info',
+    title TEXT NOT NULL,
+    text TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}',
+    read_at TEXT,
+    read_by TEXT
+);
+CREATE INDEX IF NOT EXISTS notifications_ts ON notifications (ts);
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_event ON notifications (kind, key, event);
+
 -- Small named values of the monitor: last evaluation time, last test alert, scheduler start.
 CREATE TABLE IF NOT EXISTS monitor_meta (
     name TEXT PRIMARY KEY,

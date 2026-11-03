@@ -2,9 +2,11 @@
 
 ``monitoring.snapshot`` only reads. This module turns what it finds into something a person is told:
 
-* **Sinks** (all optional, configured by ``GLDB_ALERT_*``): a JSON webhook (Slack, Teams or any receiver, with
-  an optional HMAC signature), e-mail over SMTP, a Telegram bot and a local JSON-lines file. A failing sink is
-  recorded (sink, time, error class) and never blocks the others. Retries are bounded.
+* **Sinks**: the in-app sink is always there (it records every notification for the Notifications page,
+  ``app/notifications.py``); the others are optional, configured by ``GLDB_ALERT_*``: a JSON webhook (Slack,
+  Teams or any receiver, with an optional HMAC signature), e-mail over SMTP, a Telegram bot and a local
+  JSON-lines file. A failing sink is recorded (sink, time, error class) and never blocks the others. Retries
+  are bounded.
 * **State** (``alert_state``): one row per alert key. A metric that goes to ``alert`` opens an alert and is
   announced once; an open alert nobody acknowledged is announced again after ``GLDB_ALERT_RENOTIFY_HOURS``;
   an acknowledged one stays quiet; going back to ``ok`` resolves it and says so. ``unknown`` (too few cases)
@@ -44,6 +46,7 @@ from app.core.db import Database, ts
 from app.core.errors import ApiError
 from app.core.privacy import host_allowed, parse_allowed, url_allowed
 from app.monitoring import snapshot
+from app.notifications import IN_APP, InAppSink, mark_alert_read
 
 log = logging.getLogger("gldb.alerts")
 
@@ -74,6 +77,7 @@ class AlertMessage:
     text: str
     data: dict[str, Any] = field(default_factory=dict)
     sent_at: str = ""
+    event: str = ""  # identifies one announcement, so a retry is not recorded twice on the page
 
 
 def _num(value: float | None) -> str:
@@ -99,6 +103,7 @@ def build_message(
     action: str = "",
     first_seen: str | None = None,
     extra: dict[str, Any] | None = None,
+    event: str = "",
 ) -> AlertMessage:
     """Plain text that stands alone: the metric, the number, the limit, what it means, what to do, where to look."""
     stamp = ts(now)
@@ -139,7 +144,13 @@ def build_message(
             f"Read: {_where(settings, '/monitoring/alerts')}",
         ]
     return AlertMessage(
-        kind=kind, key=key, title=title, text="\n".join(lines), data=data, sent_at=stamp
+        kind=kind,
+        key=key,
+        title=title,
+        text="\n".join(lines),
+        data=data,
+        sent_at=stamp,
+        event=event,
     )
 
 
@@ -573,7 +584,7 @@ class AlertService:
     @property
     def sinks(self) -> list[Sink]:
         if self._sinks is None:
-            self._sinks = build_sinks(self.settings)
+            self._sinks = [InAppSink(self.db), *build_sinks(self.settings)]
         return self._sinks
 
     # ------------------------------------------------------------------ delivery
@@ -700,10 +711,20 @@ class AlertService:
             meaning=row["meaning"],
             action=row["action"],
             first_seen=row["first_seen"],
+            event=(
+                f"{row['first_seen']}/resolved@{row['resolved_at']}"
+                if resolved
+                else f"{row['first_seen']}#{row['notify_count']}"
+            ),
         )
         results = self.deliver(msg)
         delivered = [r.sink for r in results if r.ok]
-        if delivered:
+        # The page is always reachable, so it must not hide a failing outside sink: with any outside sink
+        # configured, the alert counts as announced only when one of those got it (and is retried otherwise;
+        # the page records each announcement once).
+        outside = [r for r in results if r.sink != IN_APP]
+        counted = [r.sink for r in (outside or results) if r.ok]
+        if counted:
             with _STATE_LOCK, self.db.conn() as c:
                 if resolved:
                     c.execute(
@@ -831,6 +852,7 @@ class AlertService:
                 },
                 conn=c,
             )
+            mark_alert_read(c, key, who=who, at=ts(now))  # seen: its own notifications are read too
             row = c.execute("SELECT * FROM alert_state WHERE key = ?", (key,)).fetchone()
         return _state_dict(row)
 
@@ -891,6 +913,7 @@ class AlertService:
             self.settings,
             now=self.clock(),
             extra={"incident_id": incident_id, "severity": severity, "reported_by": reported_by},
+            event=str(incident_id),
         )
         return self.deliver(msg)
 

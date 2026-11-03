@@ -875,6 +875,7 @@ def test_test_alert_goes_through_every_sink_and_records_each_result(api: Env) ->
 
 
 def test_test_alert_with_no_sink_says_so(api: Env) -> None:
+    use_sinks(api)  # an explicitly empty list: neither the page nor an outside sink
     body = api.client.post("/monitoring/alerts/test").json()
     assert (
         body["delivered"] is False

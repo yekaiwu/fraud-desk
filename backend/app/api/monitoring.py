@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Path, Request
-from pydantic import Field
+from fastapi import APIRouter, BackgroundTasks, Path, Query, Request
+from pydantic import Field, model_validator
 
 from app.alerts import (
     AlertService,
@@ -27,6 +28,16 @@ from app.monitoring import (
     incidents,
     open_incident,
     snapshot,
+)
+from app.notifications import (
+    ACTION_READ,
+    AUDIT_IDS_MAX,
+    list_notifications,
+    mark_incident_read,
+    mark_read,
+)
+from app.notifications import (
+    summary as notification_summary,
 )
 from app.readiness import approve_thresholds, readiness, readiness_summary
 from app.review import clean_reason, clean_reviewer
@@ -60,6 +71,22 @@ class IncidentAckRequest(Strict):
     note: str = Field(min_length=5, max_length=500)
     assigned_to: str | None = Field(default=None, min_length=2, max_length=80)
     reviewer: str | None = None
+
+
+class MarkReadRequest(Strict):
+    """Either the ids to mark, or ``all`` for every unread notification."""
+
+    ids: list[int] | None = Field(default=None, min_length=1, max_length=200)
+    all: bool = False
+    reviewer: str | None = None
+
+    @model_validator(mode="after")
+    def _one_of(self) -> MarkReadRequest:
+        if (self.ids is None) == (not self.all):
+            raise ValueError("send either ids or all=true")
+        if self.ids is not None and any(i < 1 for i in self.ids):
+            raise ValueError("ids are positive integers")
+        return self
 
 
 def alert_service(request: Request) -> AlertService:
@@ -142,6 +169,76 @@ def acknowledge_alert(
     return {"alert": alert_service(request).acknowledge(key, who=who, reason=reason)}
 
 
+def _parse_since(value: str | None) -> datetime | None:
+    if value is None or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ApiError(
+            422, "validation_error", "since must be an ISO date or time, e.g. 2026-10-27T10:00:00Z."
+        ) from exc
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+@router.get("/monitoring/notifications")
+def get_notifications(
+    request: Request,
+    db: DbDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    before: Annotated[int | None, Query(ge=1)] = None,
+    since: str | None = None,
+    category: Annotated[Literal["alerts", "incidents", "system"] | None, Query()] = None,
+    unread: bool = False,
+) -> dict[str, Any]:
+    """The in-app feed, newest first. ``before`` pages back (the ``next_before`` of the previous answer),
+    ``since`` keeps only newer ones; ``unread`` is the count over the whole feed, whatever the filter."""
+    rows, next_before = list_notifications(
+        db,
+        limit=limit,
+        before=before,
+        since=_parse_since(since),
+        category=category,
+        unread_only=unread,
+    )
+    return {
+        "as_of": get_clock(request)().astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "notifications": rows,
+        "unread": notification_summary(db)["unread"],
+        "next_before": next_before,
+    }
+
+
+@router.get("/monitoring/notifications/summary")
+def get_notification_summary(db: DbDep) -> dict[str, Any]:
+    """Counts for the navigation badge: ``unread`` notifications, ``open_alerts`` nobody acknowledged and
+    ``badge`` (an open alert and its own unread notification count once)."""
+    return notification_summary(db)
+
+
+@router.post("/monitoring/notifications/read")
+def read_notifications(
+    body: MarkReadRequest, request: Request, db: DbDep, settings: SettingsDep
+) -> dict[str, Any]:
+    """Mark notifications read under the signed-in account (or the typed reviewer). Audited."""
+    who = acting_account(request, settings, body.reviewer)
+    changed, left = mark_read(
+        db, ids=None if body.all else body.ids, who=who, at=get_clock(request)()
+    )
+    if changed:
+        audit_for(request).write(
+            actor=who,
+            action=ACTION_READ,
+            case_id=None,
+            detail={
+                "count": len(changed),
+                "all": body.all,
+                "ids": changed[:AUDIT_IDS_MAX],
+            },
+        )
+    return {"marked": len(changed), "unread": left}
+
+
 @router.post("/monitoring/thresholds/approve", status_code=201)
 def approve(
     body: ApproveThresholdsRequest, request: Request, db: DbDep, settings: SettingsDep
@@ -204,6 +301,7 @@ def acknowledge_incident(
             "No open incident with this id.",
             {"kind": "incident", "id": incident_id},
         )
+    mark_incident_read(db, incident_id, who=who, at=get_clock(request)())
     row_id = audit_for(request).write(
         actor=who,
         action=INCIDENT_ACK_ACTION,
