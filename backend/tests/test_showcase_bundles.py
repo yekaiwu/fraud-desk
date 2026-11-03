@@ -63,3 +63,19 @@ def test_lookup_cases_carry_the_sponsor_identity_and_differ_only_in_the_date(
     assert "May 2021" in real and "March 2020" not in real
     assert "March 2020" in other or "Mar 2020" in other
     assert real != other
+
+
+def test_variant_one_shares_no_file_with_variant_zero(tmp_path: Path) -> None:
+    sb.build(tmp_path / "a", 0)
+    sb.build(tmp_path / "b", 1)
+
+    def digests(root: Path) -> set[bytes]:
+        import hashlib
+
+        return {
+            hashlib.sha256(p.read_bytes()).digest()
+            for p in root.rglob("*")
+            if p.is_file() and p.suffix in {".pdf", ".png"}
+        }
+
+    assert digests(tmp_path / "a") and not digests(tmp_path / "a") & digests(tmp_path / "b")
