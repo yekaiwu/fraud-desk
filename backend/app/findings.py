@@ -127,6 +127,8 @@ HARD_STOP_RULES: frozenset[str] = frozenset(
         "x_directors",
         "id_checksum",
         "passport_mrz",
+        # a possible sanctions match is never a case for the fast lane, whatever its severity
+        "x_sanctions_screen",
     }
 )
 

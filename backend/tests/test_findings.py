@@ -410,7 +410,11 @@ def test_hard_stop_rules() -> None:
 
 
 def test_constants_shape() -> None:
-    assert len(HARD_STOP_RULES) == 15 and "file_reuse" in HARD_STOP_RULES
+    assert (
+        len(HARD_STOP_RULES) == 16
+        and "x_sanctions_screen" in HARD_STOP_RULES
+        and "file_reuse" in HARD_STOP_RULES
+    )
     assert {"x_sof_support", "x_remitter_vs_buyer", "bs_pass_through"} == AML_ROUTING_RULES
     assert SEVERITY_RANK == {"high": 0, "medium": 1, "low": 2, "info": 3}
     rules = [r for fam in FAMILIES for r in fam.rules]
