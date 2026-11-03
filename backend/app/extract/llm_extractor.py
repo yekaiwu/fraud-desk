@@ -36,7 +36,10 @@ from app.core.models import Cell, CellKind, Document, Row, Table, Word
 from app.core.schemas import (
     DOC_SCHEMAS,
     EXTRACTABLE_TYPES,
+    compact_table_columns,
+    expand_compact_tables,
     response_json_schema,
+    response_json_schema_compact,
     response_model_for,
 )
 from app.core.textlayout import aligned_text, layout_text, page_marker
@@ -367,8 +370,8 @@ def _bank_page_chain(
 # --------------------------------------------------------------------------------------
 
 
-def system_prompt_for(doc_type: str) -> str:
-    return build_system_prompt(doc_type)
+def system_prompt_for(doc_type: str, compact: bool = False) -> str:
+    return build_system_prompt(doc_type, compact)
 
 
 def register_all_prompts() -> None:
@@ -442,14 +445,29 @@ class LLMExtractor:
             wrapped = wrap_untrusted(body, label=label)
         except ValueError as exc:  # the page text carries its own end marker: never send it
             raise PageReadError("unsafe_text", "page text contains a forged end marker") from exc
+        compact = bool(ctx.settings.llm_compact_tables and compact_table_columns(doc.doc_type))
+        if compact:
+            mode += "+compact"
+            try:  # listed in provenance only when used, so every other run keeps its prompt hash
+                register_prompt(
+                    f"extract:{doc.doc_type}:compact", system_prompt_for(doc.doc_type, True)
+                )
+            except ValueError:  # pragma: no cover
+                log.warning(
+                    "compact prompt for extract:%s changed after registration", doc.doc_type
+                )
         req = LLMRequest(
             purpose=f"extract:{doc.doc_type}",
             model_role=role,
-            system=system_prompt_for(doc.doc_type),
+            system=system_prompt_for(doc.doc_type, compact),
             user=wrapped,
             images=images,
             schema_name=f"extract_{doc.doc_type}",
-            json_schema=response_json_schema(doc.doc_type),
+            json_schema=(
+                response_json_schema_compact(doc.doc_type)
+                if compact
+                else response_json_schema(doc.doc_type)
+            ),
             cache_extra=f"{sha}:{page}:{mode}",
         )
         try:
@@ -463,15 +481,19 @@ class LLMExtractor:
             raise PageReadError("schema", str(exc)[:200]) from exc
         except LLMTransportError as exc:
             raise PageReadError("transport", str(exc)[:200]) from exc
+        data = result.data
+        if compact:
+            data, row_notes = expand_compact_tables(doc.doc_type, data)
+            notes += row_notes
         try:
-            response_model_for(doc.doc_type).model_validate(result.data)
+            response_model_for(doc.doc_type).model_validate(data)
         except ValidationError as exc:
             first = exc.errors()[0] if exc.errors() else {}
             raise PageReadError("schema", f"{first.get('loc')}: {first.get('msg')}"[:200]) from exc
         reading = build_reading(
             doc,
             page,
-            result.data,
+            data,
             role=role,
             model=result.model,
             mode=mode,

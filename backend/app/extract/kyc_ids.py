@@ -201,5 +201,7 @@ register_prompt_hints(
     "lines at the bottom of the page: copy each character for character, keeping every `<` filler "
     "and every letter O versus digit 0 exactly as printed, with no spaces added or removed and no "
     "padding or trimming, even if a line looks too short or too long. Never compute or correct a "
-    "check digit.",
+    "check digit. `holder_name` is the holder's name in reading order, given names first and then "
+    "the surname (for example ELENA VASQUEZ), joined from the printed Given names and Surname when "
+    "the page has no single name line.",
 )

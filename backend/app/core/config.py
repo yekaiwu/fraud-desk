@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     # chat_template_kwargs.enable_thinking, but honours reasoning_effort="none" (thinking off).
     llm_reasoning_effort: str = ""
     llm_max_concurrency: int = 4  # client-side cap on simultaneous provider calls (all threads)
+    # Tables come back as lists of rows (no key name repeated per cell): about half the output tokens on a
+    # statement page, which is what a slow local model spends its time on. Off by default (hosted path unchanged).
+    llm_compact_tables: bool = False
     llm_max_output_tokens: int = 8000  # raise (16000+) when thinking is on
     llm_retry_503_attempts: int = 2  # retries of a 503 (model loading); the local profile uses 8
     llm_retry_503_backoff_s: float = 1.0  # wait n = backoff * 3**n unless Retry-After is sent
@@ -100,6 +103,10 @@ class Settings(BaseSettings):
     # Off by default: it cut word misses on simulated photos from 15.6% to 5.3% but did not reduce
     # false alarms end to end (docs/limitations.md section 12). Only the text reading uses the straightened picture; the stored page and the image forensics do not.
     ocr_straighten: bool = False
+    # Read a scanned document with the deterministic parsers first (on its OCR words) and call the model
+    # only when the parser does not recognise the layout, a required field is missing or an arithmetic check
+    # fails. Off by default: the hosted path is unchanged. The local profile turns it on (docs/local-llm.md 12).
+    scan_rules_first: bool = False
     # With a local OCR chosen under the anthropic backend the model reads OCR text only. True also
     # lets a scanned page whose arithmetic does not add up be re-read once from its image (the one
     # place the model sees pixels). Empty = on in that setup and off elsewhere; false turns it off.
@@ -446,6 +453,10 @@ class Settings(BaseSettings):
             out["registry_live"] = "on"
         if self.private_mode == "on":  # listed only when on: other runs keep their provenance hash
             out["private_mode"] = "on"
+        if self.llm_compact_tables:  # listed only when on
+            out["llm_compact_tables"] = "on"
+        if self.scan_rules_first:  # listed only when on: other runs keep their provenance hash
+            out["scan_rules_first"] = "on"
         if self.ocr_straighten:  # listed only when on: other runs keep their provenance hash
             out["ocr_straighten"] = "on"
         if self.effective_llm_backend() == "anthropic":

@@ -185,6 +185,24 @@ def main() -> int:
     fok, fn = sum(v[0] for v in fa.values()), sum(v[1] for v in fa.values())
     tr = ex.table_recall(docs, truth)
     tok, tn = sum(v[0] for v in tr.values()), sum(v[1] for v in tr.values())
+    st = ex.statement_metrics(docs, truth)
+    stmt = dict(
+        statements=len(st),
+        truth_rows=sum(x["truth_rows"] for x in st),
+        extracted_rows=sum(x["extracted_rows"] for x in st),
+        aligned_rows=sum(x["aligned"] for x in st),
+        exact_rows=sum(x["exact"] for x in st),
+        chain_valid=sum(1 for x in st if x["chain_valid"]),
+    )
+    st = ex.statement_metrics(docs, truth)
+    stmt = dict(
+        statements=len(st),
+        truth_rows=sum(x["truth_rows"] for x in st),
+        extracted_rows=sum(x["extracted_rows"] for x in st),
+        aligned_rows=sum(x["aligned"] for x in st),
+        exact_rows=sum(x["exact"] for x in st),
+        chain_valid=sum(1 for x in st if x["chain_valid"]),
+    )
     c1ok, c1n = ex.accuracy(ex.c1_pairs(res["detail"]["pages"], labels))
     fields = []
     for gd in truth["documents"]:
@@ -220,12 +238,18 @@ def main() -> int:
         fields=f"{fok}/{fn}",
         table_cells=f"{tok}/{tn}",
         page_type=f"{c1ok}/{c1n}",
+        statement_rows=stmt,
         llm_calls=len(calls),
         prompt_tokens=sum(c.prompt_tokens for c in calls),
         completion_tokens=sum(c.completion_tokens for c in calls),
         usd=str(sum((c.usd for c in case.costs), Decimal(0))),
         flags_med_high=[
             (f.rule, f.severity) for f in case.flags if f.severity in ("medium", "high")
+        ],
+        flags_detail=[
+            (f.rule, f.severity, f.evidence[:400])
+            for f in case.flags
+            if f.severity in ("medium", "high")
         ],
         stages=[(st.stage, round(st.seconds or 0, 1)) for st in case.stages],
         field_detail=fields,
