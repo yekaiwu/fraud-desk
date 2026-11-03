@@ -1,10 +1,10 @@
-# Design guide: "Ledger & Seal"
+# Design guide: "Ledger"
 
 Read this first. Behaviour is specified in `docs/frontend.md`; this file is how it looks and which building blocks to use.
 
 **Who it is for:** a Green Link Digital Bank compliance or credit officer working through a queue of company cases. Every screen should answer: what do I work on next, why is it risky, what should I do, how do I record the decision. Calm, precise, quick to scan, plain English. Light theme only.
 
-**The idea:** a bank statement with a seal. Warm security paper, ink-green type, hairline rules (a thin line over a thicker one under headings), guilloche line work as texture, brass used only for "needs your attention". Red, amber and green mean risk and nothing else.
+**The idea:** Neutral grey page, white cards, ink-green brand, system fonts. Red, amber and green mean risk and nothing else; a neutral accent marks what needs attention.
 
 Dev reference page with every primitive: `/kit` (404s in production builds; source `src/app/kit/`).
 
@@ -14,40 +14,40 @@ Use the Tailwind utilities (`bg-paper`, `text-ink-2`, `border-rule` ...). Never 
 
 | Token | Hex | Use | Contrast (checked) |
 |---|---|---|---|
-| `paper` (= `background`) | #F6F3EC | page | ink 15.1 |
-| `paper-2` | #EEEAE0 | wells, hover, table header | ink 14.0, muted 4.5 |
-| `surface` (= `card`) | #FFFDF8 | raised cards, inputs | ink 16.5 |
+| `paper` (= `background`) | #F5F6F6 | page | ink 15.5 |
+| `paper-2` | #ECEEEE | wells, hover, table header | ink 14.4, muted 4.7 |
+| `surface` (= `card`) | #FFFFFF | raised cards, inputs | ink 16.8 |
 | `ink` (= `foreground`) | #14201B | body text | |
-| `ink-2` | #3A4A43 | secondary text | 9.2 on surface, 7.8 on paper-2 |
-| `muted` | #5E6D66 | captions, labels | 4.9 paper, 5.4 surface, 4.5 paper-2 |
-| `rule` (= `border`) | #D9D3C4 | hairlines, card borders | decorative |
-| `rule-strong` | #857D68 | input and control borders | 4.0 surface, 3.7 paper (needs 3) |
-| `brand` (= `accent`) | #0F3D2E | header band, primary button, headings accent | 11.0 on paper; on-brand text 11.0 |
-| `brand-2` | #1B5E46 | links, active, focus ring | 6.9 paper, 7.6 surface |
+| `ink-2` | #3A4A43 | secondary text | 9.4 on surface, 8.1 on paper-2 |
+| `muted` | #5E6D66 | captions, labels | 5.0 paper, 5.5 surface, 4.7 paper-2 |
+| `rule` (= `border`) | #E1E4E3 | hairlines, card borders | decorative |
+| `rule-strong` | #858C89 | input and control borders | 3.4 surface, 3.2 paper (needs 3) |
+| `brand` (= `accent`) | #0F3D2E | header band, primary button, headings accent | 11.2 on paper; on-brand text 11.2 |
+| `brand-2` | #1B5E46 | links, active, focus ring | 7.1 paper, 7.7 surface |
 | `brand-tint` | #E3EFE8 | selected / hover fill | brand 10.3 |
-| `brass` | #B8893B | FILLS ONLY: attention edge, dots. Never text | ink on brass 5.3 |
-| `brass-deep` | #7A5A1C | brass as text | 6.3 surface, 5.2 on brass-tint |
-| `brass-tint` | #F3E8CF | attention background | |
-| `brass-light` | #E3C27F | brass on the dark band, focus ring there | 7.1 on brand |
+| `brass` | #8C9590 | FILLS ONLY: neutral attention edge, dots. Never text | ink on brass 5.4 |
+| `brass-deep` | #46504C | attention accent as text | 8.4 surface, 7.3 on brass-tint |
+| `brass-tint` | #EEF0EF | attention background | |
+| `brass-light` | #D5DED9 | attention accent on the dark band, focus ring there | 8.9 on brand |
 | `sev-high` / `-tint` | #A8231B / #F8E4E1 | high concern | 7.1 surface, 5.9 on tint |
 | `sev-medium` / `-tint` | #9A5B00 / #FBEBD0 | medium concern | 5.3 surface, 4.6 on tint |
 | `sev-low` / `-tint` | #2A7050 / #E1F0E8 | low concern, success | 5.9 surface, 5.1 on tint |
 | `sev-info` / `-tint` | #3D5A80 / #E4EBF3 | for information | 7.0 surface, 5.9 on tint |
-| `on-brand` / `on-brand-muted` | #F6F3EC / #B7CDC1 | text on the green band | 11.0 / 7.3 on brand |
+| `on-brand` / `on-brand-muted` | #F5F6F6 / #B7CDC1 | text on the green band | 11.2 / 7.3 on brand |
 
 Medium is #9A5B00, darker than the suggested #B26A00, to clear 4.5:1 on its own tint. All pairs: `node scripts/contrast.mjs` (exits 1 on failure). Re-run after touching any colour.
 
-Brass rules: at most one brass element per screen region; it marks what needs attention (active tab edge, `Panel tone="attention"`, mock banner), not decoration.
+Attention accent rules (the `brass*` token names are kept for compatibility): at most one accent element per screen region; it marks what needs attention (active tab edge, `Panel tone="attention"`, mock banner), not decoration.
 
 ## Type
 
-Self-hosted from npm (`@fontsource*`, imported in `layout.tsx`; no CDN, CSP-safe, `font-display: swap`).
+OS system font stacks, set in `globals.css`. Nothing is downloaded, so no CDN and nothing for the CSP to allow.
 
 | Role | Family (Tailwind) | Use |
 |---|---|---|
-| Display | Fraunces Variable, optical size + weight axes (`font-display`) | h1-h3 (applied automatically), risk numerals, Stat values |
-| UI / body | Hanken Grotesk Variable (`font-sans`, default) | everything else, 16 px base |
-| Data | IBM Plex Mono 400/500 (`font-mono`, or `.num`) | case ids, UENs, amounts, rule ids; tabular and slashed zero |
+| Display | System sans: -apple-system / Segoe UI / Roboto (`font-display`) | h1-h3 (applied automatically), risk numerals, Stat values |
+| UI / body | Same system sans stack (`font-sans`, default) | everything else, 16 px base |
+| Data | System mono: ui-monospace / SF Mono / Menlo / Consolas (`font-mono`, or `.num`) | case ids, UENs, amounts, rule ids; tabular figures |
 
 Scale: page title `text-[1.75rem] sm:text-[2.25rem]` (SectionHeading size page), section `text-xl`, panel title 1.0625rem, body 1rem (15px `text-[0.9375rem]` allowed for dense rows), caption `text-sm`/`text-xs`, label-caps `.label-caps` (11.5px, 0.09em). Inputs must be 16px. Amounts and ids: `className="num"`. Numbers in columns: `tabular`.
 
@@ -55,10 +55,10 @@ Scale: page title `text-[1.75rem] sm:text-[2.25rem]` (SectionHeading size page),
 
 - Container: `max-w-[1320px]`, gutters 16 / 24 / 32 px (`CONTAINER` exported from `AppShell.tsx`). Vertical rhythm: 24 px between sections (`space-y-6`), 16 px inside panels (`p-4 sm:p-5`).
 - Radius: `rounded-md` 6 px (controls), `rounded-lg` 10 px (panels), `rounded-xl` 14 px (dialogs), badges 5 px, pills only for meters.
-- Depth: layered paper, not boxes. Page `paper`, cards `surface` + `border-rule` + `shadow-paper`, floating things `shadow-lift`, dialogs `.sheet`. No other shadows, no heavy blur.
-- Rules: `.rule-statement` (hairline over a 2px line) under headings; `.rule-statement-soft` inside panels.
+- Depth: flat. Page `paper`, cards `surface` + `border-rule` + a faint `shadow-paper`, floating things `shadow-lift`, dialogs `.sheet`. No other shadows, no heavy blur.
+- Rules: `.rule-statement` (single hairline under headings); `.rule-statement-soft` inside panels.
 - Touch: 44 px minimum targets (`min-h-11`); `Button size="sm"` is 36 px with a mouse and 44 px on touch.
-- Focus: 2px ring + 2px offset, brand green on paper, light brass on the dark band (`.band-dark`). Do not remove outlines.
+- Focus: 2px ring + 2px offset, brand green on paper, `brass-light` on the dark band (`.band-dark`). Do not remove outlines.
 
 ## Motion
 
@@ -84,7 +84,6 @@ One orchestrated entrance only: wrap a page's main sections in `<Stagger>`; dire
 <Notice variant="success|warning|error|info" title="Decision recorded" action={...} onDismiss={...}>Saved.</Notice>   // error = role alert
 <Field label="Reason" hint="At least 10 characters." error={err} value={v} onChange={...} />   // + inputClasses for select/textarea
 <Logo tone="light|dark" showProduct />  <LogoMark />
-<Guilloche variant="band|rosette" opacity={0.12} className="absolute inset-0 text-on-brand" />   // texture only, aria-hidden
 <Stagger className="space-y-6">...children...</Stagger>
 ```
 
@@ -115,8 +114,8 @@ Never call a document authentic, genuine or verified (`wording.test.ts` greps `c
 - Do pair every colour with text and an icon shape. Do keep one `h1` per page (`SectionHeading level={1}`).
 - Do use `Panel` for groups, `rule-statement` for section starts, `num` for ids and amounts.
 - Do check at 360, 390, 768 and 1440 px; no horizontal page scroll; tables scroll inside a labelled `overflow-x-auto` region.
-- Don't use pure white or black, grey boxes, purple or blue gradients, Tailwind default colours, emoji, or heavy shadows.
-- Don't use brass as text colour (use `brass-deep`), or red/amber/green for anything but risk and success/failure.
+- Don't use pure black, grey boxes, purple or blue gradients, Tailwind default colours, emoji, or heavy shadows.
+- Don't use `brass` as text colour (use `brass-deep`), or red/amber/green for anything but risk and success/failure.
 - Don't animate lists on every update (polling must not flicker), and don't add motion beyond Stagger.
 - Don't edit `src/lib/auth/**`, `src/proxy.ts`, `src/app/api/**` or `src/lib/types.ts`.
 
