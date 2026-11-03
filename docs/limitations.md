@@ -174,6 +174,16 @@ Known open items for the semantic checks. These are stated here so that nobody r
 - The entity check is not adopted. The difference in low-flag rate between name groups rose from 0.00 to 0.33 (design invariant 6: it must not rise). It stays behind the switch and should not be turned on for real applicants until that is understood and fixed.
 - The prompts were not re-run end to end after the review fixes, and the second-model check (Claude Haiku) was not run.
 
+## 17. Outside sources: sanctions lists, GLEIF, OneMap, IRAS (3 November 2026; all off by default)
+
+Detail in [verification-sources.md](verification-sources.md). What they cannot do:
+
+- **Sanctions screening is not a sanctions-screening system.** It reads a snapshot of four official lists (UN, OFAC, EU, UK Sanctions List) that is only as fresh as the last run of `update_sanctions.py` (older than 7 days = the check is not run, never clear). MAS's own domestic designations are not screened: the MAS page offers no machine-readable list (and answered with a maintenance page on the day). A name match is a possible match for a person to adjudicate; the matcher is set for few false alarms and so misses spellings it cannot tie to a list name (a listed person written in another order is found 99% of the time, with one letter slipped 95%, on our own perturbations; a transliteration two letters off, a nickname or a different script is not found). Screening hit none of 4,763 fictitious customers across six name groups and 0.9% (27 of 3,000) of persons drawn from the lists themselves, 0.6% to 1.9% by group (an upper bound that still counts some people listed twice); the gap between groups is small and the real draws are not a customer population. A real bank's customers will hit more, because common names are listed.
+- **A date of birth, nationality or ID number only raises confidence.** A listed person with no date of birth cannot be told from a namesake.
+- **GLEIF** covers only companies that have an LEI; no LEI is normal. **OneMap** needs a token that expires within days, and a new building's postal code may be missing for a while. **IRAS** has never been run against the live service: the request and response shapes are our reading of a public listing, the documentation page was down when we looked, and the access terms for a bank's use are unconfirmed.
+- **The IBAN and BIC check** says a printed number cannot be right (check digits, length, form); it cannot say a valid number belongs to the payee. Singapore bank and branch codes are not checked.
+- **Private mode** blocks all of these (and the existing ACRA lookup). A source that is not configured or is blocked is outside the coverage ratio on purpose; one that is configured but unreachable counts as not run and makes the case partial. Neither is evidence about the applicant.
+
 ## Summary table
 
 | Area | What we know | What we do not know |
@@ -188,6 +198,7 @@ Known open items for the semantic checks. These are stated here so that nobody r
 | Public data | Only generic or partial data used | No bank or payslip data; payslip set not obtained |
 | Live model | Path works, 33/35 fields on 3 pages | Accuracy, tampers, long statements |
 | Scan false alarms | Down to 0 with oracle text | Real OCR still flags 3/3; share due to reassembly alone |
+| Outside sources | Sanctions screen hit 0 of 4,763 fictitious customers in six name groups and 27 of 3,000 list persons drawn as customers (0.9%); GLEIF, OneMap and IRAS built against fake transports; coverage unchanged when they are not configured | Real customers; IRAS and OneMap live; MAS domestic designations; the bank's cut-offs |
 | Receipts and totals | Totals read on 48 of 48 labelled validation invoices (0 before); receipts are a document type; 1 of 70 validation images with a medium or high false flag (1.4%, 0.3 to 7.7%) | Only 3 of 20 non-invoice validation images were recognised as receipts; real Singapore receipts; rows the OCR itself loses (section 13) |
 | Semantic signals | Model-read labels, aliases and declared-against-shown fit beat the rules on our own data (0.96, 0.94, 0.82); the entity check is not adopted (fairness gap 0.00 to 0.33) | Real customer text; a second model; fairness beyond small probes; whether the fit baseline of 0 holds under the KYC rules; dev tables for labels and entities that cannot be reproduced from the shipped dev files; open review findings (section 11) |
 | Risk score | Legacy sum saturates (126 of 540 tampered held-out cases at exactly 100) and adds correlated findings; the calibrated model removes both and ranks no better (same AUROC, first-fraud position and top-10% share on held-out seeds) | Real precision per rule; how the score relates to actual fraud; reviewer agreement |
