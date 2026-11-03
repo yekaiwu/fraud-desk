@@ -22,18 +22,26 @@ With fewer than `GLDB_MONITOR_MIN_CASES` (default 10) cases in a window the answ
 
 `GET /monitoring` only reads. Telling someone is the next section; the review log's rule-effectiveness page (`GET /rules/effectiveness`) shows how reviewers decided on each rule.
 
+## Where alerts appear: the Notifications tab
+
+Alerts simply appear on the page. The Notifications tab (`/notifications`) lists, newest first, every alert raised or resolved, reminders, medium and high incidents, test alerts and the monitor's own silence, even when no outside sink is configured (the in-app sink, `GET /monitoring/notifications`). The tab shows a badge with the open alerts nobody acknowledged plus unread notifications, and the page has the open alerts with what to do, an Acknowledge action that needs a reason, the readiness items with what is missing, a Send test alert button, the scheduler status and the incident log. The outside sinks below are optional extras for people who are not looking at the page.
+
+**Delivery to the page is not the same as someone watching it.** Nothing here knows whether a person looked. A read mark records that someone pressed the button, under their name. Readiness item (c) counts the page as a sink, and says so plainly; who watches the page, how often and what they do next is the bank's to set. The accountable person is deliberately not named (`GLDB_AI_OWNER` stays empty): the tab shows that as an open item, "not named, decided by the bank".
+
+**Alerts appear only if something evaluates the thresholds.** With the schedule off nothing does, and the tab says so (Off) instead of looking calm. To evaluate inside the API process set `GLDB_MONITOR_INTERVAL_MINUTES=15` and `GLDB_MONITOR_IN_PROCESS=true` (the default for the second).
+
 ## What is automated now: alerts, acknowledgement and silence
 
 | Piece | What it does | Switch |
 |---|---|---|
 | Evaluation | snapshot, then update the alert state, then deliver | `GLDB_MONITOR_INTERVAL_MINUTES` (0 = off, the default) runs it in the API process; or run `backend/scripts/monitor_once.py` from the bank's scheduler |
 | Alert state | one row per metric (and `monitor_stale`): `open`, `acknowledged` or `resolved`, with first and last seen, last notified, value, threshold | automatic |
-| Delivery | webhook, e-mail, Telegram, local file; each optional; a failing one is recorded and never blocks the others; bounded retries with back-off | `GLDB_ALERT_*` |
+| Delivery | the Notifications page (always on, `in-app`); webhook, e-mail, Telegram, local file, each optional; a failing one is recorded and never blocks the others; bounded retries with back-off | `GLDB_ALERT_*` |
 | Acknowledgement | `POST /monitoring/alerts/{key}/acknowledge` with a reason; written to the audit log | `GLDB_PERSONAL_ACCOUNTS` |
 | Silence check | `monitor_stale` in `GET /monitoring`, and an alert on the next run | needs the schedule on |
 | Readiness | `GET /monitoring/readiness`: the three 5.23 items, each met or not, with what is missing | always on |
 
-**Rules, so nobody is spammed.** A metric that goes to `alert` opens an alert and is announced once. If it is still open and nobody acknowledged it after `GLDB_ALERT_RENOTIFY_HOURS` (default 24) it is announced again as a reminder. An acknowledged alert stays quiet. When the metric is back to `ok` the alert resolves and that is announced once. `unknown` (too few cases) is never announced as fine and never clears an open alert. If every sink fails, nothing is marked as announced and the next run tries again; with no sink configured alerts are still tracked (and shown in `GET /monitoring/alerts`) but no one is told. A medium or high incident (`POST /monitoring/incidents`) is also announced; the message gives severity, id and reporter but not the free-text summary, which stays in the audit log (nothing typed by an analyst is sent to an outside channel).
+**Rules, so nobody is spammed.** A metric that goes to `alert` opens an alert and is announced once. If it is still open and nobody acknowledged it after `GLDB_ALERT_RENOTIFY_HOURS` (default 24) it is announced again as a reminder. An acknowledged alert stays quiet. When the metric is back to `ok` the alert resolves and that is announced once. `unknown` (too few cases) is never announced as fine and never clears an open alert. If every sink fails, nothing is marked as announced and the next run tries again; the page is always a place the alert reaches, so with no outside sink configured an alert is still announced on the Notifications tab (and tracked in `GET /monitoring/alerts`), and the outside sinks are retried on the next run without repeating the entry on the page. A medium or high incident (`POST /monitoring/incidents`) is also announced; the message gives severity, id and reporter but not the free-text summary, which stays in the audit log (nothing typed by an analyst is sent to an outside channel).
 
 **Acknowledging.** `POST /monitoring/alerts/{key}/acknowledge` with `{"reason": "...", "reviewer": "name"}`. A signed-in account replaces a typed name. Set `GLDB_PERSONAL_ACCOUNTS=true` when the front uses personal accounts (`GLDB_SITE_USERS`): then a request without a signed-in account is refused (`403 account_required`). Incidents take a note and an assignee the same way (`POST /monitoring/incidents/{id}/acknowledge`); that does not close them, only a report with `resolves` does.
 
@@ -81,7 +89,7 @@ The same list is summarised under `readiness` in `GET /monitoring`. `ready` is t
 |---|---|---|
 | (a) Accountable person named | `GLDB_AI_OWNER` is not empty | that it is the right person, or that they accept the role |
 | (b) Thresholds approved | an approver recorded the current values with `POST /monitoring/thresholds/approve` (approver, role, note). The audit log keeps a hash of the seven threshold values (window days, minimum cases and the five limits); the approval counts only while the current values hash the same. Change one and it says "thresholds changed since approval" until someone approves again (only the latest approval counts, so going back to old values also needs a new approval) | that the values are sensible, or that the approver has the authority |
-| (c) Alerts reach a watched place | at least one sink is configured and the last test alert was delivered by a sink that is configured the same way now, within `GLDB_ALERT_TEST_MAX_AGE_DAYS` (30) | that a person reads it. A local file alone passes the check but the answer says someone must watch it |
+| (c) Alerts reach a watched place | at least one sink is configured (the Notifications page counts) and the last test alert was delivered by a sink that is configured the same way now, within `GLDB_ALERT_TEST_MAX_AGE_DAYS` (30) | that a person reads it. A local file alone passes the check but the answer says someone must watch it; delivery to the page passes it too, with the answer saying that this is not the same as someone watching the page |
 
 These are decisions for the bank. The software records them and checks that they are recorded and still current; it fills in nothing (no default owner, no default approver, no default thresholds).
 

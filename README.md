@@ -39,6 +39,7 @@ Fraud Desk reads a document bundle, runs the checks an analyst would do by hand,
 > - **Review workflow.** Reasons on every verdict, a second approver for high-severity dismissals, an append-only audit log and an exportable case pack.
 > - **Reads scans on your machine.** Tesseract reads the page and Claude Haiku 5.5 turns the text into fields, about 2.6 times cheaper per case than Haiku reading page images. A page image goes to the model only when that page's arithmetic does not add up. Qwen 3.8 27B run locally was also tested ([docs/anthropic-haiku.md](docs/anthropic-haiku.md)).
 > - **Predictable model spend.** Per-case and per-day dollar caps.
+> - **Notifications tab.** Monitoring alerts, incidents and tests appear on the page itself with a badge, what to do about each and an acknowledgement that needs a reason, even with no outside channel set up. The accountable person is shown as an open item until the bank names one ([docs/ai-incidents.md](docs/ai-incidents.md)).
 
 ## See it
 

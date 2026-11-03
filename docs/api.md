@@ -78,6 +78,9 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | POST | `/monitoring/alerts/test` | send a labelled test alert through every configured sink and record the per-sink result | 5.23(c) |
 | POST | `/monitoring/alerts/{key}/acknowledge` | acknowledge an open alert (account or name, and a reason; audited) | 5.23(c) |
 | GET | `/monitoring/readiness` | the 5.23 (a) to (c) checklist: named owner, approved thresholds, alerts that reach a watched place | 5.23 |
+| GET | `/monitoring/notifications` | the in-app notification feed (alerts raised and resolved, medium and high incidents, test alerts, the monitor's silence), newest first, paged, with the unread count | 5.23(c) |
+| GET | `/monitoring/notifications/summary` | counts for the navigation badge: unread notifications, open alerts, and the badge number | 5.23(c) |
+| POST | `/monitoring/notifications/read` | mark notifications read (ids, or all) under the signed-in account or a typed name; audited | 5.23(c) |
 | POST | `/monitoring/thresholds/approve` | record, in the audit log, that the bank approved the current threshold values (approver, role, note) | 5.23(b) |
 
 Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`).
@@ -288,6 +291,18 @@ Design and operator guide: [ai-incidents.md](ai-incidents.md). These routes are 
 `GET /monitoring/readiness` returns `{"as_of", "ready", "statement", "items": [{"id": "5.23(a)"|"5.23(b)"|"5.23(c)", "name", "status": "met"|"not_met", "detail", "missing": [...]}]}`; `ready` is true only when all three are met. `POST /monitoring/thresholds/approve` body `{"approver", "role", "note"}` (2-80, 2-80, 5-500 characters) returns `201` with the stored hash; the approval counts only while the thresholds hash to the same value.
 
 `POST /monitoring/incidents/{id}/acknowledge` body `{"note", "assigned_to"?, "reviewer"?}` returns `201`; `404` unless the incident is an open report. `GET /monitoring/incidents` then shows `acknowledged_by`, `acknowledged_at`, `ack_note` and `assigned_to`; `status` stays `open` until a report names it in `resolves`.
+
+### The in-app notification feed (the Notifications page)
+
+The in-app sink is always on: every message the alert service announces (an alert raised, a reminder, a resolution, a medium or high incident, a test alert, the `monitor_stale` alert) is also written to a `notifications` table, whether or not an outside sink is configured. It holds metric names, numbers, thresholds, the meaning and action text written by the code, an incident id and severity; never case content or an analyst's free text. Delivery to the page is not the same as someone watching it.
+
+`GET /monitoring/notifications?limit=50&before=<id>&since=<iso>&category=alerts|incidents|system&unread=true` returns `{"as_of", "notifications": [{"id", "ts", "kind": "alert"|"reminder"|"resolved"|"incident"|"test", "category", "key", "severity": "info"|"attention"|"high", "title", "text", "data": {"metric"?, "value"?, "threshold"?, "incident_id"?, "severity"?, "reported_by"?}, "read", "read_at", "read_by"}], "unread", "next_before"}`, newest first. `limit` is 1 to 200; pass `next_before` as `before` for the next page (null on the last page); `since` keeps entries newer than that ISO date or time (`422 validation_error` if unparseable); `unread` is the count over the whole feed whatever the filter. `monitor_stale` and test entries are in category `system`.
+
+`GET /monitoring/notifications/summary` returns `{"unread", "open_alerts", "badge"}` (cheap, no snapshot). `badge` is what the navigation shows: open alerts plus unread notifications, counting an open alert and its own unread "raised" notification once.
+
+`POST /monitoring/notifications/read` body `{"ids": [1, 2]}` (1 to 200 ids) or `{"all": true}`, plus `"reviewer"`; exactly one of `ids` and `all`. The signed-in account replaces a typed name; with `GLDB_PERSONAL_ACCOUNTS=true` a request without one is `403 account_required`; no name is `422 reviewer_required`. Returns `{"marked", "unread"}`; unknown or already-read ids change nothing. Writes `monitoring.notifications_read` (count, up to 50 ids) to the audit log when something changed. Acknowledging an alert or an incident also marks its own notifications read. Read state is shared: it says that someone looked, not who in particular must.
+
+The in-app sink counts as a configured sink in `GET /monitoring/readiness` item (c) and `alert_sinks`; the readiness text says plainly that delivery to the page is not the same as someone watching it (`page_only: true`, `watching_confirmed: false`).
 
 ## 10. Delete and retention
 
