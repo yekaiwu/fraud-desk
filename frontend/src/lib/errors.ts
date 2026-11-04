@@ -131,6 +131,8 @@ export function explainError(e: ApiErrorBody): ExplainedError {
       return { title: "Already handled", detail: "This alert is no longer open. Reload to see its state.", retryable: false };
     case "account_required":
       return { title: "Sign in with your own account", detail: "A typed name is not accepted here.", retryable: false };
+    case "user_budget_used":
+      return { title: "Your budget for today is used up", detail: `${e.message} Open an existing case instead, or try again tomorrow.`, retryable: false };
     case "busy":
       return { title: "Server is busy", detail: "Too many analyses are running. Try again in a minute.", retryable: true };
     case "internal_error":

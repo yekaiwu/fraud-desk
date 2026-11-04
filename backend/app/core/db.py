@@ -197,6 +197,14 @@ CREATE TABLE IF NOT EXISTS daily_spend (
     micro_usd INTEGER NOT NULL DEFAULT 0
 );
 
+-- The same, per signed-in account (GLDB_MAX_USD_PER_USER_PER_DAY)
+CREATE TABLE IF NOT EXISTS daily_spend_user (
+    day TEXT NOT NULL,
+    account TEXT NOT NULL,
+    micro_usd INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, account)
+);
+
 -- Alert state (app/alerts.py): one row per alert key (a monitoring metric, or monitor_stale). Global
 -- configuration like rule_overrides: no case id. Acknowledgements are also written to audit_log.
 CREATE TABLE IF NOT EXISTS alert_state (

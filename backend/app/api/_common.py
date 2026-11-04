@@ -73,6 +73,29 @@ def signed_in_reviewer(request: Request) -> str | None:
     return who if isinstance(who, str) and who else None
 
 
+def require_user_budget(request: Request) -> str | None:
+    """Return the signed-in account that is starting an analysis; refuse (429 ``user_budget_used``)
+    when it has already used its share of the day's model spend (``GLDB_MAX_USD_PER_USER_PER_DAY``)."""
+    from decimal import Decimal
+
+    from app.core.costs import DailySpend, usd6
+
+    who = signed_in_reviewer(request)
+    settings = request.app.state.settings
+    cap = settings.max_usd_per_user_per_day
+    if not who or cap <= 0 or settings.effective_llm_backend() == "fake":
+        return who
+    spent = DailySpend(request.app.state.db, Decimal("0"), account=who, user_cap=cap).spent_by(who)
+    if spent >= cap:
+        raise ApiError(
+            429,
+            "user_budget_used",
+            f"Your model budget for today (${cap:.2f}) is used up. It resets at midnight UTC.",
+            {"limit_usd": format(cap, "f"), "used_usd": format(usd6(spent), "f")},
+        )
+    return who
+
+
 def review_service(request: Request) -> ReviewService:
     return ReviewService(
         request.app.state.db,

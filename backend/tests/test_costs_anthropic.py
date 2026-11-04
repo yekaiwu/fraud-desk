@@ -371,3 +371,36 @@ def test_pipeline_marks_the_case_partial_once_the_daily_cap_is_reached(
     assert two.partial and two.score is not None and two.score.partial
     assert two.costs == []  # nothing was spent on the second case
     assert all(s.status == "ok" for s in two.stages)  # deterministic stages still ran
+
+
+def test_one_accounts_share_of_the_day_is_capped_on_its_own(mem_db: Database, clock: Clock) -> None:
+    def ledger(account: str) -> DailySpend:
+        return DailySpend(
+            mem_db, Decimal("5.00"), now=clock, account=account, user_cap=Decimal("1.00")
+        )
+
+    ledger("user1").add(Decimal("1.00"))
+    with pytest.raises(LLMBudgetExceeded) as hit:
+        ledger("user1").check()
+    assert hit.value.limit == "user_daily_cap"
+    assert "this account's daily spend cap" in str(hit.value)
+    ledger("user2").check()  # somebody else's share is untouched
+    assert ledger("user2").spent_by("user2") == 0
+    assert ledger("user2").spent() == Decimal("1.00")  # but the site total counted it
+    # no cap for an anonymous run, and the site-wide cap still applies on top
+    DailySpend(mem_db, Decimal("5.00"), now=clock).check()
+    ledger("user3").add(Decimal("4.00"))
+    with pytest.raises(LLMBudgetExceeded) as total:
+        ledger("user4").check()
+    assert total.value.limit == "daily_cap"
+
+
+def test_user_cap_alone_turns_the_ledger_on(tmp_path: Path, mem_db: Database) -> None:
+    prices = PriceTable.load(None)
+    settings = paid_settings(
+        tmp_path, max_usd_per_day=Decimal("0"), max_usd_per_user_per_day=Decimal("1.00")
+    )
+    assert DailySpend.from_settings(mem_db, settings, prices) is None  # nobody signed in: no cap
+    ledger = DailySpend.from_settings(mem_db, settings, prices, account="user1")
+    assert ledger is not None and ledger.user_cap == Decimal("1.00")
+    ledger.check()  # a zero site-wide cap means "off", not "already reached"

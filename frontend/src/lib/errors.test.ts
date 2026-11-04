@@ -6,6 +6,7 @@ const ex = (code: string, message = "server message", details?: Record<string, u
 describe("explainError", () => {
   const table: [string, string][] = [
     ["network_error", "Cannot reach the API"],
+    ["user_budget_used", "Your budget for today is used up"],
     ["bad_request", "Check the form"],
     ["validation_error", "Check the form"],
     ["not_found", "Not found"],

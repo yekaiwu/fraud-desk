@@ -361,6 +361,7 @@ def run_pipeline(
     llm: LLMClient | None = None,
     registry: MockRegistry | None = None,
     on_stage: Callable[[StageRecord], None] | None = None,
+    account: str | None = None,
 ) -> Case:
     db.bind_settings(settings)  # the database follows GLDB_ENCRYPT_AT_REST whoever built it
     case = db.load_case(case_id)
@@ -385,7 +386,7 @@ def run_pipeline(
         costs=CostMeter(
             BudgetLimits.from_settings(settings),
             prices,
-            daily=DailySpend.from_settings(db, settings, prices),
+            daily=DailySpend.from_settings(db, settings, prices, account=account),
         ),
         cache=cache,
         page_words={},
@@ -500,10 +501,21 @@ class JobRunner:
             max_workers=max(1, settings.job_workers), thread_name_prefix="gldb-job"
         )
         self._futures: dict[str, Future] = {}
+        self._accounts: dict[str, str] = {}
         self._lock = threading.Lock()
 
-    def submit(self, case_id: str, kind: Literal["analyse", "rerun"] = "analyse") -> JobRecord:
+    def submit(
+        self,
+        case_id: str,
+        kind: Literal["analyse", "rerun"] = "analyse",
+        *,
+        account: str | None = None,
+    ) -> JobRecord:
+        """Queue an analysis. ``account`` is the signed-in person who started it (their share of the
+        day's model spend is counted against it)."""
         job = self.db.create_job(case_id, kind)
+        if account:
+            self._accounts[job.id] = account
         future = self._pool.submit(self._run, job.id, case_id)
         with self._lock:
             self._futures[job.id] = future
@@ -543,6 +555,7 @@ class JobRunner:
                 llm=self.llm,
                 registry=self.registry,
                 on_stage=on_stage,
+                account=self._accounts.pop(job_id, None),
             )
         except Exception as exc:  # noqa: BLE001
             log.exception("job %s failed", job_id)

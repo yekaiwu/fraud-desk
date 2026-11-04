@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 import app.main as main
 from app.access import AccessSettings, SlidingWindowLimiter
@@ -244,3 +245,30 @@ def test_real_upload_passes_through_the_gate(settings, monkeypatch) -> None:
     r = c.post("/cases", headers=H, data={"use_case": "loan"}, files=files)
     assert r.status_code == 202
     assert r.headers["x-request-id"]
+
+
+def test_an_account_that_used_its_daily_budget_cannot_start_another_analysis(
+    settings, monkeypatch
+) -> None:
+    from decimal import Decimal
+
+    from app.core.costs import DailySpend
+
+    paid = settings.model_copy(
+        update={
+            "llm_backend": "anthropic",
+            "anthropic_api_key": SecretStr("sk-ant-test-fake"),
+            "max_usd_per_user_per_day": Decimal("1.00"),
+        }
+    )
+    monkeypatch.setenv("GLDB_PROXY_SECRET", SECRET)
+    app = main.create_app(paid)
+    c = TestClient(app, client=REMOTE)
+    DailySpend(app.state.db, Decimal("5"), account="user1", user_cap=Decimal("1")).add(Decimal("1"))
+    r = c.post("/cases", headers={**H, "X-Gldb-Reviewer": "user1"}, data={"use_case": "loan"})
+    assert r.status_code == 429
+    err = assert_envelope(r.json(), "user_budget_used")
+    assert err["details"]["limit_usd"] == "1.00" and "midnight UTC" in err["message"]
+    # another account is not blocked by it (it gets as far as the missing-files validation)
+    ok = c.post("/cases", headers={**H, "X-Gldb-Reviewer": "user2"}, data={"use_case": "loan"})
+    assert ok.status_code == 422

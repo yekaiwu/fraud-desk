@@ -169,7 +169,7 @@ class PriceTable:
 class LLMBudgetExceeded(LLMError):  # noqa: N818
     def __init__(
         self,
-        limit: Literal["max_pages", "max_calls", "max_usd", "daily_cap"],
+        limit: Literal["max_pages", "max_calls", "max_usd", "daily_cap", "user_daily_cap"],
         limit_value: str,
         used: str,
     ):
@@ -184,6 +184,11 @@ class LLMBudgetExceeded(LLMError):  # noqa: N818
                 "budget_exceeded: daily spend cap reached "
                 f"(limit {self.limit_value} USD per UTC day, used {self.used})"
             )
+        if self.limit == "user_daily_cap":
+            return (
+                "budget_exceeded: this account's daily spend cap reached "
+                f"(limit {self.limit_value} USD per UTC day, used {self.used})"
+            )
         return f"budget_exceeded: {self.limit} (limit {self.limit_value}, used {self.used})"
 
 
@@ -195,10 +200,20 @@ class DailySpend:
     runs before a call and the spend is added after it, so concurrent calls can overshoot the cap
     by what is in flight (the same soft bound as the per-case dollar limit)."""
 
-    def __init__(self, db: Database, cap: Decimal, *, now: Callable[[], datetime] = utcnow):
+    def __init__(
+        self,
+        db: Database,
+        cap: Decimal,
+        *,
+        now: Callable[[], datetime] = utcnow,
+        account: str | None = None,
+        user_cap: Decimal = Decimal("0"),
+    ):
         self.db = db
         self.cap = cap
         self._now = now
+        self.account = account
+        self.user_cap = user_cap
 
     @classmethod
     def from_settings(
@@ -208,16 +223,19 @@ class DailySpend:
         prices: PriceTable,
         *,
         now: Callable[[], datetime] = utcnow,
+        account: str | None = None,
     ) -> DailySpend | None:
-        """``None`` when the cap is off, the backend is fake, or every configured model is local
-        and priced at 0 (nothing paid can happen)."""
+        """``None`` when no cap is on, the backend is fake, or every configured model is local
+        and priced at 0 (nothing paid can happen). ``account`` is who started the analysis; with
+        ``GLDB_MAX_USD_PER_USER_PER_DAY`` set, their own share of the day is capped too."""
         backend = settings.effective_llm_backend()
-        if settings.max_usd_per_day <= 0 or backend == "fake":
+        user_cap = settings.max_usd_per_user_per_day if account else Decimal("0")
+        if (settings.max_usd_per_day <= 0 and user_cap <= 0) or backend == "fake":
             return None
         models = {settings.llm_model_cheap, settings.llm_model_strong}
         if backend == "openai" and all(prices.is_local(m) for m in models):
             return None
-        return cls(db, settings.max_usd_per_day, now=now)
+        return cls(db, settings.max_usd_per_day, now=now, account=account, user_cap=user_cap)
 
     def _day(self) -> str:
         return self._now().astimezone(UTC).strftime("%Y-%m-%d")
@@ -229,11 +247,29 @@ class DailySpend:
             ).fetchone()
         return Decimal(row["micro_usd"] if row else 0) / Decimal(1_000_000)
 
+    def spent_by(self, account: str) -> Decimal:
+        with self.db.conn() as c:
+            row = c.execute(
+                "SELECT micro_usd FROM daily_spend_user WHERE day = ? AND account = ?",
+                (self._day(), account),
+            ).fetchone()
+        return Decimal(row["micro_usd"] if row else 0) / Decimal(1_000_000)
+
     def check(self) -> None:
-        """Raise ``LLMBudgetExceeded("daily_cap")`` once today's spend has reached the cap."""
-        spent = self.spent()
-        if spent >= self.cap:
-            raise LLMBudgetExceeded("daily_cap", format(self.cap, "f"), format(usd6(spent), "f"))
+        """Raise ``LLMBudgetExceeded`` once today's spend has reached the cap (``daily_cap``), or this
+        account's share of it has (``user_daily_cap``)."""
+        if self.cap > 0:
+            spent = self.spent()
+            if spent >= self.cap:
+                raise LLMBudgetExceeded(
+                    "daily_cap", format(self.cap, "f"), format(usd6(spent), "f")
+                )
+        if self.account and self.user_cap > 0:
+            mine = self.spent_by(self.account)
+            if mine >= self.user_cap:
+                raise LLMBudgetExceeded(
+                    "user_daily_cap", format(self.user_cap, "f"), format(usd6(mine), "f")
+                )
 
     def add(self, usd: Decimal) -> None:
         micros = int(usd6(usd) * 1_000_000)
@@ -245,6 +281,12 @@ class DailySpend:
                 "ON CONFLICT(day) DO UPDATE SET micro_usd = micro_usd + excluded.micro_usd",
                 (self._day(), micros),
             )
+            if self.account:
+                c.execute(
+                    "INSERT INTO daily_spend_user (day, account, micro_usd) VALUES (?, ?, ?) "
+                    "ON CONFLICT(day, account) DO UPDATE SET micro_usd = micro_usd + excluded.micro_usd",
+                    (self._day(), self.account, micros),
+                )
 
 
 class CostMeter:

@@ -34,6 +34,7 @@ Status, stated plainly: the backend was built and tested **offline** (the real S
 | `GLDB_LLM_MAX_CONCURRENCY` | `4` | simultaneous requests, all threads together |
 | `GLDB_MAX_USD_PER_CASE` | `2.00` | per-case dollar guard; **use `0.25` or less with this backend** (section 7) |
 | `GLDB_MAX_USD_PER_DAY` | `5.00` | global daily dollar cap, paid backends only; `0` disables |
+| `GLDB_MAX_USD_PER_USER_PER_DAY` | `0` | each signed-in account's own share of the day (analyses it starts: new case, added documents, rerun); `0` disables. Once used up, that account's uploads and reruns are refused with 429 `user_budget_used` until 00:00 UTC; the site-wide cap still applies on top |
 
 Under this backend `GLDB_LLM_MODEL_CHEAP` and `_STRONG` are ignored (both become the Haiku id, which is what provenance records) and `GLDB_LLM_SUPPORTS_VISION` is forced to `true`, so a leftover local-model profile in the same `.env` cannot change them.
 

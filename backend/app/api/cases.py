@@ -28,6 +28,7 @@ from app.api._common import (
     not_found,
     read_uploads,
     require_state,
+    require_user_budget,
     signed_in_reviewer,
 )
 from app.audit import AuditLog, scrub
@@ -131,6 +132,7 @@ def create_case(
     settings: SettingsDep,
     runner: RunnerDep,
 ) -> JSONResponse:
+    account = require_user_budget(request)
     uploads = read_uploads(files or [], settings)
     case = new_case(
         settings,
@@ -143,7 +145,7 @@ def create_case(
         add_file(case, db.files, name=name, data=data)
     db.create_case(case)
     with MUTATION_LOCK:
-        job = runner.submit(case.id, "analyse")
+        job = runner.submit(case.id, "analyse", account=account)
         audit_for(request).write(
             actor=ANONYMOUS,
             action="case.created",
@@ -241,6 +243,7 @@ def add_files(
     settings: SettingsDep,
     runner: RunnerDep,
 ) -> JSONResponse:
+    account = require_user_budget(request)
     with MUTATION_LOCK:
         current = load_case_or_404(db, case_id)
         require_state(current, ("awaiting_documents", "open"))
@@ -250,7 +253,7 @@ def add_files(
         for name, data in uploads:
             add_file(case, db.files, name=name, data=data)
         db.save_case(case)
-        job = runner.submit(case_id, "rerun")
+        job = runner.submit(case_id, "rerun", account=account)
         audit_for(request).write(
             actor=ANONYMOUS,
             action="case.documents_added",
@@ -282,12 +285,13 @@ def rerun_case(
     db: DbDep,
     runner: RunnerDep,
 ) -> JSONResponse:
+    account = require_user_budget(request)
     with MUTATION_LOCK:
         current = load_case_or_404(db, case_id)
         require_state(current, ("open", "awaiting_documents", "error"))
         before = current.version
         case = prepare_rerun(db, case_id)
-        job = runner.submit(case_id, "rerun")
+        job = runner.submit(case_id, "rerun", account=account)
         audit_for(request).write(
             actor=ANONYMOUS,
             action="case.rerun",

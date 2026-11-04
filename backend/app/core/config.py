@@ -187,6 +187,9 @@ class Settings(BaseSettings):
     max_usd_per_case: Decimal = Decimal("2.00")
     # all cases together, per UTC day, paid backends only (anthropic, openai); 0 disables
     max_usd_per_day: Decimal = Decimal("5.00")
+    # one signed-in account's share of the day (analyses it starts: new case, added documents, rerun);
+    # counted per UTC day, paid backends only; 0 disables
+    max_usd_per_user_per_day: Decimal = Decimal("0")
     max_page_workers: int = 4
     job_workers: int = 2
 
@@ -431,6 +434,8 @@ class Settings(BaseSettings):
             problems.append("GLDB_MAX_USD_PER_CASE must be > 0")
         if self.max_usd_per_day < 0:
             problems.append("GLDB_MAX_USD_PER_DAY must be >= 0 (0 disables the daily cap)")
+        if self.max_usd_per_user_per_day < 0:
+            problems.append("GLDB_MAX_USD_PER_USER_PER_DAY must be >= 0 (0 disables it)")
         if self.anthropic_timeout_s <= 0:
             problems.append("GLDB_ANTHROPIC_TIMEOUT_S must be > 0")
         if self.job_workers <= 0 or self.max_page_workers <= 0:
