@@ -190,6 +190,8 @@ class Settings(BaseSettings):
     # one signed-in account's share of the day (analyses it starts: new case, added documents, rerun);
     # counted per UTC day, paid backends only; 0 disables
     max_usd_per_user_per_day: Decimal = Decimal("0")
+    # accounts with their own figure instead of the one above, e.g. "officer=5.00,boss=1.00"
+    max_usd_per_user_overrides: str = ""
     # signed-in accounts that may see everybody's model spend (GET /spending); comma-separated, empty = nobody
     admin_users: str = ""
     max_page_workers: int = 4
@@ -346,6 +348,20 @@ class Settings(BaseSettings):
         keys = self.encryption_keys  # model_copy(update=...) can leave a plain str here
         return keys if isinstance(keys, str) else keys.get_secret_value()
 
+    def _user_cap_overrides(self) -> dict[str, Decimal]:
+        out: dict[str, Decimal] = {}
+        for part in self.max_usd_per_user_overrides.split(","):
+            if part.strip():
+                name, _, value = part.partition("=")
+                out[name.strip().lower()] = Decimal(value.strip())
+        return out
+
+    def user_cap_for(self, account: str) -> Decimal:
+        """This account's daily model-spend cap in dollars (0 = none)."""
+        return self._user_cap_overrides().get(
+            account.strip().lower(), self.max_usd_per_user_per_day
+        )
+
     @property
     def admin_user_set(self) -> frozenset[str]:
         return frozenset(u.strip().lower() for u in self.admin_users.split(",") if u.strip())
@@ -442,6 +458,13 @@ class Settings(BaseSettings):
             problems.append("GLDB_MAX_USD_PER_DAY must be >= 0 (0 disables the daily cap)")
         if self.max_usd_per_user_per_day < 0:
             problems.append("GLDB_MAX_USD_PER_USER_PER_DAY must be >= 0 (0 disables it)")
+        try:
+            if any(v < 0 for v in self._user_cap_overrides().values()):
+                raise ValueError
+        except (ArithmeticError, ValueError):
+            problems.append(
+                "GLDB_MAX_USD_PER_USER_OVERRIDES must look like officer=5.00,boss=1.00 (dollars, 0 or more)"
+            )
         if self.anthropic_timeout_s <= 0:
             problems.append("GLDB_ANTHROPIC_TIMEOUT_S must be > 0")
         if self.job_workers <= 0 or self.max_page_workers <= 0:

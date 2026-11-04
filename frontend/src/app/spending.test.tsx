@@ -15,8 +15,8 @@ const data: Spending = {
   site_today_usd: "0.850000",
   unattributed_today_usd: "0.100000",
   accounts: [
-    { account: "boss", today_usd: "0.500000", week_usd: "0.600000" },
-    { account: "user1", today_usd: "0.250000", week_usd: "0.250000" },
+    { account: "boss", today_usd: "0.500000", week_usd: "0.600000", cap_usd: "5.00" },
+    { account: "user1", today_usd: "0.250000", week_usd: "0.250000", cap_usd: "1.00" },
   ],
   history: [{ day: "2026-11-05", site_usd: "0.850000" }],
 };
@@ -34,7 +34,9 @@ describe("spending page", () => {
     expect(screen.getByText("(you)")).toBeInTheDocument();
     expect(screen.getAllByText("$0.2500").length).toBe(2); // today and last 7 days
     expect(screen.getAllByText(/of a \$5\.00 daily cap/).length).toBeGreaterThan(0);
-    expect(screen.getByText("Each account may spend $1.00 a day")).toBeInTheDocument();
+    expect(screen.getByText("Each account has its own daily cap")).toBeInTheDocument();
+    expect(screen.getAllByText("10% of $5.00", { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("25% of $1.00", { exact: false }).length).toBeGreaterThan(0);
   });
 
   it("tells any other account that the page is not for them", async () => {

@@ -64,6 +64,7 @@ def spending(request: Request, db: DbDep, settings: SettingsDep) -> dict[str, An
                     "account": a,
                     "today_usd": _usd(by_account_today.get(a, 0)),
                     "week_usd": _usd(week.get(a, 0)),
+                    "cap_usd": format(settings.user_cap_for(a), "f"),
                 }
                 for a in accounts
             ),

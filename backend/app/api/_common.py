@@ -6,6 +6,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable, Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import Depends, Request, Response, UploadFile
@@ -76,13 +77,11 @@ def signed_in_reviewer(request: Request) -> str | None:
 def require_user_budget(request: Request) -> str | None:
     """Return the signed-in account that is starting an analysis; refuse (429 ``user_budget_used``)
     when it has already used its share of the day's model spend (``GLDB_MAX_USD_PER_USER_PER_DAY``)."""
-    from decimal import Decimal
-
     from app.core.costs import DailySpend, usd6
 
     who = signed_in_reviewer(request)
     settings = request.app.state.settings
-    cap = settings.max_usd_per_user_per_day
+    cap = settings.user_cap_for(who) if who else Decimal("0")
     if not who or cap <= 0 or settings.effective_llm_backend() == "fake":
         return who
     spent = DailySpend(request.app.state.db, Decimal("0"), account=who, user_cap=cap).spent_by(who)

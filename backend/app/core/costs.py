@@ -229,7 +229,7 @@ class DailySpend:
         and priced at 0 (nothing paid can happen). ``account`` is who started the analysis; with
         ``GLDB_MAX_USD_PER_USER_PER_DAY`` set, their own share of the day is capped too."""
         backend = settings.effective_llm_backend()
-        user_cap = settings.max_usd_per_user_per_day if account else Decimal("0")
+        user_cap = settings.user_cap_for(account) if account else Decimal("0")
         if (settings.max_usd_per_day <= 0 and user_cap <= 0) or backend == "fake":
             return None
         models = {settings.llm_model_cheap, settings.llm_model_strong}

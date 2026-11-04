@@ -48,7 +48,7 @@ export default function SpendingPage() {
             ) : null}
           </Panel>
 
-          <Panel title="By account" eyebrow={Number(data.per_account_cap_usd) > 0 ? `Each account may spend ${usd(data.per_account_cap_usd)} a day` : "No per-account cap is set"}>
+          <Panel title="By account" eyebrow={data.accounts.some((a) => Number(a.cap_usd) > 0) ? "Each account has its own daily cap" : "No per-account cap is set"}>
             {data.accounts.length === 0 ? (
               <p className="text-[0.9375rem] text-ink-2">Nobody has used the model yet in the last 7 days.</p>
             ) : (
@@ -58,13 +58,13 @@ export default function SpendingPage() {
                     <tr className="label-caps border-b border-rule">
                       <th scope="col" className="py-2 pr-4 font-medium">Account</th>
                       <th scope="col" className="py-2 pr-4 text-right font-medium">Today</th>
-                      <th scope="col" className="w-1/3 py-2 pr-4 font-medium">Of the daily cap</th>
+                      <th scope="col" className="w-1/3 py-2 pr-4 font-medium">Of its daily cap</th>
                       <th scope="col" className="py-2 text-right font-medium">Last 7 days</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-rule">
                     {data.accounts.map((a) => {
-                      const cap = Number(data.per_account_cap_usd);
+                      const cap = Number(a.cap_usd);
                       const today = Number(a.today_usd);
                       return (
                         <tr key={a.account}>
@@ -75,7 +75,7 @@ export default function SpendingPage() {
                           <td className="tabular py-2.5 pr-4 text-right">{usd4(a.today_usd)}</td>
                           <td className="py-2.5 pr-4">
                             {cap > 0 ? (
-                              <MeterBar label={`${a.account} against the daily cap`} hideLabel value={today} max={cap} valueText={`${Math.min(100, Math.round((today / cap) * 100))}%`} tone={today >= cap ? "high" : today >= cap * 0.8 ? "medium" : "brand"} />
+                              <MeterBar label={`${a.account} against the daily cap`} hideLabel value={today} max={cap} valueText={`${Math.min(100, Math.round((today / cap) * 100))}% of ${usd(a.cap_usd)}`} tone={today >= cap ? "high" : today >= cap * 0.8 ? "medium" : "brand"} />
                             ) : (
                               <span className="text-muted">-</span>
                             )}

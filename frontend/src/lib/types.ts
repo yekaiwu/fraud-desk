@@ -262,6 +262,7 @@ export interface SpendingAccount {
   account: string;
   today_usd: string;
   week_usd: string;
+  cap_usd: string;
 }
 export interface Spending {
   viewer: string;

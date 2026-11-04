@@ -303,9 +303,49 @@ def test_spending_is_for_administrator_accounts_only(settings, monkeypatch) -> N
     assert c.get("/me", headers={**H, "X-Gldb-Reviewer": "user1"}).json()["admin"] is False
     body = c.get("/spending", headers={**H, "X-Gldb-Reviewer": "boss"}).json()
     assert body["viewer"] == "boss"
+    assert {a["account"]: a["cap_usd"] for a in body["accounts"]} == {"boss": "0", "user1": "0"}
     assert [(a["account"], a["today_usd"]) for a in body["accounts"]] == [
         ("boss", "0.500000"),
         ("user1", "0.250000"),
     ]
     assert body["site_today_usd"] == "0.850000" and body["unattributed_today_usd"] == "0.100000"
     assert len(body["history"]) == 7 and body["history"][0]["site_usd"] == "0.850000"
+
+
+def test_one_account_can_have_its_own_daily_budget(settings, monkeypatch) -> None:
+    from decimal import Decimal
+
+    from app.core.costs import DailySpend
+
+    paid = settings.model_copy(
+        update={
+            "llm_backend": "anthropic",
+            "anthropic_api_key": SecretStr("sk-ant-test-fake"),
+            "max_usd_per_user_per_day": Decimal("1.00"),
+            "max_usd_per_user_overrides": "Officer=5.00",
+        }
+    )
+    assert paid.user_cap_for("officer") == Decimal("5.00")
+    assert paid.user_cap_for("user1") == Decimal("1.00")
+    monkeypatch.setenv("GLDB_PROXY_SECRET", SECRET)
+    app = main.create_app(paid)
+    c = TestClient(app, client=REMOTE)
+    for who in ("officer", "user1"):
+        DailySpend(app.state.db, Decimal("50"), account=who, user_cap=Decimal("9")).add(
+            Decimal("2")
+        )
+    post = lambda who: c.post(  # noqa: E731
+        "/cases", headers={**H, "X-Gldb-Reviewer": who}, data={"use_case": "loan"}
+    )
+    assert post("user1").status_code == 429  # $2 spent, $1 allowed
+    assert (
+        post("officer").status_code == 422
+    )  # $2 spent, $5 allowed: gets as far as the missing files
+
+
+def test_a_malformed_override_stops_the_application_at_start(settings) -> None:
+    import pytest
+
+    bad = settings.model_copy(update={"max_usd_per_user_overrides": "officer=five"})
+    with pytest.raises(Exception, match="MAX_USD_PER_USER_OVERRIDES"):
+        bad.validate_startup()
