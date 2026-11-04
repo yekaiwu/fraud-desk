@@ -476,6 +476,11 @@ def _merge(members: Sequence[Document]) -> AssembledStatement:
     )
 
 
+def merged_statement(members: Sequence[Document]) -> AssembledStatement:
+    """The members of an ``assembled`` group as one statement (for readers that have no CaseContext)."""
+    return _merge(members)
+
+
 def logical_docs(ctx: CaseContext, *types: str, whole_only: bool = False) -> list[Document]:
     """``ctx.docs(*types)`` with bank statements seen as statements: the members of an assembled
     group become one ``AssembledStatement`` (at the lead's id position); pieces that could not be

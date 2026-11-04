@@ -15,8 +15,9 @@ address in ``X-Forwarded-For``). This module is the second line of defence, inst
 * **Per-client rate limits** (sliding window, in memory, single process): ``POST /cases`` at most
   ``GLDB_RATE_CASES_PER_HOUR`` per hour, review ``POST /cases/{id}/review`` at most
   ``GLDB_RATE_REVIEWS_PER_MIN`` per minute. The check catalogue writes (``PUT`` and ``DELETE``
-  on ``/rules/{rule}/override``) share the review limiter. Over the limit: 429 ``rate_limited``
-  with ``Retry-After``.
+  on ``/rules/{rule}/override``) share the review limiter, and so do the two custom-rule routes that
+  call the model (``POST /custom-rules/drafts`` and ``/custom-rules/drafts/{id}/turns``). Over the
+  limit: 429 ``rate_limited`` with ``Retry-After``.
   The limit is counted per signed-in account when the proxy sent one (so a room of people on one
   Wi-Fi each get their own allowance), otherwise per client address: the ``X-Forwarded-For`` value
   sent by the proxy, but only when the proxy secret matched (otherwise the header is
@@ -61,6 +62,7 @@ MAX_TRACKED_CLIENTS = 10_000
 _REVIEW_PATH = re.compile(r"^/cases/[^/]+/review/?$")
 _OVERRIDE_PATH = re.compile(r"^/rules/[^/]+/override/?$")
 _JOB_PATH = re.compile(r"^/cases/[^/]+/(files|rerun)/?$")
+_CUSTOM_DRAFT_PATH = re.compile(r"^/custom-rules/drafts(/[^/]+/turns)?/?$")
 
 
 class AccessSettings(BaseSettings):
@@ -232,7 +234,9 @@ class AccessMiddleware:
     ) -> JSONResponse | None:
         is_create = path in ("/cases", "/cases/")
         is_job = is_create or bool(_JOB_PATH.match(path))
-        is_review = bool(_REVIEW_PATH.match(path) or _OVERRIDE_PATH.match(path))
+        is_review = bool(
+            _REVIEW_PATH.match(path) or _OVERRIDE_PATH.match(path) or _CUSTOM_DRAFT_PATH.match(path)
+        )
         if not (is_job or is_review):
             return None
         reviewer = (scope.get("state") or {}).get("reviewer") if trusted else None

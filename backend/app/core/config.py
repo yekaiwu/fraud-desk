@@ -161,6 +161,13 @@ class Settings(BaseSettings):
     # on does not turn it on.
     semantic_entity: Literal["off", "on"] = "off"
 
+    # Custom rules (docs/custom-rules.md): officers describe a rule-based check in plain English, the model
+    # fills a closed template and a fixed engine runs it; no generated code. Off by default: every
+    # /custom-rules route answers 404 feature_off and no custom rule runs. Needs signed-in accounts.
+    custom_rules: Literal["off", "on"] = "off"
+    custom_rules_max_per_account: int = 50  # active rules one account may own
+    custom_rules_dry_run_cases: int = 200  # newest stored cases a dry run reads
+
     # scoring model (docs/scoring-and-queue.md 4.4a): ``legacy`` = capped sum of finding weights,
     # ``calibrated`` = noisy-OR over per-finding probabilities from a fitted weights file. The
     # weights file defaults to the one shipped with the app (fitted on synthetic data).
@@ -265,6 +272,19 @@ class Settings(BaseSettings):
     @field_validator("semantic_entity", mode="before")
     @classmethod
     def _semantic_entity_switch(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            return "on" if v else "off"
+        if isinstance(v, str):
+            low = v.strip().lower()
+            if low in ("1", "true", "yes", "on"):
+                return "on"
+            if low in ("", "0", "false", "no", "off"):
+                return "off"
+        return v
+
+    @field_validator("custom_rules", mode="before")
+    @classmethod
+    def _custom_rules_switch(cls, v: Any) -> Any:
         if isinstance(v, bool):
             return "on" if v else "off"
         if isinstance(v, str):
@@ -477,6 +497,10 @@ class Settings(BaseSettings):
             problems.append("GLDB_LLM_RETRY_503_ATTEMPTS and _BACKOFF_S must be >= 0")
         if self.semantic_max_claims <= 0:
             problems.append("GLDB_SEMANTIC_MAX_CLAIMS must be > 0")
+        if self.custom_rules_max_per_account <= 0 or self.custom_rules_dry_run_cases <= 0:
+            problems.append(
+                "GLDB_CUSTOM_RULES_MAX_PER_ACCOUNT and GLDB_CUSTOM_RULES_DRY_RUN_CASES must be > 0"
+            )
         if self.monitor_interval_minutes < 0:
             problems.append("GLDB_MONITOR_INTERVAL_MINUTES must be >= 0 (0 = off)")
         if self.alert_renotify_hours <= 0 or self.alert_test_max_age_days <= 0:
@@ -532,6 +556,8 @@ class Settings(BaseSettings):
             # always stated while semantic is on, so a run with the name-linking check off cannot
             # share a settings hash with an older run in which it ran
             out["semantic_entity"] = self.semantic_entity
+        if self.custom_rules == "on":  # listed only when on, like the others
+            out["custom_rules"] = "on"
         if self.llm_reasoning_effort:
             out["llm_reasoning_effort"] = self.llm_reasoning_effort
         if not self.llm_supports_vision:

@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { checkName } from "@/lib/checkCatalogue";
 import { docTypeLabel, makeDocNamer } from "@/lib/docNames";
+import { customRunOf } from "@/lib/customRules";
 import { formatBytes, formatSeconds, formatUtc } from "@/lib/format";
 import { plural } from "@/lib/labels";
 import { buildTimeline, offsetText, tallyText, timelineExport, type TimelineStep } from "@/lib/timeline";
@@ -13,6 +14,7 @@ import type { CaseDetail, Flag } from "@/lib/types";
 import { TeamMembers } from "../explain/ReviewTeam";
 import { Badge, ConcernBadge } from "../ui/Badge";
 import { Button } from "../ui/Button";
+import { CustomBadge } from "../custom-rules/CustomBadge";
 import { Panel } from "../ui/Panel";
 
 function download(name: string, text: string) {
@@ -61,22 +63,27 @@ function Table({ head, children, caption }: { head: string[]; children: ReactNod
 
 const cell = "px-3 py-1.5 align-top";
 
-function FlagRows({ flags, onShowFlag, names }: { flags: Flag[]; onShowFlag: (id: string) => void; names: { text(s: string): string } }) {
+function FlagRows({ c, flags, onShowFlag, names }: { c: CaseDetail; flags: Flag[]; onShowFlag: (id: string) => void; names: { text(s: string): string } }) {
   if (flags.length === 0) return <p className="text-sm text-ink-2">This step raised no flags.</p>;
   return (
     <ul className="space-y-1.5">
-      {flags.map((f) => (
-        <li key={f.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-md border border-rule bg-surface px-3 py-2">
-          <ConcernBadge severity={f.severity} />
-          <span className="min-w-0 flex-1 break-words text-[0.9375rem] text-ink">
-            {names.text(f.explanation || f.rule)}
-            <span className="num ml-2 text-xs text-muted">{f.rule}</span>
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => onShowFlag(f.id)}>
-            Show on document
-          </Button>
-        </li>
-      ))}
+      {flags.map((f) => {
+        const custom = customRunOf(c, f.rule)?.custom;
+        return (
+          <li key={f.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-md border border-rule bg-surface px-3 py-2">
+            <ConcernBadge severity={f.severity} />
+            <span className="min-w-0 flex-1 break-words text-[0.9375rem] text-ink">
+              {custom ? <CustomBadge info={custom} className="mr-2 align-middle" /> : null}
+              {names.text(f.explanation || f.rule)}
+              {custom ? <span className="ml-2 text-xs text-muted">{custom.name}, by {custom.author}</span> : null}
+              <span className="num ml-2 text-xs text-muted">{f.rule}</span>
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => onShowFlag(f.id)}>
+              Show on document
+            </Button>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -176,12 +183,28 @@ function StepBody({ c, step, onShowFlag }: { c: CaseDetail; step: TimelineStep; 
             {sortedChecks.map((r) => (
               <tr key={r.rule} className={r.flags > 0 ? "bg-brand-tint/40" : undefined}>
                 <td className={cell}>
-                  <span className="font-medium text-ink">{nameOf(r.rule)}</span>
+                  {r.custom ? (
+                    <>
+                      <span className="font-medium text-ink">{r.custom.name}</span>
+                      <span className="ml-2 align-middle">
+                        <CustomBadge info={r.custom} />
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        by {r.custom.author}, version {r.custom.version}
+                        {r.custom.origin === "adopted" ? ", adopted" : ""}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="font-medium text-ink">{nameOf(r.rule)}</span>
+                  )}
                   <span className="num ml-2 text-xs text-muted">{r.rule}</span>
                 </td>
                 <td className={cell}>{r.status === "ran" ? "ran" : r.status === "error" ? "failed" : "skipped"}</td>
                 <td className={clsx(cell, "tabular")}>{r.flags || "-"}</td>
-                <td className={cell}>{r.note ?? r.reason ?? ""}</td>
+                <td className={cell}>
+                  {r.note ?? r.reason ?? (r.custom ? r.custom.readback : "")}
+                  {r.custom && (r.note || r.reason) ? <span className="block text-xs text-muted">{r.custom.readback}</span> : null}
+                </td>
               </tr>
             ))}
           </Table>
@@ -233,7 +256,7 @@ function StepBody({ c, step, onShowFlag }: { c: CaseDetail; step: TimelineStep; 
 
       {step.kind !== "received" && step.kind !== "review" && step.kind !== "team" ? (
         <Section title={`Flags this step raised (${step.flags.length})`}>
-          <FlagRows flags={step.flags} onShowFlag={onShowFlag} names={names} />
+          <FlagRows c={c} flags={step.flags} onShowFlag={onShowFlag} names={names} />
         </Section>
       ) : null}
 

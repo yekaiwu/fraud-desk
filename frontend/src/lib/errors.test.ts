@@ -27,6 +27,31 @@ describe("explainError", () => {
     ["internal_error", "Something went wrong"],
     ["alert_not_open", "Already handled"],
     ["account_required", "Sign in with your own account"],
+    ["feature_off", "Custom rules are switched off"],
+    ["bad_answer", "That answer cannot be used"],
+    ["draft_closed", "This request is finished"],
+    ["draft_turn_limit", "Too many turns on one request"],
+    ["draft_busy", "Another reply is being processed"],
+    ["no_spec", "There is no rule to test yet"],
+    ["draft_not_ready", "This rule cannot be saved yet"],
+    ["narrower_not_accepted", "Tick the box first"],
+    ["dry_run_required", "Test the rule on stored cases first"],
+    ["warnings_not_confirmed", "Confirm the test warnings"],
+    ["duplicate_builtin", "A built-in check already does this"],
+    ["duplicate_custom", "A custom rule already does this"],
+    ["no_change", "Nothing changed"],
+    ["name_required", "Name required"],
+    ["rule_limit", "Too many active rules"],
+    ["rule_retired", "This rule was deleted"],
+    ["already_public", "Already public"],
+    ["withdrawn_by_admin", "Taken back by an administrator"],
+    ["not_public", "Not public"],
+    ["own_rule", "This is your own rule"],
+    ["already_adopted", "Already adopted"],
+    ["not_adopted", "Not adopted"],
+    ["draft_refused", "A refused request is not sent on"],
+    ["site_budget_used", "The model budget for the whole site is used up for today"],
+    ["authoring_unavailable", "The rule assistant is not available"],
   ];
   it.each(table)("%s -> %s", (code, title) => {
     expect(ex(code).title).toBe(title);
@@ -41,6 +66,26 @@ describe("explainError", () => {
     expect(ex("not_found", "x", { kind: "flag" }).detail).toContain("flag");
     expect(ex("stale_version", "x", { current_version: 3 }).detail).toBe("Reload to see version 3.");
     expect(ex("verdict_not_allowed", "x", { allowed: ["approve", "refer_edd"] }).detail).toContain("approve, refer_edd");
+  });
+
+  it("tells an officer what to do about a built-in duplicate, with the rule and what it checks", () => {
+    const d = ex("duplicate_builtin", "x", { rule: "rcpt_merchant", what: "A receipt must name its merchant.", action: "Change its severity in the check catalogue (rcpt_merchant)." }).detail;
+    expect(d).toContain("A receipt must name its merchant.");
+    expect(d).toContain("rcpt_merchant");
+    expect(ex("duplicate_builtin", "x").detail).toMatch(/check catalogue/);
+  });
+
+  it("names the existing custom rule on a duplicate", () => {
+    expect(ex("duplicate_custom", "x", { rule_id: "cus_0123456789", name: "Big invoices" }).detail).toContain('"Big invoices"');
+    expect(ex("duplicate_custom", "x").detail).not.toContain('""');
+  });
+
+  it("offers the tech team when the assistant is out of reach, and marks only a busy draft as worth retrying", () => {
+    expect(ex("authoring_unavailable").detail).toMatch(/tech team/);
+    expect(ex("site_budget_used").detail).toMatch(/tech team/);
+    expect(ex("draft_busy").retryable).toBe(true);
+    expect(ex("authoring_unavailable").retryable).toBe(true);
+    expect(ex("duplicate_builtin").retryable).toBe(false);
   });
 
   it("marks only transient errors retryable", () => {

@@ -15,6 +15,7 @@ from app.core.errors import ApiError
 
 STUB_MODULES = [
     "cases",
+    "custom_rules",
     "effectiveness",
     "explain",
     "files",

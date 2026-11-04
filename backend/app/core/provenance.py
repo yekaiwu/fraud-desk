@@ -94,6 +94,7 @@ def extractor_versions(case: Case) -> dict[str, str]:
 def build_provenance(ctx: CaseContext) -> Provenance:
     """Stamp the case after ``score``: ruleset, settings, prompts, models, inputs, flags digest."""
     from app.checks.registry import all_checks
+    from app.custom_rules.engine import custom_stamp
 
     case = ctx.case
     s = ctx.settings
@@ -129,4 +130,5 @@ def build_provenance(ctx: CaseContext) -> Provenance:
         catalogue=catalogue_stamp(ctx.overrides),
         score_model=describe_score_model(s),
         private_mode="on" if s.private_mode == "on" else None,
+        custom_rules=custom_stamp(ctx.custom_rules),
     )

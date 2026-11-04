@@ -54,6 +54,26 @@ API_MD_SECTION_2: set[tuple[str, str]] = {
     ("GET", "/explain/method"),
     ("DELETE", "/cases/{}"),
     ("POST", "/admin/retention/purge"),
+    # custom rules (api.md section 9c): rules officers write in plain English, private until published;
+    # every write is a POST and none touches a case
+    ("GET", "/custom-rules/capabilities"),
+    ("POST", "/custom-rules/drafts"),
+    ("GET", "/custom-rules/drafts/{}"),
+    ("POST", "/custom-rules/drafts/{}/turns"),
+    ("POST", "/custom-rules/drafts/{}/dry-run"),
+    ("POST", "/custom-rules"),
+    ("GET", "/custom-rules"),
+    ("GET", "/custom-rules/shared"),
+    ("GET", "/custom-rules/changes"),
+    ("GET", "/custom-rules/tickets"),
+    ("POST", "/custom-rules/tickets"),
+    ("GET", "/custom-rules/{}"),
+    ("POST", "/custom-rules/{}/enabled"),
+    ("POST", "/custom-rules/{}/publish"),
+    ("POST", "/custom-rules/{}/unpublish"),
+    ("POST", "/custom-rules/{}/adopt"),
+    ("POST", "/custom-rules/{}/unadopt"),
+    ("POST", "/custom-rules/{}/retire"),
 }
 
 

@@ -215,6 +215,9 @@ def _unique_id(flag_id: str, taken: set[str]) -> str:
     return f"{flag_id}#{n}"
 
 
+unique_flag_id = _unique_id  # public name for app/custom_rules/engine.py
+
+
 def switched_off_detail(override: RuleOverride) -> str:
     """Human-readable skip reason of a check that an officer switched off."""
     return clean_text(
@@ -333,6 +336,10 @@ def run_stage_checks(ctx: CaseContext, stage: FlagStage) -> list[CheckRun]:
                 note=ctx.run_notes.pop(meta.rule, None),
             )
         )
+    if stage == "rules" and ctx.custom_rules:
+        from app.custom_rules.engine import run_custom_rules  # lazy: the engine imports this module
+
+        runs.extend(run_custom_rules(ctx, taken))
     case.check_runs.extend(runs)
     return runs
 

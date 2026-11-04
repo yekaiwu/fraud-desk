@@ -41,7 +41,7 @@ export function CoverageExplainer({ c }: { c: CaseDetail }) {
   const pages = pageCounts(c);
   const eff = effectiveCoverage(cov);
   const states = useMemo(() => {
-    const runs = c.check_runs;
+    const runs = c.check_runs.filter((r) => !r.custom);
     return { ran: runs.filter((r) => r.status === "ran").length, skipped: runs.filter((r) => r.status === "skipped").length, error: runs.filter((r) => r.status === "error").length };
   }, [c.check_runs]);
   return (

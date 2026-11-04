@@ -22,9 +22,18 @@ export const NAV_ITEMS = [
 /** Shown only to the administrator accounts (GLDB_ADMIN_USERS). */
 const ADMIN_NAV_ITEMS = [{ href: "/spending", label: "Spending" }] as const;
 
+/** Shown only when the server says custom rules are on and an account is signed in (/me custom_rules). */
+const CUSTOM_RULES_NAV = { href: "/rules/custom", label: "Custom rules" } as const;
+
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/" || pathname.startsWith("/cases");
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** The tab for this page: the longest matching href, so /rules/custom lights "Custom rules" and not "Check catalogue" too. */
+function currentHref(pathname: string, hrefs: readonly string[]): string | null {
+  const hits = hrefs.filter((h) => isActive(pathname, h));
+  return hits.length ? hits.reduce((a, b) => (b.length > a.length ? b : a)) : null;
 }
 
 function SkipLink() {
@@ -78,7 +87,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const activeRef = useRef<HTMLAnchorElement | null>(null);
   const me = useMe(pathname !== "/welcome" && pathname !== "/login");
-  const navItems = me?.admin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  const navItems = [...NAV_ITEMS, ...(me?.custom_rules ? [CUSTOM_RULES_NAV] : []), ...(me?.admin ? ADMIN_NAV_ITEMS : [])];
+  const current = currentHref(pathname, navItems.map((i) => i.href));
 
   // On a phone the tab row scrolls sideways; make sure the current page's tab is in view.
   useEffect(() => {
@@ -136,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <nav aria-label="Main" className="-mb-[3px] mt-1">
             <ul className="flex gap-1 overflow-x-auto pb-[3px] pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {navItems.map((item) => {
-                const active = isActive(pathname, item.href);
+                const active = item.href === current;
                 return (
                   <li key={item.href} className="shrink-0">
                     <Link

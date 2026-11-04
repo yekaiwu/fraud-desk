@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Globe } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Globe, PencilRuler } from "lucide-react";
 import Link from "next/link";
 import { LOW_COVERAGE_RATIO } from "@/lib/constants";
 import { pageCounts, ruleName } from "@/lib/flags";
 import { checkName } from "@/lib/checkCatalogue";
+import { customCoverageText, customRunTally } from "@/lib/customRules";
 import { coverageText, plural, unreviewedPagesText } from "@/lib/labels";
 import { groupSkippedChecks } from "@/lib/skipGroups";
 import { useCheckName } from "@/lib/useCheckNames";
@@ -23,7 +24,8 @@ export function CoveragePanel({ c, defaultOpen = true, id = "coverage" }: { c: C
   if (!cov) return null;
   const { unchecked, total } = pageCounts(c);
   // checks that looked something up outside the documents say what they asked and what came back, flags or not
-  const lookups = c.check_runs.filter((r) => r.status === "ran" && (r.note ?? "").trim() !== "");
+  const lookups = c.check_runs.filter((r) => r.status === "ran" && !r.custom && (r.note ?? "").trim() !== "");
+  const custom = customRunTally(c);
   const noSignal = c.check_runs.filter((r) => r.stage === "forensics" && r.status === "ran" && r.flags === 0);
   const groups = groupSkippedChecks(cov.skipped);
   const low = cov.ratio < LOW_COVERAGE_RATIO;
@@ -63,6 +65,12 @@ export function CoveragePanel({ c, defaultOpen = true, id = "coverage" }: { c: C
                 ))}
               </ul>
             </div>
+          ) : null}
+          {custom.total > 0 ? (
+            <p data-testid="custom-coverage" className="tabular flex items-start gap-2 text-[0.9375rem] text-ink-2">
+              <PencilRuler aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-brass-deep" />
+              <span>{customCoverageText(custom)}</span>
+            </p>
           ) : null}
           {didNotRun > 0 ? <p className="text-sm text-ink-2">A check that did not run is not a clearance.</p> : null}
           <Disclosure label="Coverage details" meta={didNotRun > 0 ? `(${didNotRun} ${plural(didNotRun, "check")} did not run)` : undefined} defaultOpen={defaultOpen}>

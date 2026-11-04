@@ -62,6 +62,9 @@ class CaseContext:
     # one sentence per check about what it did, written by the check (rule id -> text) and moved onto the
     # check's run record by the runner; per run
     run_notes: dict[str, str] = field(default_factory=dict)
+    # custom rules loaded for the account that started this run (app/custom_rules/engine.py
+    # LoadedCustomRule); empty while GLDB_CUSTOM_RULES is off or nobody is signed in
+    custom_rules: list[Any] = field(default_factory=list)
 
     @property
     def use_case(self) -> UseCase:

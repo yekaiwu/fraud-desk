@@ -33,8 +33,13 @@ def health(request: Request) -> dict:
 
 @router.get("/me")
 def me(request: Request) -> dict:
-    """Who the proxy says is signed in, so the screen can show the name the audit log will carry, and
-    whether that account may open the Spending page (``GLDB_ADMIN_USERS``)."""
+    """Who the proxy says is signed in, so the screen can show the name the audit log will carry, whether
+    that account may open the Spending page (``GLDB_ADMIN_USERS``), and whether it may use custom rules
+    (the feature is on and a personal account is signed in)."""
     who = signed_in_reviewer(request)
-    admins = request.app.state.settings.admin_user_set
-    return {"reviewer": who, "admin": who is not None and who in admins}
+    settings = request.app.state.settings
+    return {
+        "reviewer": who,
+        "admin": who is not None and who in settings.admin_user_set,
+        "custom_rules": settings.custom_rules == "on" and who is not None,
+    }

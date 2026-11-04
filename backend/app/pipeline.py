@@ -81,6 +81,10 @@ def _run_registry_stage(
         "errors": len(errors),
         "flags": sum(r.flags for r in runs),
     }
+    custom = [r for r in runs if r.custom is not None]
+    if custom:  # custom rules (docs/custom-rules.md): absent unless some were loaded for this run
+        detail["custom_checks"] = len(custom)
+        detail["custom_flags"] = sum(r.flags for r in custom)
     warnings = [f"check_error:{r.rule}: {r.reason}" for r in errors]
     if stage == "crossdoc":
         from app.reading_agreement import apply_reading_agreement
@@ -353,6 +357,22 @@ def _upsert_record(case: Case, record: StageRecord) -> None:
     case.stages.append(record)
 
 
+def _load_custom_rules(
+    db: Database, settings: Settings, account: str | None
+) -> tuple[list[Any], str | None]:
+    """The custom rules of the account that started this run (own enabled rules plus adopted public ones).
+    Empty when the feature is off or nobody is signed in. A failure to read them never stops the analysis."""
+    if settings.custom_rules != "on" or not account:
+        return [], None
+    try:
+        from app.custom_rules.store import load_rule_set
+
+        return load_rule_set(db, account), None
+    except Exception:  # noqa: BLE001
+        log.exception("custom rules could not be loaded")
+        return [], "custom_rules_unavailable: the custom rules of this account could not be read"
+
+
 def run_pipeline(
     case_id: str,
     *,
@@ -376,6 +396,7 @@ def run_pipeline(
             log.warning("registry unusable: %s", exc)
             _add_reason(case, "registry_unreadable: registry checks did not run")
     prices = PriceTable.load(settings.prices_path)
+    custom_rules, custom_warning = _load_custom_rules(db, settings, account)
     ctx = CaseContext(
         case=case,
         today=case.today,
@@ -391,7 +412,10 @@ def run_pipeline(
         cache=cache,
         page_words={},
         overrides=db.rule_overrides(),  # check catalogue: read once, applies to this run only
+        custom_rules=custom_rules,
     )
+    if custom_warning:
+        ctx.costs.add_warning(custom_warning)
     case.status = "processing"
     db.save_case(case)
 

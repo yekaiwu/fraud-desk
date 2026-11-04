@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 // The badge asks the API; here it always answers "nothing to look at" (AppShell.badge.test.tsx covers the counts).
-let me = { reviewer: "user1" as string | null, admin: false };
+let me = { reviewer: "user1" as string | null, admin: false, custom_rules: false };
 vi.mock("@/lib/api", () => ({ getNotificationSummary: () => Promise.resolve({ unread: 0, open_alerts: 0, badge: 0 }), getMe: () => Promise.resolve(me) }));
 
 import { renderWithSWR } from "@/test/utils";
@@ -16,15 +16,53 @@ beforeEach(() => {
 
 describe("AppShell", () => {
   it("adds a Spending tab for an administrator account and for nobody else", async () => {
-    me = { reviewer: "boss", admin: true };
+    me = { reviewer: "boss", admin: true, custom_rules: false };
     const admin = renderWithSWR(<AppShell>x</AppShell>);
     expect(await screen.findByRole("link", { name: "Spending" })).toHaveAttribute("href", "/spending");
     admin.unmount();
-    me = { reviewer: "user1", admin: false };
+    me = { reviewer: "user1", admin: false, custom_rules: false };
     renderWithSWR(<AppShell>x</AppShell>);
     await screen.findByRole("link", { name: "Worklist" });
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole("link", { name: "Spending" })).toBeNull();
+  });
+
+  it("adds a Custom rules tab when the server says custom rules are on for this account, and not otherwise", async () => {
+    me = { reviewer: "user1", admin: false, custom_rules: true };
+    const on = renderWithSWR(<AppShell>x</AppShell>);
+    expect(await screen.findByRole("link", { name: "Custom rules" })).toHaveAttribute("href", "/rules/custom");
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Control performance", "Check catalogue", "Custom rules"]);
+    on.unmount();
+    me = { reviewer: "user1", admin: false, custom_rules: false };
+    renderWithSWR(<AppShell>x</AppShell>);
+    await screen.findByRole("link", { name: "Worklist" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("link", { name: "Custom rules" })).toBeNull();
+  });
+
+  it("puts Custom rules before Spending for an administrator who has both", async () => {
+    me = { reviewer: "boss", admin: true, custom_rules: true };
+    renderWithSWR(<AppShell>x</AppShell>);
+    await screen.findByRole("link", { name: "Spending" });
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Control performance", "Check catalogue", "Custom rules", "Spending"]);
+  });
+
+  it("lights only the longest matching tab: Custom rules, not Check catalogue, on /rules/custom", async () => {
+    me = { reviewer: "user1", admin: false, custom_rules: true };
+    pathname = "/rules/custom";
+    renderWithSWR(<AppShell>x</AppShell>);
+    expect(await screen.findByRole("link", { name: "Custom rules" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Check catalogue" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("still lights Check catalogue on /rules", async () => {
+    me = { reviewer: "user1", admin: false, custom_rules: true };
+    pathname = "/rules";
+    renderWithSWR(<AppShell>x</AppShell>);
+    expect(await screen.findByRole("link", { name: "Check catalogue" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Custom rules" })).not.toHaveAttribute("aria-current");
   });
 
   it("has landmarks, a skip link, the four nav items, the notifications bell and the disclaimer line", () => {

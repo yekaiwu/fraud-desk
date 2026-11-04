@@ -24,9 +24,19 @@ import type {
 } from "./monitoring";
 import { queueQueryToSearchParams } from "./queueQuery";
 import type {
+  AdoptedRuleView,
   ApiError,
   CaseDetail,
   CreateCaseResponse,
+  CustomCapabilities,
+  CustomRuleChange,
+  CustomRuleView,
+  CustomTicket,
+  CustomTicketRequest,
+  CustomTicketResponse,
+  CustomTurnRequest,
+  DraftResponse,
+  DryRunResult,
   EffectivenessResponse,
   ExplainMethod,
   Health,
@@ -40,9 +50,13 @@ import type {
   RuleChange,
   RuleInfo,
   RuleOverrideRequest,
+  SaveCustomRuleRequest,
+  SharedRuleView,
   Spending,
   UseCase,
   Band,
+  CustomSeverity,
+  TicketRef,
 } from "./types";
 
 export type VersionInfo = {
@@ -127,6 +141,8 @@ export async function getHealth(): Promise<Health> {
 export interface Me {
   reviewer: string | null;
   admin: boolean;
+  /** The custom rules feature is switched on and an account is signed in (the navigation entry follows it). */
+  custom_rules: boolean;
 }
 
 export async function getMe(): Promise<Me> {
@@ -353,4 +369,117 @@ export async function reportIncident(req: IncidentReport): Promise<{ id: number;
 export async function acknowledgeIncident(id: number, req: IncidentAck): Promise<{ id: number; incident: number; acknowledged_by: string }> {
   if (USE_MOCK) return (await import("./mock/handlers")).acknowledgeIncident(id, req);
   return request<{ id: number; incident: number; acknowledged_by: string }>(`/monitoring/incidents/${id}/acknowledge`, jsonInit("POST", req));
+}
+
+// ------------------------------------------------------------------ custom rules (api.md section 9c)
+// Mock mode has no custom rules (useMe answers null there, so nothing links to them): every call says the feature is off.
+
+function featureOff(): never {
+  throw new ApiErrorException({ code: "feature_off", message: "Custom rules are switched off on this deployment (GLDB_CUSTOM_RULES)." }, 404);
+}
+
+const customPath = (id: string, tail = "") => `/custom-rules/${encodeURIComponent(id)}${tail}`;
+
+/** What a rule can be built from, and what is impossible. The same catalogue the assistant is given. */
+export async function getCustomCapabilities(): Promise<CustomCapabilities> {
+  if (USE_MOCK) return featureOff();
+  return request<CustomCapabilities>("/custom-rules/capabilities");
+}
+
+/** Start an authoring conversation. One model call, charged to the signed-in account's daily spend. */
+export async function startCustomDraft(text: string, severity?: CustomSeverity, editOf?: string): Promise<DraftResponse> {
+  if (USE_MOCK) return featureOff();
+  const body: { text: string; severity?: CustomSeverity; edit_of?: string } = { text };
+  if (severity) body.severity = severity;
+  if (editOf) body.edit_of = editOf;
+  return request<DraftResponse>("/custom-rules/drafts", jsonInit("POST", body));
+}
+
+export async function getCustomDraft(id: string): Promise<DraftResponse> {
+  if (USE_MOCK) return featureOff();
+  return request<DraftResponse>(`/custom-rules/drafts/${encodeURIComponent(id)}`);
+}
+
+/** Continue a draft with more words (a model call), an answer to a question or a chosen candidate (no model call). */
+export async function sendCustomTurn(id: string, req: CustomTurnRequest): Promise<DraftResponse> {
+  if (USE_MOCK) return featureOff();
+  return request<DraftResponse>(`/custom-rules/drafts/${encodeURIComponent(id)}/turns`, jsonInit("POST", req));
+}
+
+/** Run the draft's rule over stored cases. No model call. */
+export async function dryRunCustomDraft(id: string): Promise<DryRunResult> {
+  if (USE_MOCK) return featureOff();
+  return request<DryRunResult>(`/custom-rules/drafts/${encodeURIComponent(id)}/dry-run`, { method: "POST" });
+}
+
+export async function saveCustomRule(req: SaveCustomRuleRequest): Promise<{ rule: CustomRuleView; ticket: TicketRef | null }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ rule: CustomRuleView; ticket: TicketRef | null }>("/custom-rules", jsonInit("POST", req));
+}
+
+export async function listCustomRules(): Promise<{ mine: CustomRuleView[]; adopted: AdoptedRuleView[] }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ mine: CustomRuleView[]; adopted: AdoptedRuleView[] }>("/custom-rules");
+}
+
+/** Every account's public rules (author shown). Nothing here changes anyone's results until they adopt. */
+export async function listSharedCustomRules(): Promise<{ rules: SharedRuleView[] }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ rules: SharedRuleView[] }>("/custom-rules/shared");
+}
+
+export async function getCustomRule(id: string): Promise<CustomRuleView> {
+  if (USE_MOCK) return featureOff();
+  return request<CustomRuleView>(customPath(id));
+}
+
+export async function setCustomRuleEnabled(id: string, enabled: boolean, reason: string): Promise<{ rule: CustomRuleView }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ rule: CustomRuleView }>(customPath(id, "/enabled"), jsonInit("POST", { enabled, reason }));
+}
+
+export async function publishCustomRule(id: string, reason: string): Promise<{ rule: CustomRuleView }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ rule: CustomRuleView }>(customPath(id, "/publish"), jsonInit("POST", { reason }));
+}
+
+export async function unpublishCustomRule(id: string, reason: string): Promise<{ rule: CustomRuleView }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ rule: CustomRuleView }>(customPath(id, "/unpublish"), jsonInit("POST", { reason }));
+}
+
+export async function adoptCustomRule(id: string): Promise<{ adoption: AdoptedRuleView }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ adoption: AdoptedRuleView }>(customPath(id, "/adopt"), jsonInit("POST", {}));
+}
+
+export async function unadoptCustomRule(id: string): Promise<{ rule_id: string; adopted: false }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ rule_id: string; adopted: false }>(customPath(id, "/unadopt"), jsonInit("POST", {}));
+}
+
+/** "Delete": the rule is retired. Past runs stay explainable; the rule can no longer run. */
+export async function retireCustomRule(id: string, reason: string): Promise<{ rule: CustomRuleView }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ rule: CustomRuleView }>(customPath(id, "/retire"), jsonInit("POST", { reason }));
+}
+
+export async function getCustomRuleChanges(q: { rule_id?: string; limit?: number } = {}): Promise<CustomRuleChange[]> {
+  if (USE_MOCK) return featureOff();
+  const p = new URLSearchParams();
+  if (q.rule_id) p.set("rule_id", q.rule_id);
+  if (q.limit) p.set("limit", String(q.limit));
+  const body = await request<{ changes?: CustomRuleChange[] }>("/custom-rules/changes", {}, p);
+  return body?.changes ?? [];
+}
+
+export async function listCustomTickets(): Promise<{ tickets: CustomTicket[] }> {
+  if (USE_MOCK) return featureOff();
+  return request<{ tickets: CustomTicket[] }>("/custom-rules/tickets");
+}
+
+/** Send an idea (or the missing part of a draft) to the tech team. Needs no model, so it works when the budget is used up. */
+export async function submitCustomTicket(body: CustomTicketRequest): Promise<CustomTicketResponse> {
+  if (USE_MOCK) return featureOff();
+  return request<CustomTicketResponse>("/custom-rules/tickets", jsonInit("POST", body));
 }

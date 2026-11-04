@@ -23,6 +23,7 @@ from app.core.db import CaseNotFound, Database
 from app.core.errors import ApiError
 from app.core.models import Case, Document, utcnow
 from app.review import flag_dispositions, load_entries, pending_entries, version_history
+from app.semantic.policy import is_custom_rule
 
 Clock = Callable[[], datetime]
 
@@ -185,6 +186,14 @@ def _classification(c: Any) -> dict[str, Any] | None:
 # --------------------------------------------------------------------------------------
 
 
+def _custom_flag_block(rule: str, custom_runs: Mapping[str, Any]) -> dict[str, Any]:
+    """A custom rule's flag names whose rule it was (docs/custom-rules.md); nothing for any other flag."""
+    info = custom_runs.get(rule) if is_custom_rule(rule) else None
+    if info is None:
+        return {}
+    return {"custom": {"name": info.name, "author": info.author, "version": info.version}}
+
+
 def build_pack(
     db: Database, case_id: str, *, version: int | None = None, clock: Clock = utcnow
 ) -> dict[str, Any]:
@@ -212,6 +221,7 @@ def build_pack(
             ) from exc
     entries = load_entries(db, case_id)
     dispositions = flag_dispositions(case, entries)
+    custom_runs = {r.rule: r.custom for r in case.check_runs if r.custom is not None}
     flags = []
     for f in case.flags:
         d = f.model_dump(mode="json")
@@ -231,6 +241,7 @@ def build_pack(
                 "explanation": d["explanation"],
                 "disposition": dispositions.get(f.id, "open"),
             }
+            | _custom_flag_block(f.rule, custom_runs)
         )
     score = case.score.model_dump(mode="json") if case.score else None
     coverage = None
@@ -313,6 +324,7 @@ def build_pack(
         "flags": flags,
         "check_runs": [
             {"rule": r.rule, "status": r.status, "reason": r.reason, "flags": r.flags}
+            | ({"custom": r.custom.model_dump(mode="json")} if r.custom is not None else {})
             for r in case.check_runs
         ],
         "stages": [s.model_dump(mode="json") for s in case.stages],
@@ -494,7 +506,7 @@ status {{ pack.case.status }}{% if pack.case.reference %} &middot; reference {{ 
 {% for fid in f.flag_ids %}{% set fl = flags_by_id.get(fid) %}{% if fl %}
 <tr class="flag"><td>{{ flag_no[fid] }}</td>
 <td><span class="sev sev-{{ fl.severity }}">{{ fl.severity }}</span></td>
-<td>{{ fl.rule }}</td>
+<td>{{ fl.rule }}{% if fl.get("custom") %}<br><span class="muted">Custom rule by {{ fl.custom.author }} (unreviewed)</span>{% endif %}</td>
 <td>{{ fl.document_ids | join(", ") }}{% if fl.table %} / {{ fl.table }}{% endif %}{% if fl.row is not none %} row {{ fl.row + 1 }}{% endif %}{% if fl.field %} / {{ fl.field }}{% endif %}</td>
 <td>{{ fl.disposition }}</td>
 <td>{{ fl.explanation }}<br><span class="mono">{{ fl.evidence }}</span></td></tr>
@@ -508,7 +520,7 @@ status {{ pack.case.status }}{% if pack.case.reference %} &middot; reference {{ 
 <tr><th>#</th><th>Severity</th><th>Rule</th><th>Disposition</th><th>Explanation and evidence</th></tr>
 {% for fl in loose_flags %}
 <tr class="flag"><td>{{ flag_no[fl.id] }}</td><td><span class="sev sev-{{ fl.severity }}">{{ fl.severity }}</span></td>
-<td>{{ fl.rule }}</td><td>{{ fl.disposition }}</td>
+<td>{{ fl.rule }}{% if fl.get("custom") %}<br><span class="muted">Custom rule by {{ fl.custom.author }} (unreviewed)</span>{% endif %}</td><td>{{ fl.disposition }}</td>
 <td>{{ fl.explanation }}<br><span class="mono">{{ fl.evidence }}</span></td></tr>
 {% endfor %}
 </table>

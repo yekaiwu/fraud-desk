@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { ChevronRight, CircleSlash, Crosshair, Flag as FlagIcon, MapPin, ZapOff } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
+import { customFlagLine, customRunOf, isCustomRule } from "@/lib/customRules";
 import { makeDocNamer } from "@/lib/docNames";
 import { placesOf } from "@/lib/flagLocus";
 import {
@@ -23,6 +24,7 @@ import type { CaseDetail, Coverage, Document, FileRef, Finding, Region, Severity
 import { ExplainBlocksFastLane } from "../explain/NextStepExplainer";
 import { ExplainFinding } from "../explain/FindingExplainer";
 import { Badge, Button, ConcernBadge, Notice, Skeleton, Stagger } from "../ui";
+import { CustomBadge } from "../custom-rules/CustomBadge";
 import { Disclosure, Reveal } from "./EvidenceDisclosure";
 import { FindingEvidence } from "./FindingEvidence";
 import { FindingMenu } from "./FindingMenu";
@@ -228,6 +230,8 @@ export function FindingCard({
   const selected = flags.some((f) => f.flag.id === common.selectedFlagId);
   const bulkable = canDecide && multi && flags.some((f) => f.flag.disposition !== "pending_second_approval");
   const first = flags[0];
+  const fromCustom = finding.rules.some(isCustomRule);
+  const customInfo = finding.rules.map((r) => customRunOf(common.explainCase, r)?.custom).find(Boolean) ?? undefined;
   return (
     <li
       id={single ? `flag-${single.flag.id}` : undefined}
@@ -239,6 +243,12 @@ export function FindingCard({
       <div className="space-y-3 p-4 pl-5 sm:p-5 sm:pl-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
           <ConcernBadge severity={finding.severity} />
+          {fromCustom ? (
+            <>
+              <CustomBadge info={customInfo} />
+              <span className="text-sm text-ink-2">{customInfo ? customFlagLine(customInfo) : "Custom rule (unreviewed)"}</span>
+            </>
+          ) : null}
           {finding.hard_stop ? (
             <>
               <Badge variant="status" icon={ZapOff} title="Not eligible for the fast lane">

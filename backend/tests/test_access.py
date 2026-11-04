@@ -196,6 +196,26 @@ def test_review_rate_limit(settings, monkeypatch) -> None:
     assert c.post("/cases", headers=H, data={"use_case": "loan"}).status_code == 422
 
 
+def test_custom_rule_authoring_shares_the_review_limiter(settings, monkeypatch) -> None:
+    """Starting a draft and sending a turn call the model, so they count on the review limiter; the other
+    custom-rule routes (listing, adopting, tickets) do not."""
+    c = make_client(
+        settings, monkeypatch, client=REMOTE, proxy_secret=SECRET, rate_reviews_per_min="2"
+    )
+    # feature off: the routes answer 404, but the limiter counts the attempt first
+    assert c.post("/custom-rules/drafts", headers=H, json={}).status_code == 404
+    assert (
+        c.post("/custom-rules/drafts/crd_0123456789ab/turns", headers=H, json={}).status_code == 404
+    )
+    r = c.post("/custom-rules/drafts", headers=H, json={})
+    assert r.status_code == 429
+    assert assert_envelope(r.json(), "rate_limited")["details"]["scope"] == "reviews"
+    assert c.post("/custom-rules/tickets", headers=H, json={}).status_code == 404  # not limited
+    assert c.get("/custom-rules/capabilities", headers=H).status_code == 404
+    # the same limiter bucket as a review POST
+    assert c.post("/cases/c_x/review", headers=H, json={}).status_code == 429
+
+
 def test_limits_can_be_disabled_with_zero(settings, monkeypatch) -> None:
     c = make_client(
         settings, monkeypatch, client=REMOTE, proxy_secret=SECRET, rate_cases_per_hour="0"
@@ -299,6 +319,7 @@ def test_spending_is_for_administrator_accounts_only(settings, monkeypatch) -> N
     assert c.get("/me", headers={**H, "X-Gldb-Reviewer": "boss"}).json() == {
         "reviewer": "boss",
         "admin": True,
+        "custom_rules": False,
     }
     assert c.get("/me", headers={**H, "X-Gldb-Reviewer": "user1"}).json()["admin"] is False
     body = c.get("/spending", headers={**H, "X-Gldb-Reviewer": "boss"}).json()

@@ -72,21 +72,19 @@ def _audit_job_outcome(app: Any, job_id: str, case_id: str) -> None:
         return  # deleted while the job ran
     if job.state == "succeeded":
         prov = case.provenance
-        audit.write(
-            actor="system",
-            action="case.analysis_finished",
-            case_id=case_id,
-            detail={
-                "version": case.version,
-                "score": case.score.value if case.score else None,
-                "band": case.score.band if case.score else None,
-                "partial": bool(case.partial or (case.score is not None and case.score.partial)),
-                "coverage_ratio": case.coverage.ratio if case.coverage else None,
-                "lane": case.lane,
-                "ruleset_version": prov.ruleset_version if prov else None,
-                "flags_digest": prov.flags_digest if prov else None,
-            },
-        )
+        detail: dict[str, Any] = {
+            "version": case.version,
+            "score": case.score.value if case.score else None,
+            "band": case.score.band if case.score else None,
+            "partial": bool(case.partial or (case.score is not None and case.score.partial)),
+            "coverage_ratio": case.coverage.ratio if case.coverage else None,
+            "lane": case.lane,
+            "ruleset_version": prov.ruleset_version if prov else None,
+            "flags_digest": prov.flags_digest if prov else None,
+        }
+        if prov is not None and prov.custom_rules:  # only when custom rules ran on this analysis
+            detail["custom_rules"] = prov.custom_rules["hash"]
+        audit.write(actor="system", action="case.analysis_finished", case_id=case_id, detail=detail)
     elif job.state == "failed":
         audit.write(
             actor="system",

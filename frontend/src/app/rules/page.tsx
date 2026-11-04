@@ -6,6 +6,7 @@ import { Suspense, useMemo, useState } from "react";
 import useSWR from "swr";
 import { ChangeLogSheet } from "@/components/catalogue/ChangeLog";
 import { CheckEditor, type SavedKind } from "@/components/catalogue/CheckEditor";
+import { CatalogueCustomSection } from "@/components/custom-rules/CatalogueSection";
 import { CheckCards, CheckTable } from "@/components/rules/CheckEntries";
 import { ErrorState } from "@/components/StateViews";
 import { Button, EmptyState, Field, Notice, Panel, SectionHeading, Skeleton, Stagger, inputClasses } from "@/components/ui";
@@ -158,6 +159,8 @@ function RulesView() {
           )}
         </section>
       ) : null}
+
+      <CatalogueCustomSection />
 
       <CheckEditor rule={editRule} rules={all} open={editing !== null} onClose={() => setEditing(null)} onSaved={(u, k) => void onSaved(u, k)} />
       <ChangeLogSheet open={logOpen} onClose={() => setLogOpen(false)} rules={all} />

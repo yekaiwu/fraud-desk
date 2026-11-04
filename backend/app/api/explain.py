@@ -87,7 +87,28 @@ def score_method(settings: Settings | None) -> dict[str, Any]:
     return section
 
 
+CUSTOM_RULES_METHOD: dict[str, Any] = {
+    "max_severity": "medium",
+    "hard_stop": False,
+    "in_coverage": False,
+    "score_family": "custom",
+    "how": (
+        "Rules written by officers in plain English and run by a fixed engine. Unreviewed by the "
+        "development team. Their flags are at most medium, never block the fast lane on their own, "
+        "are not counted in coverage, and count as one family in the calibrated score. Each runs "
+        "only on analyses started by its owner or by an account that adopted it."
+    ),
+}
+
+
 def build_method(settings: Settings | None = None) -> dict[str, Any]:
+    method = _build_method(settings)
+    if settings is not None and settings.custom_rules == "on":  # absent while the feature is off
+        method["custom_rules"] = dict(CUSTOM_RULES_METHOD)
+    return method
+
+
+def _build_method(settings: Settings | None) -> dict[str, Any]:
     fast_min = queue.FAST_LANE_MIN_COVERAGE
     return {
         "score": score_method(settings),

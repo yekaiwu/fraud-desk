@@ -93,3 +93,56 @@ def test_get_settings_is_cached() -> None:
     get_settings.cache_clear()
     assert get_settings() is get_settings()
     get_settings.cache_clear()
+
+
+# ------------------------------------------------------------------------------------ custom rules
+
+
+@pytest.mark.parametrize("raw", ["on", "ON", "true", "True", "yes", "1", True])
+def test_custom_rules_switch_reads_on(raw) -> None:  # noqa: ANN001
+    assert make(custom_rules=raw).custom_rules == "on"
+
+
+@pytest.mark.parametrize("raw", ["off", "OFF", "false", "no", "0", "", "  ", False])
+def test_custom_rules_switch_reads_off(raw) -> None:  # noqa: ANN001
+    assert make(custom_rules=raw).custom_rules == "off"
+
+
+def test_custom_rules_default_is_off_with_documented_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    s = make()
+    assert s.custom_rules == "off"
+    assert (s.custom_rules_max_per_account, s.custom_rules_dry_run_cases) == (50, 200)
+    monkeypatch.setenv("GLDB_CUSTOM_RULES", "true")
+    monkeypatch.setenv("GLDB_CUSTOM_RULES_MAX_PER_ACCOUNT", "7")
+    monkeypatch.setenv("GLDB_CUSTOM_RULES_DRY_RUN_CASES", "30")
+    env = make()
+    assert (env.custom_rules, env.custom_rules_max_per_account, env.custom_rules_dry_run_cases) == (
+        "on",
+        7,
+        30,
+    )
+
+
+def test_custom_rules_switch_rejects_nonsense() -> None:
+    with pytest.raises(ValueError):  # noqa: PT011
+        make(custom_rules="maybe")
+
+
+@pytest.mark.parametrize("name", ["custom_rules_max_per_account", "custom_rules_dry_run_cases"])
+def test_custom_rules_limits_must_be_positive(name: str) -> None:
+    with pytest.raises(
+        SettingsError,
+        match="GLDB_CUSTOM_RULES_MAX_PER_ACCOUNT and GLDB_CUSTOM_RULES_DRY_RUN_CASES must be > 0",
+    ):
+        make(**{name: 0}).validate_startup()
+    make(**{name: 1}).validate_startup()
+
+
+def test_custom_rules_is_listed_in_the_result_settings_only_when_on() -> None:
+    assert "custom_rules" not in make().result_settings()
+    assert make(custom_rules="on").result_settings()["custom_rules"] == "on"
+    # the other results settings are exactly what they were, so no existing settings hash moves
+    on, off = make(custom_rules="on").result_settings(), make().result_settings()
+    assert {k: v for k, v in on.items() if k != "custom_rules"} == off

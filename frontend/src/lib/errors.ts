@@ -135,6 +135,67 @@ export function explainError(e: ApiErrorBody): ExplainedError {
       return { title: "Not available to this account", detail: e.message, retryable: false };
     case "user_budget_used":
       return { title: "Your budget for today is used up", detail: `${e.message} Open an existing case instead, or try again tomorrow.`, retryable: false };
+    // ---- custom rules (api.md 9c)
+    case "feature_off":
+      return { title: "Custom rules are switched off", detail: "This deployment has not turned custom rules on. Ask the administrator.", retryable: false };
+    case "bad_answer":
+      return { title: "That answer cannot be used", detail: e.message, retryable: false };
+    case "draft_closed":
+      return { title: "This request is finished", detail: "It was already saved or closed. Start a new request.", retryable: false };
+    case "draft_turn_limit":
+      return { title: "Too many turns on one request", detail: "Start again with the whole idea in one message, or send it to the tech team.", retryable: false };
+    case "draft_busy":
+      return { title: "Another reply is being processed", detail: "Wait a moment and try again.", retryable: true };
+    case "no_spec":
+      return { title: "There is no rule to test yet", detail: "Answer the open questions first.", retryable: false };
+    case "draft_not_ready":
+      return { title: "This rule cannot be saved yet", detail: "It still has an open question, or the assistant could not turn it into a valid rule.", retryable: false };
+    case "narrower_not_accepted":
+      return { title: "Tick the box first", detail: "Saving a rule that checks less than you asked for needs your confirmation.", retryable: false };
+    case "dry_run_required":
+      return { title: "Test the rule on stored cases first", detail: "Run the test on stored cases for this exact rule, then save.", retryable: false };
+    case "warnings_not_confirmed":
+      return { title: "Confirm the test warnings", detail: "The test on stored cases gave a warning. Tick \"Save anyway\" to go on.", retryable: false };
+    case "duplicate_builtin": {
+      const rule = typeof d?.rule === "string" ? d.rule : null;
+      const what = typeof d?.what === "string" ? d.what : "";
+      const action = typeof d?.action === "string" ? d.action : "";
+      return {
+        title: "A built-in check already does this",
+        detail: [what, action || (rule ? `Change its severity in the check catalogue (${rule}).` : "Change its severity in the check catalogue.")].filter(Boolean).join(" "),
+        retryable: false,
+      };
+    }
+    case "duplicate_custom": {
+      const name = typeof d?.name === "string" && d.name ? ` "${d.name}"` : "";
+      return { title: "A custom rule already does this", detail: `The same rule already exists${name}. Use that one, or change what this one checks.`, retryable: false };
+    }
+    case "no_change":
+      return { title: "Nothing changed", detail: "The new version checks exactly the same thing as the current one.", retryable: false };
+    case "name_required":
+      return { title: "Name required", detail: "Give the rule a name of 3 to 80 characters.", retryable: false };
+    case "rule_limit":
+      return { title: "Too many active rules", detail: "Delete a rule you no longer use before adding another.", retryable: false };
+    case "rule_retired":
+      return { title: "This rule was deleted", detail: "A deleted rule cannot be changed, published or adopted.", retryable: false };
+    case "already_public":
+      return { title: "Already public", detail: "This version is already public.", retryable: false };
+    case "withdrawn_by_admin":
+      return { title: "Taken back by an administrator", detail: "This rule cannot be made public again. It still runs for you; save the idea as a new rule if it should be shared.", retryable: false };
+    case "not_public":
+      return { title: "Not public", detail: "Only a public rule can be adopted or taken back.", retryable: false };
+    case "own_rule":
+      return { title: "This is your own rule", detail: "You cannot adopt your own rule; it already runs on your analyses when it is switched on.", retryable: false };
+    case "already_adopted":
+      return { title: "Already adopted", detail: "You already use this version.", retryable: false };
+    case "not_adopted":
+      return { title: "Not adopted", detail: "You have not adopted this rule.", retryable: false };
+    case "draft_refused":
+      return { title: "A refused request is not sent on", detail: "Requests that break the rules for custom rules are not passed to the tech team.", retryable: false };
+    case "site_budget_used":
+      return { title: "The model budget for the whole site is used up for today", detail: "The rule assistant is unavailable until tomorrow. You can still send the idea to the tech team.", retryable: false };
+    case "authoring_unavailable":
+      return { title: "The rule assistant is not available", detail: "You can still send the idea to the tech team.", retryable: true };
     case "busy":
       return { title: "Server is busy", detail: "Too many analyses are running. Try again in a minute.", retryable: true };
     case "internal_error":

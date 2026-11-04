@@ -105,7 +105,7 @@ Use these, not the API enum values or developer terms.
 | Received but not checked | `UNCHECKED_PAGES_LABEL`: Pages we could not review (`unreviewedPagesText(n)`) |
 | Dismiss / Confirm (a flag) | `DISMISS_LABEL`: Mark as not a concern / `CONFIRM_LABEL`: Mark as a real concern |
 | rule id | small secondary text only: `ruleIdText(id)`: Check: bs_running_balance (use `num text-xs text-muted`) |
-| nav | Worklist (`/`), New case (`/upload`), Control performance (`/effectiveness`), Check catalogue (`/rules`) |
+| nav | Worklist (`/`), New case (`/upload`), Control performance (`/effectiveness`), Check catalogue (`/rules`); Custom rules (`/rules/custom`) only when `/me` says `custom_rules`; Spending (`/spending`) only for administrators |
 
 Never call a document authentic, genuine or verified (`wording.test.ts` greps `components/` and `app/`). Do not add an "Internal use only" line (removed by the owner). Keep the disclaimer in the footer only.
 

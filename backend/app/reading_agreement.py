@@ -43,7 +43,7 @@ from app.checks.registry import run_stage_checks
 from app.core.context import CaseContext
 from app.core.models import Case, Cell, Document, Flag, ReadingNote, Region
 from app.extract.normalise import canonical
-from app.semantic.policy import is_semantic_rule
+from app.semantic.policy import is_custom_rule, is_semantic_rule
 
 log = logging.getLogger("gldb.reading")
 
@@ -163,7 +163,9 @@ def _rerun(ctx: CaseContext, case: Case) -> tuple[dict[str, Flag], set[str]]:
     settings = ctx.settings.model_copy(
         update={"semantic": "off", "verify_scan_flags": False, "agents": False}
     )
-    vctx = replace(ctx, case=case, settings=settings, semantic_tally={}, semantic_state={})
+    vctx = replace(
+        ctx, case=case, settings=settings, semantic_tally={}, semantic_state={}, custom_rules=[]
+    )
     flags: dict[str, Flag] = {}
     for stage in CHECK_STAGES:
         run_stage_checks(vctx, stage)  # type: ignore[arg-type]
@@ -233,6 +235,7 @@ def apply_reading_agreement(ctx: CaseContext) -> dict[str, object]:
         if f.stage in CHECK_STAGES
         and f.severity in ("medium", "high")
         and not is_semantic_rule(f.rule)
+        and not is_custom_rule(f.rule)  # the engine lowers a custom flag on a doubtful cell itself
         and docs_with & set(f.document_ids)
     }
     variant: tuple[dict[str, Flag], set[str]] = ({}, set())
@@ -258,7 +261,9 @@ def apply_reading_agreement(ctx: CaseContext) -> dict[str, object]:
     for fid, flag in variant[0].items():
         if fid in known or added >= MAX_NEW_FLAGS or _RANK[flag.severity] < _RANK["medium"]:
             continue
-        if is_semantic_rule(flag.rule) or not (docs_with & set(flag.document_ids)):
+        if is_semantic_rule(flag.rule) or is_custom_rule(flag.rule):
+            continue
+        if not (docs_with & set(flag.document_ids)):
             continue
         if not _independent(flag, disputed):
             continue  # depends on the disputed figures: the lowered flag on the same page shows it

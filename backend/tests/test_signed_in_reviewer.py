@@ -35,8 +35,13 @@ def test_me_reports_the_signed_in_account(env: Env) -> None:
     assert env.client.get("/me", headers={**PROXY, "X-Gldb-Reviewer": "Alice"}).json() == {
         "reviewer": "alice",
         "admin": False,
+        "custom_rules": False,
     }
-    assert env.client.get("/me", headers=PROXY).json() == {"reviewer": None, "admin": False}
+    assert env.client.get("/me", headers=PROXY).json() == {
+        "reviewer": None,
+        "admin": False,
+        "custom_rules": False,
+    }
 
 
 def test_the_account_replaces_a_typed_name_in_the_review_and_the_audit_log(env: Env) -> None:

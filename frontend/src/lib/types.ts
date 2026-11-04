@@ -97,7 +97,9 @@ export type UncheckedReason = "no_document" | "unreadable" | "not_checked" | "fa
 export interface UncheckedPage { file_id: string; page: number; reason: UncheckedReason }
 export interface CheckRun { rule: string; stage: FlagStage; status: "ran" | "skipped" | "error"; reason?: string | null; code?: string | null; flags: number; seconds: number;
   /** What the check did, in a sentence, even when it raised nothing (an outside source that was asked, and its answer). */
-  note?: string | null }
+  note?: string | null;
+  /** Present only on a custom rule's run: which rule, version and author, so a past run stays explainable. */
+  custom?: CustomRunInfo | null }
 export interface Cost {
   stage: StageName; purpose: string; model: string;
   prompt_tokens: number; completion_tokens: number; usd: DecimalString;
@@ -114,6 +116,8 @@ export interface Provenance {
   input_hashes: Record<string, string>; settings_hash: string;
   today: IsoDate; flags_digest: string; created_at: IsoDateTime;
   catalogue?: CatalogueProvenance | null;
+  /** Present only when custom rules ran on this case: which ones, at which version, and a hash of the set. */
+  custom_rules?: { rules: { rule: string; version: number; spec_hash: string; origin: "own" | "adopted" }[]; hash: string } | null;
 }
 export interface ReviewEntry {
   id: string; kind: "flag_decision" | "verdict" | "second_approval";
@@ -274,3 +278,104 @@ export interface Spending {
   accounts: SpendingAccount[];
   history: { day: string; site_usd: string }[];
 }
+
+// ---------------------------------------------------------------- custom rules (docs/custom-rules.md, api.md 9c)
+
+/** Which custom rule a check run was. `name` is the owner's own text: show it as plain text, never as markup. */
+export interface CustomRunInfo {
+  rule_id: string; version: number; spec_hash: string; template: TemplateId;
+  name: string; author: string; origin: "own" | "adopted"; readback: string;
+}
+
+export type CustomSeverity = "info" | "low" | "medium";
+export type TemplateId = "field_vs_constant" | "date_window" | "field_missing" | "fs_ratio";
+export type FieldOperator = "gt" | "gte" | "lt" | "lte" | "eq" | "ne" | "in" | "not_in";
+export interface FieldVsConstantCondition { template: "field_vs_constant"; field: string; operator: FieldOperator; value?: string | null; values?: string[] | null }
+export interface DateWindowCondition { template: "date_window"; field: string; direction: "older_than" | "newer_than" | "in_future"; days?: number | null }
+export interface FieldMissingCondition { template: "field_missing"; field: string }
+export interface FsRatioCondition { template: "fs_ratio"; left: string[]; operator: "gt" | "gte" | "lt" | "lte"; multiplier: string; right: string; column: "current" | "prior" }
+export type CustomCondition = FieldVsConstantCondition | DateWindowCondition | FieldMissingCondition | FsRatioCondition;
+export interface CustomRuleSpec { spec_version: number; severity: CustomSeverity; condition: CustomCondition }
+
+export type DraftStatus = "ready" | "needs_clarification" | "ambiguous" | "partially_supported" | "unsupported" | "refused";
+export type UnsupportedReason =
+  | "field_not_extracted" | "doc_not_extracted" | "needs_external" | "needs_trend" | "needs_image" | "needs_judgement"
+  | "needs_cross_case" | "needs_cross_document" | "needs_algorithm" | "needs_several_conditions" | "policy_forbidden";
+export type RefusalReason = "high_severity" | "hard_stop" | "protected_attribute" | "changes_builtin" | "changes_score" | "prompt_injection" | "nonsense" | "model_refused";
+export interface PhraseMapping { phrase: string; slot: string | null }
+export interface UnsupportedPart { phrase: string; reason: UnsupportedReason; detail?: string }
+export interface QuestionOption { id: string; label: string; value: string }
+/** `default` is the id of the option the assistant proposes. It is a suggestion: nothing is applied until the officer picks. */
+export interface Question { id: string; slot: string; text: string; options: QuestionOption[]; default: string | null }
+export interface CandidateView { index: number; spec: CustomRuleSpec; readback: string }
+export interface Refusal { reason: RefusalReason; message: string }
+export interface TicketRef { id: string; status: "submitted"; message: string }
+export interface DuplicateNote { kind: "builtin" | "custom"; level: "identical" | "similar"; rule: string; name?: string | null; what: string; action: string }
+export interface Idea { kind: "weaker_rule" | "related_builtin" | "template"; text: string; spec?: CustomRuleSpec | null; rule?: string | null; template?: TemplateId | null }
+export interface DryRunWarning { code: "fires_on_none" | "fires_too_often" | "no_cases"; message: string }
+export interface DryRunResult {
+  spec_hash: string; cases_considered: number; evaluated: number; fired: number; skipped_missing: number;
+  scanned_evaluated: number; scanned_fired: number; fire_rate: number; warnings: DryRunWarning[]; examples: string[]; needs_confirmation: boolean;
+}
+export interface DraftResponse {
+  draft_id: string; turn: number; turns_left: number; status: DraftStatus; understood: string;
+  spec: CustomRuleSpec | null; spec_hash: string | null; readback: string | null;
+  candidates: CandidateView[]; questions: Question[]; assumptions: string[]; phrase_map: PhraseMapping[];
+  unsupported_parts: UnsupportedPart[]; closest_templates: TemplateId[];
+  will_check: string[]; will_not_check: string[]; refusal: Refusal | null;
+  duplicates: DuplicateNote[]; ideas: Idea[]; ticket: TicketRef | null; notes: string[];
+  dry_run: DryRunResult | null; save_allowed: boolean; needs_narrower_ack: boolean; edit_of: string | null; model_calls: number;
+}
+/** POST /custom-rules/drafts/{id}/turns: exactly one of the three. */
+export type CustomTurnRequest = { text: string } | { answer: { question_id: string; option_id: string } } | { choose_candidate: number };
+export interface SaveCustomRuleRequest {
+  draft_id: string; name?: string; description?: string; reason?: string;
+  accept_narrower?: boolean; confirm_warnings?: boolean; submit_ticket?: boolean;
+}
+
+export interface CapabilityField {
+  path: string; label: string; kind: string; required: boolean; values: string[] | null; meaning: string; templates: TemplateId[];
+}
+export interface CustomCapabilities {
+  templates: { id: TemplateId; text: string }[];
+  operators: Record<string, string[]>;
+  operator_text: Record<string, string>;
+  documents: { doc_type: string; label: string; fields: CapabilityField[] }[];
+  fs_lines: { path: string; label: string }[];
+  severities: CustomSeverity[];
+  impossible: { reason: UnsupportedReason; text: string; examples: string }[];
+  limits: { max_turns: number; max_request_chars: number; max_rules: number; dry_run_cases: number; max_fire_rate: number };
+}
+
+export interface CustomRuleVersion { version: number; spec: CustomRuleSpec; spec_hash: string; readback: string; created_at: IsoDateTime; created_by: string; reason: string }
+export interface CustomRuleView {
+  rule_id: string; name: string; description: string; owner: string; own: boolean; version: number; severity: CustomSeverity;
+  template: TemplateId; spec: CustomRuleSpec; spec_hash: string; readback: string; enabled: boolean;
+  visibility: "private" | "public"; published_version: number | null; status: "active" | "retired"; adoptions: number;
+  label: string; created_at: IsoDateTime; updated_at: IsoDateTime;
+  /** Owner only. */
+  versions?: CustomRuleVersion[];
+  /** The dry run made when this version was saved, when the server keeps it. */
+  last_dry_run?: DryRunResult | null;
+}
+export interface AdoptedRuleView {
+  rule_id: string; name: string; author: string; version: number; latest_version: number; update_available: boolean; active: boolean;
+  /** severity and template are null, and readback is empty, once the owner took the rule back (active is false). */
+  severity: CustomSeverity | null; template: TemplateId | null; readback: string; adopted_at: IsoDateTime; label: string;
+}
+export interface SharedRuleView {
+  rule_id: string; name: string; author: string; description: string; version: number; severity: CustomSeverity; template: TemplateId;
+  readback: string; published_at: IsoDateTime; own: boolean; adopted: boolean; adopted_version: number | null; adoptions: number; label: string;
+}
+export interface CustomRuleChange {
+  id: number; rule_id: string; at: IsoDateTime; actor: string; reason: string; version: number | null;
+  action: "create" | "new_version" | "enable" | "disable" | "publish" | "unpublish" | "admin_unpublish" | "retire" | "adopt" | "unadopt";
+  before: unknown; after: unknown;
+}
+export interface CustomTicket {
+  id: string; account: string; created_at: IsoDateTime; status: "submitted" | "acknowledged" | "done" | "declined";
+  origin: "unsupported" | "partial" | "officer"; intent: string; desired_severity: CustomSeverity | null; doc_types: string[];
+  missing: { phrase: string; reason: UnsupportedReason }[]; original_words: string; draft_id: string | null; weaker_rule_id: string | null;
+}
+export interface CustomTicketRequest { draft_id?: string; text?: string; severity?: CustomSeverity }
+export interface CustomTicketResponse { ticket: CustomTicket; message: string; existing: boolean }

@@ -119,8 +119,14 @@ def collect_partial_reasons(case: Case) -> list[str]:
 
 
 def compute_score(findings: Sequence[Finding], *, partial: bool, reasons: Sequence[str]) -> Score:
-    """Legacy model: ``min(100, sum(finding.weight))``; no score point exists without a flag (4.4)."""
-    value = min(SCORE_CAP, sum(f.weight for f in findings))
+    """Legacy model: ``min(100, sum(finding.weight))``; no score point exists without a flag (4.4).
+    Custom-rule findings are one family: together they add at most one point short of the High band,
+    so unreviewed custom rules cannot carry a case to High on their own."""
+    custom = sum(
+        f.weight for f in findings if score_model.family_of(f.rules) == score_model.CUSTOM_FAMILY
+    )
+    builtin = sum(f.weight for f in findings) - custom
+    value = min(SCORE_CAP, builtin + min(custom, BAND_THRESHOLDS["high"] - 1))
     return Score(value=value, band=band_for(value), partial=partial, partial_reasons=list(reasons))
 
 

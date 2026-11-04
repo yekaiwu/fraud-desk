@@ -20,6 +20,7 @@ from app import score_model
 from app.core.config import Settings
 from app.core.costs import DailySpend, PriceTable
 from app.core.db import Database, ts
+from app.semantic.policy import is_custom_rule
 
 CASE_LIMIT = 500  # newest cases per window; enough for a demo, bounded for a real database
 INCIDENT_ACTION = "ai.incident_reported"
@@ -209,8 +210,10 @@ def _rule_rates(cases: list[dict[str, Any]]) -> dict[str, float]:
     fired: dict[str, int] = {}
     for c in cases:
         for rule in {
-            f["rule"] for f in c.get("flags", []) if f.get("severity") in ("medium", "high")
-        }:
+            f["rule"]
+            for f in c.get("flags", [])
+            if f.get("severity") in ("medium", "high") and not is_custom_rule(f["rule"])
+        }:  # custom rules are private to their owners; rule drift alerts go to everybody
             fired[rule] = fired.get(rule, 0) + 1
     return {r: n / len(cases) for r, n in fired.items()}
 

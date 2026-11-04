@@ -265,6 +265,131 @@ CREATE TABLE IF NOT EXISTS monitor_meta (
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+-- Custom rules (app/custom_rules, docs/custom-rules.md). Owned by signed-in accounts and not about a case:
+-- delete-case and retention never touch these tables. Plain text like rule_overrides (officers' words and
+-- code-built specs, never document content). Rules are never deleted: retiring keeps every version.
+CREATE TABLE IF NOT EXISTS custom_rules (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    current_version INTEGER NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('private', 'public')),
+    published_version INTEGER,
+    published_at TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retired')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    retired_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_custom_rules_owner ON custom_rules (owner, status);
+CREATE INDEX IF NOT EXISTS idx_custom_rules_visibility ON custom_rules (visibility, status);
+
+-- One row per version; immutable (a public version can never change, a past run stays explainable).
+CREATE TABLE IF NOT EXISTS custom_rule_versions (
+    rule_id TEXT NOT NULL REFERENCES custom_rules (id),
+    version INTEGER NOT NULL,
+    spec TEXT NOT NULL,
+    spec_hash TEXT NOT NULL,
+    condition_hash TEXT NOT NULL,
+    readback TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    draft_id TEXT,
+    name TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (rule_id, version)
+);
+CREATE INDEX IF NOT EXISTS idx_custom_rule_versions_condition ON custom_rule_versions (condition_hash);
+
+CREATE TRIGGER IF NOT EXISTS custom_rule_versions_no_update
+BEFORE UPDATE ON custom_rule_versions
+BEGIN
+    SELECT RAISE(ABORT, 'custom_rule_versions is append-only: update not allowed');
+END;
+
+CREATE TRIGGER IF NOT EXISTS custom_rule_versions_no_delete
+BEFORE DELETE ON custom_rule_versions
+BEGIN
+    SELECT RAISE(ABORT, 'custom_rule_versions is append-only: delete not allowed');
+END;
+
+-- An account's opt-in to another account's public rule, pinned to the version it adopted.
+CREATE TABLE IF NOT EXISTS custom_rule_adoptions (
+    account TEXT NOT NULL,
+    rule_id TEXT NOT NULL REFERENCES custom_rules (id),
+    version INTEGER NOT NULL,
+    adopted_at TEXT NOT NULL,
+    PRIMARY KEY (account, rule_id)
+);
+CREATE INDEX IF NOT EXISTS idx_custom_rule_adoptions_rule ON custom_rule_adoptions (rule_id);
+
+-- Append-only change log, like rule_changes.
+CREATE TABLE IF NOT EXISTS custom_rule_changes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_id TEXT NOT NULL,
+    at TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('create', 'new_version', 'enable', 'disable', 'publish',
+        'unpublish', 'admin_unpublish', 'retire', 'adopt', 'unadopt')),
+    version INTEGER,
+    "before" TEXT NOT NULL,
+    "after" TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_custom_rule_changes_rule ON custom_rule_changes (rule_id, id);
+
+CREATE TRIGGER IF NOT EXISTS custom_rule_changes_no_delete
+BEFORE DELETE ON custom_rule_changes
+BEGIN
+    SELECT RAISE(ABORT, 'custom_rule_changes is append-only: delete not allowed');
+END;
+
+CREATE TRIGGER IF NOT EXISTS custom_rule_changes_no_update
+BEFORE UPDATE ON custom_rule_changes
+BEGIN
+    SELECT RAISE(ABORT, 'custom_rule_changes is append-only: update not allowed');
+END;
+
+-- The authoring conversation (bounded: 6 turns, 2 model calls a turn). Private to its owner.
+CREATE TABLE IF NOT EXISTS custom_rule_drafts (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'saved', 'closed')),
+    edit_of TEXT,
+    turns INTEGER NOT NULL DEFAULT 0,
+    model_calls INTEGER NOT NULL DEFAULT 0,
+    micro_usd INTEGER NOT NULL DEFAULT 0,
+    prompt_sha256 TEXT,
+    request TEXT NOT NULL,
+    body TEXT NOT NULL,
+    saved_rule_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    model_busy_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_custom_rule_drafts_owner ON custom_rule_drafts (owner, updated_at);
+
+-- Requests routed to the tech team. Readable by the account that asked and by GLDB_ADMIN_USERS.
+CREATE TABLE IF NOT EXISTS custom_rule_tickets (
+    id TEXT PRIMARY KEY,
+    account TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'submitted'
+        CHECK (status IN ('submitted', 'acknowledged', 'done', 'declined')),
+    origin TEXT NOT NULL CHECK (origin IN ('unsupported', 'partial', 'officer')),
+    intent TEXT NOT NULL,
+    desired_severity TEXT,
+    doc_types TEXT NOT NULL DEFAULT '[]',
+    missing TEXT NOT NULL DEFAULT '[]',
+    original_words TEXT NOT NULL,
+    draft_id TEXT UNIQUE,
+    weaker_rule_id TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_custom_rule_tickets_account ON custom_rule_tickets (account, created_at);
 """
 
 # A partial case (pages that could not be read) has an understated score: silence is not safety.
@@ -338,6 +463,9 @@ _ADDED_COLUMNS = (
     ("cases", "escalated", "INTEGER"),
     ("review_entries", "status", "TEXT"),
     ("llm_cache", "file_sha256", "TEXT"),
+    ("custom_rule_drafts", "model_busy_at", "TEXT"),
+    ("custom_rule_versions", "name", "TEXT NOT NULL DEFAULT ''"),
+    ("custom_rule_versions", "description", "TEXT NOT NULL DEFAULT ''"),
 )
 
 # json_each over a body only when it is plain JSON (an encrypted body is not, and json_each(NULL)

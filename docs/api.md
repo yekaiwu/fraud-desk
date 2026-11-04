@@ -70,7 +70,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/explain/method` | scoring and routing method, read from the engine's constants | explainability |
 | DELETE | `/cases/{id}` | delete a case and its data | 7.2 |
 | POST | `/admin/retention/purge` | purge cases older than retention | 7.2 |
-| GET | `/me` | the signed-in account the proxy vouched for, or null, and whether it is an administrator (`GLDB_ADMIN_USERS`) | 5.9 |
+| GET | `/me` | the signed-in account the proxy vouched for, or null, whether it is an administrator (`GLDB_ADMIN_USERS`), and whether custom rules are available to it (`custom_rules`) | 5.9 |
 | GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption, application encryption at rest | 5.23 |
 | GET | `/monitoring/incidents` | the AI incident log, newest first | 5.23 |
 | POST | `/monitoring/incidents` | report (or resolve) an AI incident; severity medium or high is also announced through the alert sinks | 5.23 |
@@ -83,8 +83,26 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/monitoring/notifications/summary` | counts for the navigation badge: unread notifications, open alerts, and the badge number | 5.23(c) |
 | POST | `/monitoring/notifications/read` | mark notifications read (ids, or all) under the signed-in account or a typed name; audited | 5.23(c) |
 | POST | `/monitoring/thresholds/approve` | record, in the audit log, that the bank approved the current threshold values (approver, role, note) | 5.23(b) |
+| GET | `/custom-rules/capabilities` | what a custom rule can and cannot do: templates, operators, every field per document, the financial statement lines, what is impossible, limits | custom rules |
+| POST | `/custom-rules/drafts` | start the rule assistant with a plain-English request: classify, draft, ideate or refuse (the one route that calls the model, with the turns below) | custom rules |
+| GET | `/custom-rules/drafts/{id}` | the draft as of its last turn (own drafts only) | custom rules |
+| POST | `/custom-rules/drafts/{id}/turns` | one more turn: more words (model), an answer to a question, or a choice between readings (no model) | custom rules |
+| POST | `/custom-rules/drafts/{id}/dry-run` | run the draft's rule over stored cases (counts only); saving needs it | custom rules |
+| POST | `/custom-rules` | save a draft as a private rule, or as a new version of one (reason required) | custom rules |
+| GET | `/custom-rules` | the signed-in account's own rules and the public rules it adopted | custom rules |
+| GET | `/custom-rules/shared` | the public library: every public rule, author attributed, labelled custom and unreviewed | custom rules |
+| GET | `/custom-rules/changes` | change log of the account's own rules and adoptions (all of it for an administrator) | custom rules |
+| GET | `/custom-rules/tickets` | requests sent to the tech team (own; all for an administrator) | custom rules |
+| POST | `/custom-rules/tickets` | send a draft, or the officer's own words, to the tech team (no model) | custom rules |
+| GET | `/custom-rules/{rule_id}` | one rule (the owner also gets every version) | custom rules |
+| POST | `/custom-rules/{rule_id}/enabled` | switch an own rule on or off (reason required) | custom rules |
+| POST | `/custom-rules/{rule_id}/publish` | make the current version public (reason required) | custom rules |
+| POST | `/custom-rules/{rule_id}/unpublish` | take a public rule back; the author, or an administrator (reason required) | custom rules |
+| POST | `/custom-rules/{rule_id}/adopt` | opt in to a public rule so it runs on analyses this account starts | custom rules |
+| POST | `/custom-rules/{rule_id}/unadopt` | stop using an adopted rule | custom rules |
+| POST | `/custom-rules/{rule_id}/retire` | retire an own rule; every version is kept (reason required) | custom rules |
 
-Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `spending.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`).
+Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `spending.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`), `custom_rules.py` (custom rules, section 9c).
 
 ## 3. Create case: `POST /cases`
 
@@ -304,6 +322,78 @@ The in-app sink is always on: every message the alert service announces (an aler
 `POST /monitoring/notifications/read` body `{"ids": [1, 2]}` (1 to 200 ids) or `{"all": true}`, plus `"reviewer"`; exactly one of `ids` and `all`. The signed-in account replaces a typed name; with `GLDB_PERSONAL_ACCOUNTS=true` a request without one is `403 account_required`; no name is `422 reviewer_required`. Returns `{"marked", "unread"}`; unknown or already-read ids change nothing. Writes `monitoring.notifications_read` (count, up to 50 ids) to the audit log when something changed. Acknowledging an alert or an incident also marks its own notifications read. Read state is shared: it says that someone looked, not who in particular must.
 
 The in-app sink counts as a configured sink in `GET /monitoring/readiness` item (c) and `alert_sinks`; the readiness text says plainly that delivery to the page is not the same as someone watching it (`page_only: true`, `watching_confirmed: false`).
+
+## 9c. Custom rules: `/custom-rules`
+
+Officers describe a new rule-based check in plain English and a severity (`info`, `low` or `medium`, never `high`, never a hard stop). The model (Claude Haiku) fills a closed JSON schema for one of four templates and a fixed engine runs it; no generated code ever runs. Plain-language guide: [custom-rules.md](custom-rules.md).
+
+- **Gate.** Every route answers 404 `feature_off` unless `GLDB_CUSTOM_RULES=on`, and 403 `account_required` unless a personal account is signed in (`/me` reports `custom_rules: true` only then). A private rule, draft or ticket of another account answers 404, as if it did not exist.
+- **Only two routes cost money:** `POST /custom-rules/drafts` and a `text` turn. They are charged to the signed-in account's daily model spend (purpose `custom_rule:draft`, and `custom_rule:repair` for the one optional second call), never filed on a case, and share the review rate limiter. Everything else (listing, dry runs, saving, publishing, adopting, retiring, tickets) works with the budget used up. Casework is never affected.
+- All writes are `POST`. Bodies are strict (extra fields are a 422). Free text is cleaned to one line of plain text and must be rendered as text.
+
+**Classification.** Every request starts with cheap checks in code (empty, injection markers, protected attributes, high severity, hard stop, changing built-in checks or the score), then one model call. Code, not the model, decides the final `status`, and only ever lowers the model's claim:
+
+| `status` | Meaning | What the officer sees |
+|---|---|---|
+| `ready` | one valid rule, nothing left out | readback, dry run, save |
+| `needs_clarification` | a question must be answered first | questions with options; the proposed `default` is never applied without a click |
+| `ambiguous` | two or three plausible rules | `candidates` to choose from |
+| `partially_supported` | part of the request can be a rule | `will_check` and `will_not_check`; saving needs `accept_narrower` |
+| `unsupported` | nothing useful is possible | ideas, and a ticket for the tech team is created at once |
+| `refused` | high severity, hard stop, protected attribute, change to built-in checks or the score, injection, nonsense | the reason; no ticket; the attempt is logged (a hash of the text) |
+
+A draft is a bounded conversation: at most 6 turns, at most 2 model calls per turn. The 7th turn is 409 `draft_turn_limit`.
+
+**`GET /custom-rules/capabilities`** returns what the model is told (generated from the document schemas, so it cannot drift): `templates`, `operators` (by field kind), `operator_text`, `documents[].fields[]` (`path`, `label`, `kind`, `required`, `values`, `meaning`, `templates`), `fs_lines`, `severities`, `impossible[]` (`reason`, `text`, `examples`) and `limits`.
+
+**`POST /custom-rules/drafts`** body `{"text": string (3-1000), "severity"?: "info"|"low"|"medium", "edit_of"?: "cus_..."}` returns a `DraftResponse` (200). Example for `flag as medium if the firm has a lot of debt from different places`:
+
+```json
+{"draft_id": "crd_5b2e9f0a1c3d", "turn": 1, "turns_left": 5, "status": "partially_supported",
+ "understood": "Flag a company whose borrowings are large compared with its equity, and whose debt comes from several lenders.",
+ "spec": {"spec_version": 1, "severity": "medium", "condition": {"template": "fs_ratio",
+   "left": ["balance_sheet.borrowings_current", "balance_sheet.borrowings_non_current"], "operator": "gt",
+   "multiplier": "2", "right": "balance_sheet.total_equity", "column": "current"}},
+ "spec_hash": "2f1676f0...", "readback": "Flags medium when, on a financial statement's current-year column, borrowings (current) + borrowings (non-current) is greater than 2 times total equity.",
+ "candidates": [], "questions": [{"id": "q1", "slot": "multiplier", "text": "What counts as a lot of debt?", "default": "x2",
+   "options": [{"id": "x1", "label": "More than equity", "value": "1"}, {"id": "x2", "label": "More than 2 times equity", "value": "2"}, {"id": "x3", "label": "More than 3 times equity", "value": "3"}]}],
+ "assumptions": ["Debt is read as current plus non-current borrowings, compared with total equity."],
+ "phrase_map": [{"phrase": "flag as medium", "slot": "severity"}, {"phrase": "the firm", "slot": "filler"}, {"phrase": "a lot of", "slot": "multiplier"}, {"phrase": "debt", "slot": "left"}, {"phrase": "from different places", "slot": null}],
+ "unsupported_parts": [{"phrase": "from different places", "reason": "field_not_extracted", "detail": "Lenders are not read from financial statements."}],
+ "closest_templates": ["fs_ratio"],
+ "will_check": ["Flags medium when, on a financial statement's current-year column, ..."],
+ "will_not_check": ["\"from different places\": the system does not read this from the documents"],
+ "refusal": null, "duplicates": [], "ideas": [{"kind": "weaker_rule", "text": "...", "spec": {}, "rule": null, "template": null}],
+ "ticket": null, "notes": ["There is a question to answer before this can be saved."], "dry_run": null,
+ "save_allowed": false, "needs_narrower_ack": true, "edit_of": null, "model_calls": 1}
+```
+Other statuses use the same envelope. `unsupported` adds `"ticket": {"id": "crt_9c0d1e2f3a4b", "status": "submitted", "message": "This will be submitted to the tech team (ticket crt_9c0d1e2f3a4b)."}`; `refused` has `"refusal": {"reason": "protected_attribute", "message": "..."}`, `"spec": null` and `"model_calls": 0`.
+
+**`POST /custom-rules/drafts/{id}/turns`** body: exactly one of `{"text": string}` (classified again, one or two model calls), `{"answer": {"question_id": "q1", "option_id": "x2"}}` or `{"choose_candidate": 0}` (no model call). An answer that gives an invalid rule is 422 `bad_answer`. After the `x2` answer above: `turn: 2`, `questions: []`, `save_allowed: true`, `model_calls: 0`. A refused message empties the draft and counts as a turn.
+
+**`POST /custom-rules/drafts/{id}/dry-run`** returns `{"spec_hash", "cases_considered", "evaluated", "fired", "skipped_missing", "scanned_evaluated", "scanned_fired", "fire_rate", "warnings": [{"code": "no_cases"|"fires_on_none"|"fires_too_often", "message"}], "examples": [case ids], "needs_confirmation"}`. Firing on none, or on more than 30% of the cases evaluated, is a warning that needs `confirm_warnings` to save. 409 `no_spec` without a valid rule. Counts and a few case ids only; nothing is written to any case.
+
+**`POST /custom-rules`** (201) body `{"draft_id", "name"?, "description"?, "reason", "accept_narrower"?, "confirm_warnings"?, "submit_ticket"?}` returns `{"rule": RuleView, "ticket": TicketRef | null}`. The gates, in order: the draft is the account's (404) and open (409 `draft_closed`); 422 `draft_not_ready`; 422 `narrower_not_accepted`; 409 `duplicate_builtin` (details `rule`, `what`, `action`: use the severity override of that check instead); 409 `duplicate_custom` (details `rule_id`, `name`); 422 `no_change` (an edit equal to the current version); 409 `dry_run_required` (a dry run of exactly this spec); 422 `warnings_not_confirmed`; 422 `name_required` (3-80); 422 `reason_required` (5-500); 409 `rule_limit` (`GLDB_CUSTOM_RULES_MAX_PER_ACCOUNT`). With `edit_of` the save is a new version of that rule. `submit_ticket` files a ticket (origin `partial`) for the part that cannot be checked.
+
+**Rules.** `GET /custom-rules` returns `{"mine": [RuleView], "adopted": [AdoptedView]}`; `GET /custom-rules/shared` returns `{"rules": [SharedView]}`; `GET /custom-rules/{rule_id}` returns a `RuleView` (the owner also gets `versions` and `last_dry_run`; another account sees a public rule at its published version). `POST /custom-rules/{rule_id}/enabled` body `{"enabled": bool, "reason"}`; `/publish`, `/unpublish`, `/retire` body `{"reason"}`; `/adopt` and `/unadopt` body `{}`. A rule is private to its author until published; a public rule is immutable (a change is a new version that stays private until published again); nothing public changes anyone's results until they adopt it; adopting pins the version. An administrator can unpublish any public rule (change log action `admin_unpublish`). Unpublishing ends every adoption (logged `unadopt`), and after an `admin_unpublish` publishing again answers 409 `withdrawn_by_admin`. `GET /custom-rules/changes?rule_id=&limit=` returns `{"changes": [{"id", "rule_id", "at", "actor", "reason", "action", "version", "before", "after"}]}`, newest first.
+
+**Tickets.** `GET /custom-rules/tickets` returns `{"tickets": [Ticket]}`. `POST /custom-rules/tickets` body `{"draft_id"}` or `{"text"}` (exactly one) plus optional `"severity"` returns `{"ticket": Ticket, "message": "This will be submitted to the tech team (ticket crt_...).", "existing": bool}` (201, or 200 when the draft already had one). A refused draft or text is 409 `draft_refused`. No model is called. A ticket holds the intent, the wanted severity, the documents involved, what is missing, the officer's own words, who asked and when, status `submitted`.
+
+```ts
+type CustomSeverity = "info" | "low" | "medium";
+type DraftStatus = "ready" | "needs_clarification" | "ambiguous" | "partially_supported" | "unsupported" | "refused";
+type TemplateId = "field_vs_constant" | "date_window" | "field_missing" | "fs_ratio";
+interface DraftResponse { draft_id: string; turn: number; turns_left: number; status: DraftStatus; understood: string;
+  spec: CustomRuleSpec | null; spec_hash: string | null; readback: string | null; candidates: CandidateView[];
+  questions: Question[]; assumptions: string[]; phrase_map: { phrase: string; slot: string | null }[];
+  unsupported_parts: { phrase: string; reason: UnsupportedReason; detail?: string }[]; closest_templates: TemplateId[];
+  will_check: string[]; will_not_check: string[]; refusal: { reason: RefusalReason; message: string } | null;
+  duplicates: DuplicateNote[]; ideas: Idea[]; ticket: TicketRef | null; notes: string[]; dry_run: DryRunResult | null;
+  save_allowed: boolean; needs_narrower_ack: boolean; edit_of: string | null; model_calls: number }
+```
+The full set of types (`CustomRuleSpec`, `Question`, `DuplicateNote`, `Idea`, `DryRunResult`, `CustomRuleView`, `AdoptedRuleView`, `SharedRuleView`, `CustomTicket`) is in `frontend/src/lib/types.ts`.
+
+**Error codes** (besides the common ones in section 1): 404 `feature_off`; 403 `account_required`; 404 `not_found` (rule, draft or ticket not visible); 403 `forbidden` (a visible rule of another account: publish, retire, enable); 422 `bad_answer`; 409 `draft_closed`, `draft_turn_limit`, `draft_busy`, `no_spec`, `dry_run_required`, `duplicate_builtin`, `duplicate_custom`, `rule_limit`, `rule_retired`, `already_public`, `not_public`, `own_rule`, `already_adopted`, `not_adopted`, `draft_refused`; 422 `draft_not_ready`, `narrower_not_accepted`, `warnings_not_confirmed`, `no_change`, `name_required`, `reason_required`; 429 `user_budget_used` (this account's daily model budget is used; authoring only), `site_budget_used`, `rate_limited`; 503 `authoring_unavailable` (no usable model: the message says the idea can still go to the tech team).
 
 ## 10. Delete and retention
 

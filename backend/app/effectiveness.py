@@ -16,7 +16,7 @@ from app.checks.registry import all_checks
 from app.core.db import Database
 from app.core.models import Case, ReviewEntry
 from app.review import flag_dispositions, load_entries
-from app.semantic.policy import NOT_ASKED_CODES
+from app.semantic.policy import NOT_ASKED_CODES, is_custom_rule
 
 NOT_REGISTERED = "(rule no longer registered)"
 
@@ -118,6 +118,10 @@ def compute_effectiveness(
                 verdict_seconds.append((verdict.created_at - stamp).total_seconds())
         times = _decision_times(case, entries, dispositions)
         for flag in case.flags:
+            if is_custom_rule(
+                flag.rule
+            ):  # private rule ids must not appear on a page every account reads
+                continue
             r = row_for(flag.rule, flag.stage, flag.severity, NOT_REGISTERED)
             r["times_fired"] += 1
             r["cases"].add(case_id)
@@ -134,6 +138,8 @@ def compute_effectiveness(
             if flag.id in times and stamp is not None:
                 r["decide_seconds"].append((times[flag.id] - stamp).total_seconds())
         for run in case.check_runs:
+            if is_custom_rule(run.rule):
+                continue
             r = row_for(run.rule, run.stage, "info", NOT_REGISTERED)
             if run.status == "ran":
                 r["cases_ran"] += 1

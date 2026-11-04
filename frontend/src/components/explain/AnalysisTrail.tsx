@@ -27,6 +27,7 @@ import { Button } from "../ui/Button";
 import { CopyButton } from "../case/CaseHeader";
 import { STAGE_LABEL, STAGE_ORDER } from "../case/ProcessingStepper";
 import { CustomCatalogueNote } from "../catalogue/CustomCatalogueNote";
+import { CustomRunsNote } from "../custom-rules/CustomRunsNote";
 import { NotRunGroups } from "./CoverageExplainer";
 import { NextStepExplainer } from "./NextStepExplainer";
 import { ExplainFacts, ExplainNote } from "./parts";
@@ -172,10 +173,10 @@ export function AnalysisTrailBody({ c, onGoCoverage }: { c: CaseDetail; onGoCove
   const read = readSummary(c);
   const cov = c.coverage;
   const notRun = useMemo<CoverageSkip[]>(
-    () => c.check_runs.filter((r) => r.status !== "ran").map((r) => ({ rule: r.rule, status: r.status === "error" ? "error" : "skipped", reason: r.reason ?? "" })),
+    () => c.check_runs.filter((r) => r.status !== "ran" && !r.custom).map((r) => ({ rule: r.rule, status: r.status === "error" ? "error" : "skipped", reason: r.reason ?? "" })),
     [c.check_runs],
   );
-  const flagged = new Set(c.check_runs.filter((r) => r.status === "ran" && r.flags > 0).map((r) => r.rule)).size;
+  const flagged = new Set(c.check_runs.filter((r) => r.status === "ran" && !r.custom && r.flags > 0).map((r) => r.rule)).size;
   const pageProblems = c.files.flatMap((f) => f.pages.filter((p) => p.error).map((p) => ({ f, p })));
   const p = c.provenance;
   const models = p ? Object.entries(p.models) : [];
@@ -251,6 +252,7 @@ export function AnalysisTrailBody({ c, onGoCoverage }: { c: CaseDetail; onGoCove
             <p>No checks have been counted yet.</p>
           )}
           <CustomCatalogueNote catalogue={p?.catalogue} />
+          <CustomRunsNote c={c} />
         </Step>
 
         <Step n={5} title="Scored">

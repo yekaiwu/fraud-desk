@@ -39,6 +39,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.core.models import SCORE_CAP, SCORE_WEIGHTS, Finding, Flag
+from app.custom_rules.spec import is_custom_rule
 
 LEGACY = "legacy"
 CALIBRATED = "calibrated"
@@ -139,10 +140,15 @@ _FAMILY_RULES: dict[str, tuple[str, ...]] = {
 RULE_FAMILY: dict[str, str] = {r: fam for fam, rules in _FAMILY_RULES.items() for r in rules}
 
 SEVERITIES = ("high", "medium", "low")
+# every custom-rule finding (docs/custom-rules.md) is one family, capped like any other
+CUSTOM_FAMILY = "custom"
 
 
 def family_of(rules: Sequence[str]) -> str:
-    """Score family of a finding. A rule in no family is its own (``rule:<name>``)."""
+    """Score family of a finding. A rule in no family is its own (``rule:<name>``); every custom rule is
+    in the one ``custom`` family, so custom rules alone cannot reach the High band."""
+    if any(is_custom_rule(r) for r in rules):
+        return CUSTOM_FAMILY
     for rule in sorted(rules):
         return RULE_FAMILY.get(rule, f"rule:{rule}")
     return "rule:unknown"

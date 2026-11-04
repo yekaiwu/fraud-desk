@@ -86,7 +86,7 @@ function stageHeadline(stage: StageName, d: StageRecord["detail"], c: CaseDetail
     case "forensics":
     case "rules":
     case "crossdoc":
-      return `${num(d.ran)} of ${num(d.checks)} checks ran, ${num(d.skipped)} skipped${num(d.errors) > 0 ? `, ${num(d.errors)} failed` : ""}; ${num(d.flags)} ${plural(num(d.flags), "flag")} raised.`;
+      return `${num(d.ran)} of ${num(d.checks)} checks ran, ${num(d.skipped)} skipped${num(d.errors) > 0 ? `, ${num(d.errors)} failed` : ""}; ${num(d.flags)} ${plural(num(d.flags), "flag")} raised.${num(d.custom_checks) > 0 ? ` Custom rules: ${num(d.custom_checks)} ${plural(num(d.custom_checks), "rule")} looked at the case, ${num(d.custom_flags)} ${plural(num(d.custom_flags), "flag")}.` : ""}`;
     case "score":
       return `Score ${c.score?.value ?? num(d.score)}${c.score ? ` (${c.score.band})` : ""}${c.lane ? `, lane ${c.lane}` : ""}, from ${num(d.flags)} ${plural(num(d.flags), "flag")} in ${num(d.findings)} ${plural(num(d.findings), "finding")}; ${num(d.ran)} of ${num(d.applicable)} checks ran.`;
   }
@@ -217,7 +217,7 @@ export function timelineExport(c: CaseDetail, steps: TimelineStep[]): unknown {
       facts: Object.fromEntries(s.facts),
       warnings: s.warnings,
       error: s.error,
-      checks: s.checks.map((r) => ({ rule: r.rule, status: r.status, flags: r.flags, reason: r.reason ?? null, note: r.note ?? null, seconds: r.seconds })),
+      checks: s.checks.map((r) => ({ rule: r.rule, status: r.status, flags: r.flags, reason: r.reason ?? null, note: r.note ?? null, seconds: r.seconds, custom: r.custom ?? null })),
       flags_raised: s.flags.map((f) => ({ id: f.id, rule: f.rule, severity: f.severity, explanation: f.explanation, evidence: f.evidence, documents: f.document_ids })),
       flags_so_far: s.cumulative,
       model_calls: s.calls.map((x) => ({ purpose: x.purpose, model: x.model, prompt_tokens: x.prompt_tokens, completion_tokens: x.completion_tokens, usd: x.usd, seconds: x.seconds, cache_hit: x.cache_hit })),

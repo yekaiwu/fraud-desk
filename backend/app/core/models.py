@@ -448,6 +448,20 @@ class Coverage(Strict):
     unchecked_pages: list[UncheckedPage] = []
 
 
+class CustomRunInfo(Strict):
+    """Which custom rule a check run was (docs/custom-rules.md): enough to explain a past run after the rule
+    changed or was retired. ``name`` is the owner's display text (plain text, never given to a model)."""
+
+    rule_id: str
+    version: int
+    spec_hash: str
+    template: str
+    name: str
+    author: str
+    origin: Literal["own", "adopted"]
+    readback: str
+
+
 class CheckRun(Strict):
     rule: str
     stage: FlagStage
@@ -463,6 +477,8 @@ class CheckRun(Strict):
     # What the check did, in one sentence for the reviewer, shown even when it raised nothing: an outside
     # source that was asked and what it answered ("Asked ACRA for ...: found ..."). Left out when None.
     note: str | None = Field(default=None, exclude_if=lambda v: v is None)
+    # Set on a custom rule's run only (docs/custom-rules.md); left out of the JSON otherwise.
+    custom: CustomRunInfo | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------------------
@@ -523,6 +539,9 @@ class Provenance(Strict):
     score_model: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
     # "on" when the case was analysed in private mode (GLDB_PRIVATE_MODE); absent otherwise
     private_mode: str | None = Field(default=None, exclude_if=lambda v: v is None)
+    # {"rules": [{"rule", "version", "spec_hash", "origin"}...], "hash": sha256} when custom rules were
+    # loaded for the account that started the run (docs/custom-rules.md); absent otherwise.
+    custom_rules: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 # --------------------------------------------------------------------------------------
