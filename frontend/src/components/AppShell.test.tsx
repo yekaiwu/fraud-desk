@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 // The badge asks the API; here it always answers "nothing to look at" (AppShell.badge.test.tsx covers the counts).
-vi.mock("@/lib/api", () => ({ getNotificationSummary: () => Promise.resolve({ unread: 0, open_alerts: 0, badge: 0 }) }));
+let me = { reviewer: "user1" as string | null, admin: false };
+vi.mock("@/lib/api", () => ({ getNotificationSummary: () => Promise.resolve({ unread: 0, open_alerts: 0, badge: 0 }), getMe: () => Promise.resolve(me) }));
 
+import { renderWithSWR } from "@/test/utils";
 import { AppShell } from "./AppShell";
 
 beforeEach(() => {
@@ -13,6 +15,18 @@ beforeEach(() => {
 });
 
 describe("AppShell", () => {
+  it("adds a Spending tab for an administrator account and for nobody else", async () => {
+    me = { reviewer: "boss", admin: true };
+    const admin = renderWithSWR(<AppShell>x</AppShell>);
+    expect(await screen.findByRole("link", { name: "Spending" })).toHaveAttribute("href", "/spending");
+    admin.unmount();
+    me = { reviewer: "user1", admin: false };
+    renderWithSWR(<AppShell>x</AppShell>);
+    await screen.findByRole("link", { name: "Worklist" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("link", { name: "Spending" })).toBeNull();
+  });
+
   it("has landmarks, a skip link, the four nav items, the notifications bell and the disclaimer line", () => {
     render(<AppShell>content</AppShell>);
     expect(screen.getByRole("banner")).toBeInTheDocument();

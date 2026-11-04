@@ -256,3 +256,20 @@ export interface ExplainMethod {
   lanes: { lane: Lane; suggested_verdict: Verdict | null; how: string }[];
   ruleset_version: string;
 }
+
+/** GET /spending: model spend in US dollars, as decimal strings. Administrator accounts only. */
+export interface SpendingAccount {
+  account: string;
+  today_usd: string;
+  week_usd: string;
+}
+export interface Spending {
+  viewer: string;
+  day: string;
+  site_cap_usd: string;
+  per_account_cap_usd: string;
+  site_today_usd: string;
+  unattributed_today_usd: string;
+  accounts: SpendingAccount[];
+  history: { day: string; site_usd: string }[];
+}

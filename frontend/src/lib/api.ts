@@ -40,6 +40,7 @@ import type {
   RuleChange,
   RuleInfo,
   RuleOverrideRequest,
+  Spending,
   UseCase,
   Band,
 } from "./types";
@@ -121,6 +122,19 @@ function jsonInit(method: string, body: unknown): RequestInit {
 export async function getHealth(): Promise<Health> {
   if (USE_MOCK) return (await import("./mock/handlers")).getHealth();
   return request<Health>("/health");
+}
+
+export interface Me {
+  reviewer: string | null;
+  admin: boolean;
+}
+
+export async function getMe(): Promise<Me> {
+  return request<Me>("/me");
+}
+
+export async function getSpending(): Promise<Spending> {
+  return request<Spending>("/spending");
 }
 
 export async function getQueue(q: QueueQuery = {}): Promise<Page<QueueItem>> {

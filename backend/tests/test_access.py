@@ -272,3 +272,40 @@ def test_an_account_that_used_its_daily_budget_cannot_start_another_analysis(
     # another account is not blocked by it (it gets as far as the missing-files validation)
     ok = c.post("/cases", headers={**H, "X-Gldb-Reviewer": "user2"}, data={"use_case": "loan"})
     assert ok.status_code == 422
+
+
+def test_spending_is_for_administrator_accounts_only(settings, monkeypatch) -> None:
+    from decimal import Decimal
+
+    from app.core.costs import DailySpend
+
+    monkeypatch.setenv("GLDB_PROXY_SECRET", SECRET)
+    monkeypatch.setenv("GLDB_ADMIN_USERS", "boss")
+    s = settings.model_copy(update={"admin_users": "boss"})
+    app = main.create_app(s)
+    c = TestClient(app, client=REMOTE)
+    DailySpend(app.state.db, Decimal("5"), account="user1", user_cap=Decimal("1")).add(
+        Decimal("0.25")
+    )
+    DailySpend(app.state.db, Decimal("5"), account="boss", user_cap=Decimal("1")).add(
+        Decimal("0.5")
+    )
+    DailySpend(app.state.db, Decimal("5")).add(Decimal("0.1"))  # started with no account
+    for who in ("user1", None):
+        hdr = {**H, **({"X-Gldb-Reviewer": who} if who else {})}
+        r = c.get("/spending", headers=hdr)
+        assert r.status_code == 403
+        assert_envelope(r.json(), "forbidden")
+    assert c.get("/me", headers={**H, "X-Gldb-Reviewer": "boss"}).json() == {
+        "reviewer": "boss",
+        "admin": True,
+    }
+    assert c.get("/me", headers={**H, "X-Gldb-Reviewer": "user1"}).json()["admin"] is False
+    body = c.get("/spending", headers={**H, "X-Gldb-Reviewer": "boss"}).json()
+    assert body["viewer"] == "boss"
+    assert [(a["account"], a["today_usd"]) for a in body["accounts"]] == [
+        ("boss", "0.500000"),
+        ("user1", "0.250000"),
+    ]
+    assert body["site_today_usd"] == "0.850000" and body["unattributed_today_usd"] == "0.100000"
+    assert len(body["history"]) == 7 and body["history"][0]["site_usd"] == "0.850000"

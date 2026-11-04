@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 const getNotificationSummary = vi.fn();
-vi.mock("@/lib/api", () => ({ getNotificationSummary: () => getNotificationSummary() }));
+vi.mock("@/lib/api", () => ({ getNotificationSummary: () => getNotificationSummary(), getMe: () => Promise.resolve({ reviewer: null, admin: false }) }));
 
 import { AppShell, badgeLabel } from "./AppShell";
 

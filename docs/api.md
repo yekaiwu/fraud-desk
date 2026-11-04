@@ -55,6 +55,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/cases/{id}/review` | review log | 7.2 |
 | GET | `/cases/{id}/pack` | evidence pack, JSON or readable HTML | 8.3 |
 | GET | `/rules/effectiveness` | rule effectiveness | 8.3, 0.4 theme 6 |
+| GET | `/spending` | model spend today and over 7 days, per signed-in account and for the site; administrator accounts only (403 otherwise) | demo |
 | GET | `/jobs/{job_id}` | poll background processing | D4 |
 | POST | `/cases/{id}/files` | add documents (new version, re-analysis) | 7.3 |
 | POST | `/cases/{id}/rerun` | re-run analysis on the same inputs (new version) | 7.2 reproducibility |
@@ -69,7 +70,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/explain/method` | scoring and routing method, read from the engine's constants | explainability |
 | DELETE | `/cases/{id}` | delete a case and its data | 7.2 |
 | POST | `/admin/retention/purge` | purge cases older than retention | 7.2 |
-| GET | `/me` | the signed-in account the proxy vouched for, or null | 5.9 |
+| GET | `/me` | the signed-in account the proxy vouched for, or null, and whether it is an administrator (`GLDB_ADMIN_USERS`) | 5.9 |
 | GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption, application encryption at rest | 5.23 |
 | GET | `/monitoring/incidents` | the AI incident log, newest first | 5.23 |
 | POST | `/monitoring/incidents` | report (or resolve) an AI incident; severity medium or high is also announced through the alert sinks | 5.23 |
@@ -83,7 +84,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | POST | `/monitoring/notifications/read` | mark notifications read (ids, or all) under the signed-in account or a typed name; audited | 5.23(c) |
 | POST | `/monitoring/thresholds/approve` | record, in the audit log, that the bank approved the current threshold values (approver, role, note) | 5.23(b) |
 
-Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`).
+Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `spending.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`).
 
 ## 3. Create case: `POST /cases`
 

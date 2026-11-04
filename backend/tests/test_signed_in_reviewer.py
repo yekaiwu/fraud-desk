@@ -33,9 +33,10 @@ def post(env: Env, case_id: str, who: str | None, typed: str = "typed.name", **e
 
 def test_me_reports_the_signed_in_account(env: Env) -> None:
     assert env.client.get("/me", headers={**PROXY, "X-Gldb-Reviewer": "Alice"}).json() == {
-        "reviewer": "alice"
+        "reviewer": "alice",
+        "admin": False,
     }
-    assert env.client.get("/me", headers=PROXY).json() == {"reviewer": None}
+    assert env.client.get("/me", headers=PROXY).json() == {"reviewer": None, "admin": False}
 
 
 def test_the_account_replaces_a_typed_name_in_the_review_and_the_audit_log(env: Env) -> None:

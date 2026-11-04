@@ -25,6 +25,7 @@ STUB_MODULES = [
     "queue",
     "review",
     "rules",
+    "spending",
 ]
 STUB_ROUTES = [
     ("POST", "/cases"),

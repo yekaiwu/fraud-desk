@@ -37,6 +37,8 @@ API_MD_SECTION_2: set[tuple[str, str]] = {
     ("GET", "/cases/{}/review"),
     ("GET", "/cases/{}/pack"),
     ("GET", "/rules/effectiveness"),
+    # model spend per account, for the administrator accounts only (api.md section 2)
+    ("GET", "/spending"),
     ("GET", "/jobs/{}"),
     ("POST", "/cases/{}/files"),
     ("POST", "/cases/{}/rerun"),

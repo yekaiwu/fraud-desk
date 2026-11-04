@@ -190,6 +190,8 @@ class Settings(BaseSettings):
     # one signed-in account's share of the day (analyses it starts: new case, added documents, rerun);
     # counted per UTC day, paid backends only; 0 disables
     max_usd_per_user_per_day: Decimal = Decimal("0")
+    # signed-in accounts that may see everybody's model spend (GET /spending); comma-separated, empty = nobody
+    admin_users: str = ""
     max_page_workers: int = 4
     job_workers: int = 2
 
@@ -343,6 +345,10 @@ class Settings(BaseSettings):
         """The key list, only for ``app.core.crypto``. Never log it."""
         keys = self.encryption_keys  # model_copy(update=...) can leave a plain str here
         return keys if isinstance(keys, str) else keys.get_secret_value()
+
+    @property
+    def admin_user_set(self) -> frozenset[str]:
+        return frozenset(u.strip().lower() for u in self.admin_users.split(",") if u.strip())
 
     @property
     def anthropic_api_key_value(self) -> str:

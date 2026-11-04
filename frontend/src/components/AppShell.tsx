@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { DISCLAIMER, USE_MOCK } from "@/lib/constants";
+import { useMe } from "@/lib/useMe";
 import { useNotificationBadge } from "@/lib/useNotificationSummary";
 import { Guilloche } from "./ui/Guilloche";
 import { Logo, LogoMark } from "./ui/Logo";
@@ -17,6 +18,9 @@ export const NAV_ITEMS = [
   { href: "/effectiveness", label: "Control performance" },
   { href: "/rules", label: "Check catalogue" },
 ] as const;
+
+/** Shown only to the administrator accounts (GLDB_ADMIN_USERS). */
+const ADMIN_NAV_ITEMS = [{ href: "/spending", label: "Spending" }] as const;
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/" || pathname.startsWith("/cases");
@@ -73,6 +77,8 @@ export const CONTAINER = "mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-8";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const activeRef = useRef<HTMLAnchorElement | null>(null);
+  const me = useMe(pathname !== "/welcome" && pathname !== "/login");
+  const navItems = me?.admin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
 
   // On a phone the tab row scrolls sideways; make sure the current page's tab is in view.
   useEffect(() => {
@@ -129,7 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <nav aria-label="Main" className="-mb-[3px] mt-1">
             <ul className="flex gap-1 overflow-x-auto pb-[3px] pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const active = isActive(pathname, item.href);
                 return (
                   <li key={item.href} className="shrink-0">
