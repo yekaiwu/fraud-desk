@@ -77,6 +77,16 @@ describe("POST /api/auth/login", () => {
     expect(loginLimiter()).toBeInstanceOf(LoginLimiter);
   });
 
+  it("one person's typos do not lock another account on the same address", async () => {
+    const h = { "x-forwarded-for": "203.0.113.7" };
+    for (let i = 0; i < 6; i++) await login(post({ username: USERNAME, password: "bad" + i }, h));
+    expect((await login(post({ username: USERNAME, password: PASSWORD }, h))).status).toBe(429);
+    const other = "someone-else";
+    env({ GLDB_SITE_USERS: JSON.stringify({ [other]: "another-long-password" }) });
+    const r = await login(post({ username: other, password: "another-long-password" }, h));
+    expect(r.status).toBe(200);
+  });
+
   it("accepts a form post", async () => {
     const body = new URLSearchParams({ username: USERNAME, password: PASSWORD });
     const r = await login(new Request("http://x/api/auth/login", { method: "POST", body }));

@@ -138,6 +138,30 @@ def test_cases_rate_limit_429_envelope_and_retry_after(settings, monkeypatch) ->
         assert c.get("/cases", headers=hdr).status_code == 200
 
 
+def test_limit_is_per_signed_in_account_not_per_address(settings, monkeypatch) -> None:
+    """A room of people on one Wi-Fi shares one address; each signed-in account has its own allowance."""
+    c = make_client(
+        settings, monkeypatch, client=REMOTE, proxy_secret=SECRET, rate_cases_per_hour="2"
+    )
+    room = {**H, "X-Forwarded-For": "198.51.100.1"}
+    for _ in range(2):
+        assert (
+            c.post(
+                "/cases", headers={**room, "X-Gldb-Reviewer": "user1"}, data={"use_case": "loan"}
+            ).status_code
+            == 422
+        )
+    r = c.post("/cases", headers={**room, "X-Gldb-Reviewer": "user1"}, data={"use_case": "loan"})
+    assert r.status_code == 429
+    for who in ("user2", "user3"):
+        assert (
+            c.post(
+                "/cases", headers={**room, "X-Gldb-Reviewer": who}, data={"use_case": "loan"}
+            ).status_code
+            == 422
+        )
+
+
 def test_forwarded_for_spoofing_cannot_evade_the_limit(settings, monkeypatch) -> None:
     c = make_client(
         settings, monkeypatch, client=REMOTE, proxy_secret=SECRET, rate_cases_per_hour="1"

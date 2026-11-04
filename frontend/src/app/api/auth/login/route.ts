@@ -35,13 +35,14 @@ export async function POST(request: Request) {
   }
   if (username.length > 256 || password.length > 1024) return err(400, "bad_request", "Username or password too long.");
 
-  const client = clientIp(request.headers);
+  const given = username.trim().toLowerCase();
+  // Address plus account: a typo by one person in a room does not lock the others out.
+  const client = `${clientIp(request.headers)}|${given.slice(0, 64)}`;
   const limiter = loginLimiter();
   const wait = limiter.retryAfterS(client);
   if (wait > 0) return err(429, "rate_limited", `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute(s).`, { "Retry-After": String(wait) });
 
   // Every account is compared on every attempt, so the response time does not reveal which part was wrong.
-  const given = username.trim().toLowerCase();
   let matched: string | null = null;
   for (const [name, pw] of Object.entries(cfg.users)) {
     const [userOk, passOk] = await Promise.all([safeEqual(given, name), safeEqual(password, pw)]);

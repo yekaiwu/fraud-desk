@@ -17,8 +17,10 @@ address in ``X-Forwarded-For``). This module is the second line of defence, inst
   ``GLDB_RATE_REVIEWS_PER_MIN`` per minute. The check catalogue writes (``PUT`` and ``DELETE``
   on ``/rules/{rule}/override``) share the review limiter. Over the limit: 429 ``rate_limited``
   with ``Retry-After``.
-  The client is the ``X-Forwarded-For`` value sent by the proxy, but only when the proxy secret
-  matched (otherwise the header is attacker-controlled and the peer address is used).
+  The limit is counted per signed-in account when the proxy sent one (so a room of people on one
+  Wi-Fi each get their own allowance), otherwise per client address: the ``X-Forwarded-For`` value
+  sent by the proxy, but only when the proxy secret matched (otherwise the header is
+  attacker-controlled and the peer address is used).
 * **Job cap.** Requests that start analysis work (``POST /cases``, ``/cases/{id}/files``,
   ``/cases/{id}/rerun``) get 503 ``busy`` with ``Retry-After`` while ``GLDB_MAX_ACTIVE_JOBS`` jobs
   are queued or running, so strangers cannot queue unlimited work. It is a soft cap (checked, not
@@ -233,7 +235,10 @@ class AccessMiddleware:
         is_review = bool(_REVIEW_PATH.match(path) or _OVERRIDE_PATH.match(path))
         if not (is_job or is_review):
             return None
-        client = _client_key(scope, headers, trust_forwarded=trusted)
+        reviewer = (scope.get("state") or {}).get("reviewer") if trusted else None
+        client = (
+            f"user:{reviewer}" if reviewer else _client_key(scope, headers, trust_forwarded=trusted)
+        )
         if is_create:
             ok, wait = self.cases_limiter.hit(client)
             if not ok:
@@ -241,7 +246,7 @@ class AccessMiddleware:
                     headers,
                     429,
                     "rate_limited",
-                    f"Too many cases created from this address. Try again in {wait} seconds.",
+                    f"Too many cases created from this account. Try again in {wait} seconds.",
                     {
                         "scope": "cases",
                         "limit": self.access.rate_cases_per_hour,
@@ -257,7 +262,7 @@ class AccessMiddleware:
                     headers,
                     429,
                     "rate_limited",
-                    f"Too many review actions from this address. Try again in {wait} seconds.",
+                    f"Too many review actions from this account. Try again in {wait} seconds.",
                     {
                         "scope": "reviews",
                         "limit": self.access.rate_reviews_per_min,

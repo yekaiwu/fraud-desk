@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
+from collections import OrderedDict
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
@@ -29,6 +31,34 @@ DEFAULT_STATUSES = ["processing", "open", "awaiting_documents"]
 MAX_PAGE_SIZE = 100
 
 
+# What the worklist needs from a case body is two small facts, but reading them means decrypting and
+# parsing the whole stored case (about 10 ms each). Every open worklist tab asks for them every 10 s, so
+# they are remembered per stored body. The key is the stored text itself (sealed bodies get a new nonce on
+# every save), so an entry can never outlive the body it was read from.
+_SUMMARY_CACHE_MAX = 4096
+_summary_cache: OrderedDict[tuple[str, int, int], tuple[dict[str, Any] | None, int]] = OrderedDict()
+_summary_lock = threading.Lock()
+
+
+def _body_summary(row: sqlite3.Row, db: Database | None) -> tuple[dict[str, Any] | None, int]:
+    """``(coverage, file_count)`` of a case row's body."""
+    stored = row["body"]
+    key = (row["id"], len(stored), hash(stored))
+    with _summary_lock:
+        hit = _summary_cache.get(key)
+        if hit is not None:
+            _summary_cache.move_to_end(key)
+            return hit
+    text = stored if db is None else db.open_case_body(row["id"], stored)
+    body = json.loads(text)
+    summary = (body.get("coverage"), len(body.get("files", [])))
+    with _summary_lock:
+        _summary_cache[key] = summary
+        while len(_summary_cache) > _SUMMARY_CACHE_MAX:
+            _summary_cache.popitem(last=False)
+    return summary
+
+
 def build_queue_item(
     row: sqlite3.Row,
     *,
@@ -38,10 +68,8 @@ def build_queue_item(
 ) -> QueueItem:
     """One queue row. Scalars come from the denormalised columns; coverage and the file count come
     from the stored body. A case still ``processing`` has no score, lane, coverage or top line."""
-    text = row["body"] if db is None else db.open_case_body(row["id"], row["body"])
-    body = json.loads(text)
+    cov, file_count = _body_summary(row, db)
     processing = row["status"] == "processing"
-    cov = body.get("coverage")
     coverage = None
     if cov is not None and not processing:
         coverage = Coverage.model_validate({**cov, "skipped": [], "unchecked_pages": []})
@@ -70,7 +98,7 @@ def build_queue_item(
         partial=bool(row["partial"]),
         decision=row["decision"],
         pending_second_approvals=pending_second_approvals,
-        file_count=len(body.get("files", [])),
+        file_count=file_count,
     )
 
 

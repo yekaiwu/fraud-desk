@@ -2,10 +2,16 @@
  * Login-failure limiter. In memory, which is right for the single `next start` process this app runs
  * as (a restart clears it). Only failures count; a correct password never consumes budget.
  *
- * Two budgets: per client address (5 failures / 10 min) and one global budget across all clients
- * (60 / 10 min). The global one is the backstop if a client can forge the address we key on, so a
- * brute-force run stays at about 60 guesses per 10 minutes whatever it sends.
+ * Two budgets: per client (the caller passes address plus account name, so one mistyped password does
+ * not lock out everybody on the same Wi-Fi; 5 failures / 10 min) and one global budget across all
+ * clients (60 / 10 min). The global one is the backstop if a client can forge the address we key on, so
+ * a brute-force run stays at about 60 guesses per 10 minutes whatever it sends. Both can be raised for a
+ * workshop with GLDB_LOGIN_MAX_FAILURES and GLDB_LOGIN_GLOBAL_MAX_FAILURES (positive integers).
  */
+function envInt(name: string, fallback: number): number {
+  const n = Number(process.env[name]);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
 export const LOGIN_MAX_FAILURES = 5;
 export const LOGIN_GLOBAL_MAX_FAILURES = 60;
 export const LOGIN_WINDOW_MS = 10 * 60 * 1000;
@@ -51,5 +57,5 @@ const KEY = "__gldbLoginLimiter";
 /** One limiter per server process, shared by every bundle that imports this module. */
 export function loginLimiter(): LoginLimiter {
   const g = globalThis as unknown as Record<string, LoginLimiter | undefined>;
-  return (g[KEY] ??= new LoginLimiter());
+  return (g[KEY] ??= new LoginLimiter(Date.now, envInt("GLDB_LOGIN_MAX_FAILURES", LOGIN_MAX_FAILURES), envInt("GLDB_LOGIN_GLOBAL_MAX_FAILURES", LOGIN_GLOBAL_MAX_FAILURES)));
 }
