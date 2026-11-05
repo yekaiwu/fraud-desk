@@ -342,6 +342,53 @@ def test_a_low_custom_finding_does_not_close_the_fast_lane_and_is_never_a_hard_s
         assert default_hard_stop("cus_aaaaaaaaaa", severity) is False  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    ("severity", "n", "points"), [("medium", 1, 15), ("medium", 2, 30), ("low", 5, 25)]
+)
+@pytest.mark.parametrize("model", ["legacy", "calibrated"])
+def test_custom_flags_alone_never_take_a_case_out_of_the_fast_lane(
+    severity: str, n: int, points: int, model: str
+) -> None:
+    settings = Settings(_env_file=None, llm_backend="fake", db_path=":memory:", score_model=model)
+
+    def analysed(*rules):  # noqa: ANN002, ANN202
+        ctx = ctx_with([invoice()], *rules, settings=settings)
+        run_stage_checks(ctx, "rules")
+        for run in ctx.case.check_runs:  # the built-in checks that did not apply here all ran
+            if not run.custom:
+                run.status, run.reason, run.code = "ran", None, None
+        run_stage(ctx)
+        return ctx
+
+    plain = analysed()
+    assert plain.case.lane == "fast"
+    rules = [
+        loaded(t1("invoice.total", "gt", str(i)), severity, rule_id=f"cus_{i:010d}")
+        for i in range(1, n + 1)
+    ]
+    case = analysed(*rules).case
+    assert len([f for f in case.findings if f.rules[0].startswith("cus_")]) == n
+    assert case.coverage is not None and case.coverage.ratio == plain.case.coverage.ratio  # type: ignore[union-attr]
+    assert case.lane == "fast" and fast_lane_eligible(case)
+    # the displayed score still carries the custom points
+    assert case.score is not None and case.score.value > plain.case.score.value  # type: ignore[union-attr]
+    if model == "legacy":
+        assert case.score.value == plain.case.score.value + points  # type: ignore[union-attr]
+
+
+def test_a_builtin_medium_flag_still_blocks_the_fast_lane_with_or_without_custom_flags() -> None:
+    builtin = finding("inv_total", 15, "medium")
+    custom = finding("cus_aaaaaaaaaa", 15, "medium")
+    only_custom = _case_with(BASE, [custom])
+    assert fast_lane_eligible(only_custom) and lane_for(only_custom) == "fast"
+    # 15 built-in + 15 custom = 30 shown, but the built-in 15 alone is under the bar: still fast
+    assert fast_lane_eligible(_case_with(BASE, [builtin, custom]))
+    heavy = _case_with(BASE, [finding("inv_total", 30, "high"), custom])
+    assert not fast_lane_eligible(heavy) and lane_for(heavy) != "fast"
+    two = _case_with(BASE, [builtin, finding("inv_date", 15, "medium"), custom])
+    assert not fast_lane_eligible(two)
+
+
 def test_a_real_run_with_a_custom_flag_keeps_the_builtin_coverage(monkeypatch) -> None:  # noqa: ANN001
     docs = [invoice()]
     plain = make_ctx(docs)

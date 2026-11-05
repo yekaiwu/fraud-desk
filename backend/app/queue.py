@@ -6,8 +6,17 @@ auto-approved (plan 0.4 theme 1). ``build_queue_item`` lives in ``app/api/queue.
 
 from __future__ import annotations
 
-from app.core.models import Case, Document, Lane, UncheckedPage, UncheckedReason, Verdict
+from app.core.models import (
+    SCORE_CAP,
+    Case,
+    Document,
+    Lane,
+    UncheckedPage,
+    UncheckedReason,
+    Verdict,
+)
 from app.core.money import count_amount_tokens
+from app.custom_rules.spec import is_custom_rule
 from app.findings import AML_ROUTING_RULES, HARD_STOP_RULES  # noqa: F401  (re-exported)
 from app.semantic.policy import counts_in_coverage, is_semantic_rule
 
@@ -151,11 +160,30 @@ def effective_coverage(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> flo
 # ------------------------------------------------------------------------------------- lanes
 
 
-def fast_lane_eligible(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> bool:
+def builtin_score_value(case: Case) -> int:
+    """The score without the points of custom-rule findings. A custom rule can never close the fast lane
+    (docs/custom-rules.md), so the lane test reads this, not the displayed score. ``run_stage`` passes
+    the exact figure under the active score model; called without it, the finding weights of the
+    built-in checks are added up (the legacy model; under the calibrated model that sum is never lower
+    than the true figure, so the test stays on the safe side)."""
+    assert case.score is not None
+    if not any(is_custom_rule(r) for f in case.findings for r in f.rules):
+        return case.score.value
+    return min(
+        SCORE_CAP,
+        sum(f.weight for f in case.findings if not any(is_custom_rule(r) for r in f.rules)),
+    )
+
+
+def fast_lane_eligible(
+    case: Case, *, min_prob: float = DEFAULT_MIN_PROB, builtin_score: int | None = None
+) -> bool:
     score = case.score
     if score is None or case.status == "error" or score.partial:
         return False
-    if score.value > FAST_LANE_MAX_SCORE:
+    if (builtin_score if builtin_score is not None else builtin_score_value(case)) > (
+        FAST_LANE_MAX_SCORE
+    ):
         return False
     if any(f.hard_stop for f in case.findings):
         return False
@@ -170,7 +198,9 @@ def fast_lane_eligible(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> boo
     return effective_coverage(case, min_prob=min_prob) >= FAST_LANE_MIN_COVERAGE
 
 
-def lane_for(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> Lane | None:
+def lane_for(
+    case: Case, *, min_prob: float = DEFAULT_MIN_PROB, builtin_score: int | None = None
+) -> Lane | None:
     """Recommended outcome lane (section 4.5): ``edd``, ``aml``, ``loan`` or ``fast``; ``None``
     while the case has no score. A recommendation only, it never preselects a verdict."""
     if case.score is None:
@@ -178,7 +208,7 @@ def lane_for(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> Lane | None:
     base = BASE_LANE[case.use_case]
     if any(f.weight > 0 and set(f.rules) & AML_ROUTING_RULES for f in case.findings):
         base = "aml"
-    if fast_lane_eligible(case, min_prob=min_prob):
+    if fast_lane_eligible(case, min_prob=min_prob, builtin_score=builtin_score):
         return "fast"
     return base
 

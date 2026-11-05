@@ -52,6 +52,7 @@ from app.custom_rules import (
     tickets,
 )
 from app.custom_rules.capabilities import PURPOSE_DRAFT, PURPOSE_REPAIR, SCHEMA_NAME
+from app.custom_rules.readback import CURRENCY_NOT_APPLIED
 from app.custom_rules.spec import (
     CUSTOM_SEVERITIES,
     DRAFT_MAX_TURNS,
@@ -77,6 +78,8 @@ from app.custom_rules.spec import (
     DraftStatus,
     DryRunResult,
     DuplicateNote,
+    FieldMissing,
+    FieldVsConstant,
     Idea,
     ModelDraft,
     Question,
@@ -234,6 +237,17 @@ _DEMONYMS = (
 )
 
 
+# a nationality word directly followed by the name of a currency is the currency ("Australian dollars")
+_NOT_A_CURRENCY = (
+    r"(?!\s+(?:dollars?|pounds?|yen|rupees?|baht|yuan|ringgit|pesos?|rupiah|dong|francs?|krona|kronor|"
+    r"kroner|dirhams?|riyals?|won(?!\s+(?:the|a|an|this|that|it|him|her|them|us|me|our|their)\b))\b)"
+)
+# a person, for the patterns that read a word next to one ("minor" beside a director)
+_PERSON_WORD = (
+    r"(?:child|children|kid|kids|boy|girl|person|people|applicant|director|owner|shareholder|signatory|"
+    r"individual|customer|holder|guarantor|borrower|employee|student|man|men)s?"
+)
+
 # Each list is matched against the lower-cased, NFKC-normalised, cleaned request. Hits AND near misses are
 # pinned in tests/test_custom_rules_author.py. "high debt", "highest", "total assets", "average" and
 # "percentage" are allowed; "age", "aged" and "years old" refuse (so "aged receivables" is refused and the
@@ -289,17 +303,18 @@ PROTECTED_PATTERNS = _rx(
     r"\bnon[- ]?(?:singaporeans?|citizens?|residents?|nationals?)\b",
     r"\bimmigrants?\b",
     r"\bprc\b",
-    r"\b(?:" + "|".join(_DEMONYMS) + r")s?\b",
-    r"\bnon[- ]?(?:" + "|".join(_DEMONYMS) + r")s?\b",
-    r"\b(?:minors?|elderly|pensioners?|retirees?|underage|teenagers?|toddlers?|infants?)\b",
+    r"\b(?:" + "|".join(_DEMONYMS) + r")s?\b" + _NOT_A_CURRENCY,
+    r"\bnon[- ]?(?:" + "|".join(_DEMONYMS) + r")s?\b" + _NOT_A_CURRENCY,
+    r"\b(?:elderly|pensioners?|retirees?|underage|teenagers?|toddlers?|infants?)\b",
+    # "minor rounding differences" is not a person; "minors", "a minor" and "minor" next to a person word are
+    r"\bminors\b",
+    r"\b(?:is|was|are|were|be|as) an? minor\b",
+    r"\ban? minor\s*(?:$|[.,;:!?])",
+    r"\bminor\b.{0,20}\b" + _PERSON_WORD + r"\b",
+    r"\b" + _PERSON_WORD + r"\b.{0,20}\bminor\b",
     r"\byear[- ]?olds?\b",
     r"\b\d{1,3}\s?(?:yo|y/o)\b",
     r"\b(?:older|younger) than \d{1,3}\b(?!\s*(?:days?|weeks?|months?|years?|yrs?|hours?|[%x,.\d]))",
-    # a figure with no unit next to a person word is an age ("directors over 65"); an invoice "over 65000" has no person
-    r"\b(?:over|under|above|below|older than|younger than)\s+\d{1,3}\b(?![,.\d%]).{0,40}"
-    r"\b(?:director|shareholder|owner|holder|signatory|person|people|individual|applicant|customer|man|men)s?\b",
-    r"\b(?:director|shareholder|owner|holder|signatory|person|people|individual|applicant|customer|man|men)s?\b"
-    r".{0,40}\b(?:over|under|above|below|older than|younger than)\s+\d{1,3}\b(?![,.\d%])",
     # what a national identity number or passport says about a person's origin
     r"\b(?:nric|fin|identity card|id card|national id|passport)\b.{0,40}"
     r"\b(?:start\w*|begin\w*|prefix\w*|first letter|issued by|issuing (?:country|authority)|"
@@ -370,9 +385,21 @@ CHANGES_BUILTIN_PATTERNS = _rx(
     r"\b(?:checks?|rules?)\b.{0,20}\b(?:off|disabled|muted)\b",
 )
 _SCORE_NOUN = r"\b(?:scores?|points?|weights?|coverage|lanes?|bands?)\b"
-_SCORE_VERB = r"\b(?:add|increase|decrease|set|change|reduce|boost|adjust|lift|cut)\b"
+_SCORE_VERB = r"\b(?:add|increase|decrease|change|reduce|boost|adjust|lift|cut)\b"
+# "set" only when the score is what is set ("set the score to 0"), not "set it to low"
+# in either order ("set the score to 0", "set to zero score", "score set to 0")
+_SET_SCORE = (
+    r"\bset\b(?:\s+[\w.]+){0,3}?\s+"
+    + _SCORE_NOUN
+    + r"|"
+    + _SCORE_NOUN
+    + r"\s+(?:is\s+|are\s+)?set\s+(?:to|at)\b"
+)
 _CREDIT_SCORE = re.compile(r"\bcredit\s+scores?\b")
 _WORD = re.compile(r"[a-z]{4,}")
+# Short words that change what a rule means or which documents it reads: a dropped "not" reverses the
+# rule. Checked as whole words; "only", "except", "without" and "excluding" are ordinary 4+ letter words.
+SHORT_WORDS = frozenset({"not", "no", "non", "nil", "po", "gst", "uen", "id"})
 
 STOP_WORDS = frozenset(
     [
@@ -410,7 +437,6 @@ STOP_WORDS = frozenset(
         "over",
         "under",
         "also",
-        "only",
         "then",
         "very",
         "some",
@@ -487,12 +513,48 @@ def _normalised(text: str) -> str:
     return unicodedata.normalize("NFKC", cleaned).lower().translate(_CONFUSABLES)
 
 
+# a figure with no unit next to a person word is an age ("directors over 65"); an amount is not: "a total over
+# 500 for a customer" has an amount word in front of the figure, and "over 65 years" is an age wherever it is
+_FIGURE = re.compile(
+    r"\b(?:over|under|above|below|older than|younger than)\s+(\d{1,3})\b(?![,.\d%])"
+)
+_AGE_UNIT = re.compile(r"\s*(?:years?|yrs?|y/?o|old|aged)\b")
+_AMOUNT_WORD = re.compile(
+    r"\b(?:total|subtotal|amount|value|price|sum|balance|fee|cost|revenue|turnover|tax|payment|sales|"
+    r"profit|income|debt|equity|assets?|liabilit(?:y|ies)|rate|interest|cash|capital|credit|debit)\b|"
+    r"[$\u20ac\u00a3\u00a5]"
+)
+_NEAR_PERSON = re.compile(r"\b" + _PERSON_WORD + r"\b")
+
+
+def _amount_before(before: str) -> bool:
+    """Whether the figure that follows is an amount: an amount word comes before it with no person word
+    after that amount word ("a total over 500", but "a balance of customers above 60" is about customers)."""
+    amounts = list(_AMOUNT_WORD.finditer(before))
+    return bool(amounts) and not _NEAR_PERSON.search(before, amounts[-1].end())
+
+
+def figure_next_to_person(low: str) -> bool:
+    """An age: a figure after over/under/older than with a person word within 40 characters either side,
+    unless an amount word comes before the figure with no person between them (and no age unit follows)."""
+    for m in _FIGURE.finditer(low):
+        aged = bool(_AGE_UNIT.match(low, m.end()))
+        if not aged and _amount_before(low[max(0, m.start() - 30) : m.start()]):
+            continue
+        if _NEAR_PERSON.search(low[m.end() : m.end() + 40]) or _NEAR_PERSON.search(
+            low[max(0, m.start() - 40) : m.start()]
+        ):
+            return True
+    return False
+
+
 def protected_attribute(text: str) -> bool:
     """Whether the words are about a protected attribute (docs/name-fairness.md), by the word lists
     alone: used on the request, and again on every phrase the model reports as not expressible."""
     low = _normalised(text)
     return (
         any(p.search(low) for p in PROTECTED_PATTERNS)
+        or figure_next_to_person(low)
         or any(stem in re.sub(r"[^a-z0-9]", "", low) for stem in SQUASHED_PROTECTED)
         or bool(COUNTRY_RX.search(low) and any(p.search(low) for p in COUNTRY_NEXT_TO_ORIGIN))
     )
@@ -521,7 +583,9 @@ def precheck(text: str) -> Refusal | None:
         reason = "changes_builtin"
     else:
         scoreless = _CREDIT_SCORE.sub(" ", low)
-        if re.search(_SCORE_NOUN, scoreless) and re.search(_SCORE_VERB, scoreless):
+        if re.search(_SCORE_NOUN, scoreless) and (
+            re.search(_SCORE_VERB, scoreless) or re.search(_SET_SCORE, scoreless)
+        ):
             reason = "changes_score"
         else:
             words = sum(_word_count(t) for t in low.split())
@@ -532,6 +596,10 @@ def precheck(text: str) -> Refusal | None:
     return None if reason is None else Refusal(reason=reason, message=REFUSAL_TEXT[reason])
 
 
+def _apostrophes(text: str) -> str:
+    return text.replace("\u2019", "'").replace("\u2018", "'")
+
+
 def _stems(token: str) -> set[str]:
     out = {token}
     for suffix in ("es", "s", "ed", "d", "ing"):
@@ -540,17 +608,155 @@ def _stems(token: str) -> set[str]:
     return out
 
 
-def uncovered_words(text: str, phrases: Sequence[str]) -> list[str]:
-    """Words of the officer's request (4+ letters, not a stop word) that no phrase of the model's phrase
-    map or unsupported parts contains. A model that skipped a word cannot slip it past the officer."""
-    blob = " ".join(p.lower() for p in phrases)
+# negation words (and "n't" forms): a rule that is itself the negation carries them, so the model need not
+# have mapped them to a phrase of its own
+_NEGATIONS = frozenset({"no", "not", "non", "nil", "without"})
+
+
+def _negation_carried(specs: Sequence[CustomRuleSpec]) -> bool:
+    """Whether every reading of the request is a rule that IS a negation: a missing field, or a "not equal"
+    / "not in" comparison. A comparison such as "greater than" is not: a dropped "not" would flip it."""
+    if not specs:
+        return False
+    for spec in specs:
+        c = spec.condition
+        if isinstance(c, FieldMissing):
+            continue
+        if isinstance(c, FieldVsConstant) and c.operator in ("ne", "not_in"):
+            continue
+        return False
+    return True
+
+
+def _field_words(specs: Sequence[CustomRuleSpec]) -> set[str]:
+    """The words of the field names the rule reads (``invoice.po_reference`` gives invoice, po, reference)."""
+    words: set[str] = set()
+    for spec in specs:
+        field = getattr(spec.condition, "field", None)
+        if isinstance(field, str):
+            words.update(re.findall(r"[a-z]+", field.lower()))
+    return words
+
+
+def _word_pieces(text: str) -> list[str]:
+    """Letters and digits apart, so that "PO123" is "po" and "123" on whichever side it is read."""
+    return re.findall(r"[a-z]+(?:'t)?|[0-9]+", text)
+
+
+def uncovered_words(
+    text: str, phrases: Sequence[str], specs: Sequence[CustomRuleSpec] = ()
+) -> list[str]:
+    """Words of the officer's request (4+ letters, not a stop word; and the short ones that change what a
+    rule means, ``SHORT_WORDS``) that no phrase of the model's phrase map or unsupported parts contains.
+    A model that skipped a word cannot slip it past the officer: a dropped "not" or "no" reverses a rule.
+
+    ``specs`` are the rule (or the readings) the model gave: a negation word is covered when every one is a
+    negation by its template or operator (a missing field, "not equal", "not in"), and a short word that is
+    part of a field the rule reads (``po`` for ``invoice.po_reference``) is covered too."""
+    blob = " ".join(_apostrophes(p.lower()) for p in phrases)
+    blob_words = set(_word_pieces(blob))
+    negated = _negation_carried(specs)
+    field_words = _field_words(specs)
     seen: list[str] = []
-    for token in _WORD.findall(unicodedata.normalize("NFKC", text).lower()):
-        if token in STOP_WORDS or token in seen:
+    low = _apostrophes(unicodedata.normalize("NFKC", text).lower())
+    for token in re.findall(r"[a-z]+n't|[a-z]{4,}|[a-z]{2,3}", low):
+        if token in seen:
+            continue
+        if len(token) <= 3 or token.endswith("n't"):
+            # short words must appear as whole words: "no" is inside "number" and "not" inside "note"
+            if (
+                (token in SHORT_WORDS or token.endswith("n't"))
+                and token not in blob_words
+                and not (negated and (token in _NEGATIONS or token.endswith("n't")))
+                and not (token in field_words and token not in _NEGATIONS)
+            ):
+                seen.append(token)
+            continue
+        if token in STOP_WORDS:
+            continue
+        if token == "without" and negated:
             continue
         if not any(stem in blob for stem in _stems(token)):
             seen.append(token)
     return seen
+
+
+# --------------------------------------------------------------------------------------
+# Currencies: a rule compares an amount as printed, in any currency
+# --------------------------------------------------------------------------------------
+
+# ISO codes that are not also English words ("all", "try", "mad" are left out), the names of the
+# currencies the desk meets, and the symbols
+_CURRENCY_CODES = (
+    "sgd|usd|eur|gbp|jpy|aud|myr|idr|thb|cny|rmb|hkd|inr|nzd|cad|chf|krw|php|vnd|twd|aed|sar|zar|brl|"
+    "mxn|sek|nok|dkk"
+)
+_CURRENCY_NAMES = (
+    "dollars?|yen|ringgit|rupees?|rupiah|baht|yuan|renminbi|euros?|sterling|pounds?|francs?|pesos?|"
+    "dirhams?|riyals?|kron(?:a|or|er)"
+)
+# "Euros Trading Pte Ltd" is a company
+_COMPANY_TAIL = r"(?!\s+(?:trading|pte|ltd|limited|holdings|group|corp|inc|llc|bank)\b)"
+_CODE = r"(?<![a-z])(" + _CURRENCY_CODES + r")(?![a-z])"
+_NAME = r"(?<![a-z])(" + _CURRENCY_NAMES + r")(?![a-z])" + _COMPANY_TAIL
+_IN_CURRENCY = r"(?<![a-z])(?:in|currency(?:\s+is)?\s*:?)\s+"
+_SYMBOLS = "$\u20ac\u00a3\u00a5"
+# A sign always counts. A code or a name counts only where it is plainly a currency: next to a figure, or
+# after "in" / "currency" ("SAR" as a suspicious activity report, a dollar amount and a company called
+# Euros Trading are not). Every pattern has one group, the currency as written.
+CURRENCY_PATTERNS = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        "([" + _SYMBOLS + "])",
+        r"(?<![a-z])(rm)(?=\s?\d)",
+        _CODE + "(?=\\s?[" + _SYMBOLS + r"]?\s?\d)",  # SGD 50000, USD100000
+        r"(?<=\d)\s?" + _CODE,  # 50000 SGD
+        _IN_CURRENCY + _CODE,  # in USD, currency is SGD
+        _NAME + "(?=\\s?[" + _SYMBOLS + r"]?\s?\d)",  # dollars 500
+        r"\d[\d,.]*\s?(?:[a-z]+\s+)?" + _NAME,  # 500 Singapore dollars
+        _IN_CURRENCY
+        + r"(?:[a-z]+\s+){0,2}?"
+        + _NAME,  # in Singapore dollars, currency is British pound
+    )
+)
+
+
+def currencies_named(text: str) -> list[str]:
+    """The currencies the officer's words name (a code, a name or a symbol), as written, without repeats."""
+    normal = unicodedata.normalize("NFKC", text)
+    found = sorted(
+        (m.start(1), m.group(1)) for rx in CURRENCY_PATTERNS for m in rx.finditer(normal)
+    )
+    codes = _CURRENCY_CODES.split("|")
+    return list(dict.fromkeys(f.upper() if f.lower() in codes else f.lower() for _, f in found))
+
+
+def _reads_currency(spec: CustomRuleSpec) -> bool:
+    c = spec.condition
+    return isinstance(c, FieldVsConstant) and c.field.partition(".")[2] == "currency"
+
+
+def _with_currency_part(model: ModelDraft, spec: CustomRuleSpec | None, text: str) -> ModelDraft:
+    """A request that names a currency while the rule does not read the currency field checks less than
+    asked: every amount is compared as printed, whatever its currency. Code adds that as a part the rule
+    will NOT check, so the status cannot stay ready and saving needs the tick.
+
+    Only for a rule there is: with no rule yet (ambiguous, or a question to answer first) the part is added
+    once a reading is chosen or the answer completes the rule, so a caveat made by code never turns a
+    request into an unsupported one by itself."""
+    named = currencies_named(text)
+    if not named or spec is None or _reads_currency(spec):
+        return model
+    known = " ".join(p.phrase.lower() for p in model.unsupported_parts)
+    new = [n for n in named if n.lower() not in known]
+    if not new or len(model.unsupported_parts) >= MAX_UNSUPPORTED:
+        return model
+    part = UnsupportedPart(
+        phrase=clean_text(", ".join(new), 120),
+        reason="field_not_extracted",
+        detail=CURRENCY_NOT_APPLIED,
+    )
+    return model.model_copy(update={"unsupported_parts": [*model.unsupported_parts, part]})
 
 
 # --------------------------------------------------------------------------------------
@@ -675,6 +881,7 @@ _SLOTS_BY_TEMPLATE = {
     "fs_ratio": {"left", "right", "operator", "multiplier", "column"},
 }
 _LIST_OPS = ("in", "not_in")
+_DAYS_RX = re.compile(r"[0-9]{1,6}", re.ASCII)
 
 
 def _split(value: str) -> list[str]:
@@ -691,7 +898,8 @@ def _set_slot(cond: dict[str, Any], slot: str, value: str) -> str | None:
         if slot == "values":
             cond.pop("value", None)
     elif slot == "days":
-        if not value.isdigit():
+        # ASCII digits only: "\u00b2" and Arabic-Indic digits are digits to str.isdigit() but not to int()
+        if not _DAYS_RX.fullmatch(value):
             return "days must be a whole number"
         cond["days"] = int(value)
     elif slot == "value":
@@ -725,21 +933,25 @@ def apply_answer(
         return None, [
             SpecProblem(loc="spec", message="there is no rule yet to apply the answer to")
         ]
-    raw = spec.model_dump(mode="json", exclude_none=True)
-    value = option.value.strip()
-    if question.slot == "severity":
-        if value not in CUSTOM_SEVERITIES:
-            return None, [
-                SpecProblem(loc="severity", message="severity must be info, low or medium")
-            ]
-        raw["severity"] = value
-    else:
-        condition = dict(raw["condition"])
-        problem = _set_slot(condition, question.slot, value)
-        if problem:
-            return None, [SpecProblem(loc=question.slot, message=problem)]
-        raw["condition"] = condition
-    return parse_spec(raw)
+    try:
+        raw = spec.model_dump(mode="json", exclude_none=True)
+        value = option.value.strip()
+        if question.slot == "severity":
+            if value not in CUSTOM_SEVERITIES:
+                return None, [
+                    SpecProblem(loc="severity", message="severity must be info, low or medium")
+                ]
+            raw["severity"] = value
+        else:
+            condition = dict(raw["condition"])
+            problem = _set_slot(condition, question.slot, value)
+            if problem:
+                return None, [SpecProblem(loc=question.slot, message=problem)]
+            raw["condition"] = condition
+        return parse_spec(raw)
+    except (ValueError, TypeError, ArithmeticError, KeyError, AttributeError):
+        # the model wrote the option; whatever is in it, the answer is a problem, never a crash
+        return None, [SpecProblem(loc=question.slot, message="that answer cannot be applied")]
 
 
 # --------------------------------------------------------------------------------------
@@ -1166,9 +1378,11 @@ def _apply_outcome(
         model = model.model_copy(update={"status": "refused", "refusal_reason": "high_severity"})
     spec = _with_severity(outcome.spec, severity)
     candidates = [c for c in (_with_severity(c, severity) for c in outcome.candidates) if c]
+    if model.status != "refused" and not model.refusal_reason:
+        model = _with_currency_part(model, spec, text)
     questions = _prefilter_questions(spec, model.questions)
     phrases = [m.phrase for m in model.phrase_map] + [p.phrase for p in model.unsupported_parts]
-    uncovered = uncovered_words(text, phrases)
+    uncovered = uncovered_words(text, phrases, [spec] if spec is not None else candidates)
     status, notes = decide_status(
         model,
         spec=spec,
@@ -1208,21 +1422,30 @@ def _apply_outcome(
         notes.append(
             "Your wording could mean more than one field, so the assistant's choice was not taken as final."
         )
+    if status == "refused":
+        # nothing the model said about a refused request is kept: not what it understood, not its phrases
+        # or parts (docs/custom-rules.md). Only the reason, which code picks, is stored.
+        why: RefusalReason = model.refusal_reason or (
+            "protected_attribute" if protected_parts(model) else "model_refused"
+        )
+        state.model, state.model_status, state.status = None, "refused", "refused"
+        state.refusal = Refusal(reason=why, message=REFUSAL_TEXT[why])
+        state.spec, state.weaker, state.dry_run = None, None, None
+        state.candidates, state.questions, state.problems = [], [], []
+        state.uncovered, state.notes = [], []
+        return
     if status == "ambiguous":
         spec = None
     state.model, state.model_status, state.status = model, model.status, status
-    why: RefusalReason = model.refusal_reason or (
-        "protected_attribute" if protected_parts(model) else "model_refused"
-    )
-    state.refusal = Refusal(reason=why, message=REFUSAL_TEXT[why]) if status == "refused" else None
-    state.spec = _spec_dict(spec) if status not in ("refused", "unsupported") else None
+    state.refusal = None
+    state.spec = _spec_dict(spec) if status != "unsupported" else None
     state.weaker = _spec_dict(_with_severity(outcome.weaker, severity))
     state.candidates = (
         [c.model_dump(mode="json", exclude_none=True) for c in candidates][:MAX_CANDIDATES]
         if status == "ambiguous"
         else []
     )
-    state.questions = questions if status not in ("refused", "unsupported", "ambiguous") else []
+    state.questions = questions if status not in ("unsupported", "ambiguous") else []
     state.problems = list(outcome.problems)
     state.uncovered = uncovered
     state.notes = notes
@@ -1593,6 +1816,10 @@ def _recompute(state: drafts.DraftState) -> None:
     if model is None:
         return
     spec = parse_spec(state.spec)[0]
+    if model.status != "refused" and not model.refusal_reason:
+        # a reading chosen, or a question answered, completes the rule: the currency caveat comes with it
+        model = _with_currency_part(model, spec, _all_text(state))
+        state.model = model
     candidates = [c for c in (parse_spec(x)[0] for x in state.candidates) if c is not None]
     status, notes = decide_status(
         model,
@@ -1757,15 +1984,25 @@ def continue_draft(
     state.history.append(history)
     rec.turns = turn
     rec.body = state
-    rec = _commit(db, settings, rec, expected_turns=expected, now=now)
+    rec = _commit(db, settings, rec, expected_turns=expected, now=now, release_model=claimed)
     return render(db, rec)
 
 
 def _commit(
-    db: Any, settings: Settings, rec: drafts.DraftRecord, *, expected_turns: int, now: datetime
+    db: Any,
+    settings: Settings,
+    rec: drafts.DraftRecord,
+    *,
+    expected_turns: int,
+    now: datetime,
+    release_model: bool = False,
 ) -> drafts.DraftRecord:
+    """Store the turn. ``release_model``: this turn set the "waiting for the model" mark, so its commit
+    clears it (nobody else's)."""
     _route_unsupported(db, settings, rec, now=now)
-    return drafts.update_draft(db, rec, expected_turns=expected_turns, now=now)
+    return drafts.update_draft(
+        db, rec, expected_turns=expected_turns, now=now, release_model=release_model
+    )
 
 
 def saved_dry_run(
@@ -1989,31 +2226,38 @@ def save_draft(
                 {"max_rules": settings.custom_rules_max_per_account},
             )
         text = readback.readback(spec)
-        if edited is not None:
-            rule = store.add_version(
-                db,
-                edited.id,
-                actor=account,
-                spec=spec,
-                readback=text,
-                reason=reason,
-                at=now,
-                draft_id=rec.id,
-                name=name,
-                description=description,
-            )
-        else:
-            rule = store.create_rule(
-                db,
-                owner=account,
-                name=name,
-                description=description,
-                spec=spec,
-                readback=text,
-                reason=reason,
-                at=now,
-                draft_id=rec.id,
-            )
+        # the rule and the closing of the draft are ONE transaction: a turn that got in since the draft was
+        # read makes the closing fail (409 draft_busy) and the rule is not created either
+        with db.conn() as c:
+            if edited is not None:
+                rule = store.add_version(
+                    db,
+                    edited.id,
+                    actor=account,
+                    spec=spec,
+                    readback=text,
+                    reason=reason,
+                    at=now,
+                    draft_id=rec.id,
+                    name=name,
+                    description=description,
+                    conn=c,
+                )
+            else:
+                rule = store.create_rule(
+                    db,
+                    owner=account,
+                    name=name,
+                    description=description,
+                    spec=spec,
+                    readback=text,
+                    reason=reason,
+                    at=now,
+                    draft_id=rec.id,
+                    conn=c,
+                )
+            rec.state, rec.saved_rule_id, rec.body = "saved", rule.id, state
+            drafts.update_draft(db, rec, expected_turns=rec.turns, now=now, conn=c)
         ticket: tickets.TicketRow | None = None
         if req.submit_ticket and state.model and state.model.unsupported_parts:
             ticket = tickets.create_ticket(
@@ -2030,9 +2274,7 @@ def save_draft(
                 weaker_rule_id=rule.id,
                 now=now,
             )
-            state.ticket_id = ticket.id
-        rec.state, rec.saved_rule_id, rec.body = "saved", rule.id, state
-        drafts.update_draft(db, rec, expected_turns=rec.turns, now=now)
+            drafts.attach_ticket(db, rec.id, ticket.id)
     version = store.get_version(db, rule.id, rule.current_version)
     assert version is not None
     return SaveResult(rule=rule, version=version, ticket=ticket)

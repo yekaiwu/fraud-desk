@@ -194,6 +194,26 @@ describe("RuleAssistant: every status", () => {
     expect(f.calls.find((c) => c.path === "/custom-rules" && c.method === "POST")?.body).toMatchObject({ confirm_warnings: true });
   });
 
+  it("Test again clears an earlier Save anyway tick: the new warnings are read afresh", async () => {
+    let n = 0;
+    const { user } = setup({
+      [DRAFTS]: () => json(draft()),
+      [DRY]: () =>
+        json(
+          ++n === 1
+            ? dryRun({ fired: 0, fire_rate: 0, warnings: [{ code: "fires_on_none", message: "First warning." }], needs_confirmation: true })
+            : dryRun({ fired: 30, fire_rate: 0.73, warnings: [{ code: "fires_too_often", message: "Second warning." }], needs_confirmation: true }),
+        ),
+    });
+    await ask(user, "flag as low if an invoice total is more than 100000");
+    await screen.findByText("First warning.");
+    await user.click(screen.getByRole("checkbox", { name: /Save anyway/ }));
+    expect(screen.getByRole("checkbox", { name: /Save anyway/ })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Test again" }));
+    await screen.findByText("Second warning.");
+    expect(screen.getByRole("checkbox", { name: /Save anyway/ })).not.toBeChecked();
+  });
+
   it("a rule that fires too often warns too, and the warning goes away when the test is run again for a changed rule", async () => {
     const { user } = setup({
       [DRAFTS]: () => json(draft()),

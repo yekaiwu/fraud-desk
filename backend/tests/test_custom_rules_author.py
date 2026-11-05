@@ -752,7 +752,10 @@ def test_a_clean_answer_is_ready_and_saveable(db: Database, cfg: Settings) -> No
     llm = fake(example(TOTAL_REQUEST))
     r = go(db, cfg, llm, TOTAL_REQUEST)
     assert r.status == "ready" and r.save_allowed and not r.needs_narrower_ack
-    assert r.readback == "Flags low when an invoice's total is greater than 100,000.00."
+    assert (
+        r.readback
+        == "Flags low when an invoice's total is greater than 100,000.00 in whatever currency the invoice prints."
+    )
     assert r.spec_hash == r.spec.spec_hash()  # type: ignore[union-attr]
     assert r.will_not_check == [] and r.ideas == [] and r.refusal is None and r.ticket is None
     assert r.duplicates == []
@@ -783,11 +786,12 @@ def test_ambiguous_asks_the_officer_to_choose(db: Database, cfg: Settings) -> No
     assert r.status == "ambiguous" and r.spec is None and r.save_allowed is False
     assert [c.index for c in r.candidates] == [0, 1]
     assert (
-        r.candidates[0].readback == "Flags low when an invoice's total is greater than 50,000.00."
+        r.candidates[0].readback
+        == "Flags low when an invoice's total is greater than 50,000.00 in whatever currency the invoice prints."
     )
     assert (
         r.candidates[1].readback
-        == "Flags low when an invoice's subtotal is greater than 50,000.00."
+        == "Flags low when an invoice's subtotal is greater than 50,000.00 in whatever currency the invoice prints."
     )
     for body in ({"choose_candidate": 2}, {"choose_candidate": -1}):
         assert err(turn, db, cfg, llm, r.draft_id, **body).code == "bad_answer"

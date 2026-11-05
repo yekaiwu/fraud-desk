@@ -36,6 +36,7 @@ export function DryRunPanel({
   confirmed: boolean;
   onConfirm: (v: boolean) => void;
 }) {
+  const readable = result ? (result.readable ?? result.evaluated - result.skipped_missing) : 0;
   return (
     <section aria-labelledby="dry-run-title" className="space-y-3 rounded-lg border border-rule bg-surface p-4 shadow-paper">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -61,9 +62,10 @@ export function DryRunPanel({
       {result ? (
         <>
           <p className="text-[0.9375rem] text-ink-2">{dryRunSentence(result)} Nothing was changed on any case.</p>
-          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
             <Num label="Evaluated" value={result.evaluated} hint={`of ${result.cases_considered} looked at`} />
-            <Num label="Fired" value={result.fired} hint={result.evaluated > 0 ? percent(result.fire_rate) : undefined} />
+            <Num label="Could read" value={readable} hint="the rate below is out of these" />
+            <Num label="Fired" value={result.fired} hint={readable > 0 ? percent(result.fire_rate) : undefined} />
             <Num label="Skipped, field missing" value={result.skipped_missing} />
             <Num label="On scans or photos" value={result.scanned_evaluated} hint={`${result.scanned_fired} fired`} />
           </dl>

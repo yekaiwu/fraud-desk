@@ -129,7 +129,7 @@ describe("My custom rules", () => {
     await user.click(await screen.findByRole("button", { name: "Make public Heavy borrowing" }));
     await user.type(within(await screen.findByRole("dialog")).getByLabelText("Reason"), "Share it please");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Make public" }));
-    expect(await screen.findByText("A custom rule already does this")).toBeInTheDocument();
+    expect(await screen.findByText("A custom check already does this")).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
@@ -191,6 +191,6 @@ describe("My custom rules", () => {
 
   it("shows a load failure with a retry", async () => {
     setup({ "GET /custom-rules": () => errorBody("feature_off", "Custom rules are switched off on this deployment (GLDB_CUSTOM_RULES).", 404) });
-    expect(await screen.findByText("Custom rules are switched off")).toBeInTheDocument();
+    expect(await screen.findByText("Custom checks are switched off")).toBeInTheDocument();
   });
 });

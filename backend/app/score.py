@@ -25,10 +25,16 @@ from app.core.models import (
 )
 from app.findings import group_flags
 from app.queue import DEFAULT_MIN_PROB, lane_for, page_counts, top_finding_line, unchecked_pages
-from app.semantic.policy import counts_in_coverage
+from app.semantic.policy import counts_in_coverage, is_custom_rule
 
 MAX_PARTIAL_REASONS = 20
 MAX_UNKNOWN_DOC_WARNINGS = 10
+_LIMITED_REASONS = {
+    "reader_disagreement": "two readers of the photo disagree on a figure this check uses; "
+    "check the page image by eye",
+    "opening_not_printed": "opening balance not printed on one statement; its first row is the "
+    "starting point, so the arithmetic is checked from there",
+}
 
 
 def band_for(value: int) -> Band:
@@ -57,8 +63,12 @@ def compute_coverage(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> Cover
         ),
         key=lambda d: d["rule"],
     )
-    # a check whose flag was lowered because the readers disagree has not been settled either way
-    limited = {f.rule for f in case.flags if f.reading is not None}
+    # a check whose flag was lowered because the readers disagree, or whose statement has no opening
+    # balance printed, has not been settled either way
+    limited: dict[str, str] = {}
+    for f in case.flags:
+        if f.reading is not None and limited.get(f.rule) != "reader_disagreement":
+            limited[f.rule] = f.reading.kind
     if limited:
         ran -= sum(1 for r in runs if r.status == "ran" and r.rule in limited)
         skipped = sorted(
@@ -68,9 +78,10 @@ def compute_coverage(case: Case, *, min_prob: float = DEFAULT_MIN_PROB) -> Cover
                     {
                         "rule": r.rule,
                         "status": "reading_limited",
-                        "reason": "two readers of the photo disagree on a figure this check uses; "
-                        "check the page image by eye",
-                        "code": "reading_limited",
+                        "reason": _LIMITED_REASONS[limited[r.rule]],
+                        "code": limited[r.rule]
+                        if limited[r.rule] == "opening_not_printed"
+                        else "reading_limited",
                     }
                     for r in runs
                     if r.status == "ran" and r.rule in limited
@@ -102,9 +113,16 @@ def collect_partial_reasons(case: Case) -> list[str]:
     unreadable = sum(1 for f in case.files for p in f.pages if p.error)
     if unreadable:
         reasons.append(f"pages_unreadable:{unreadable}")
-    limited = sum(1 for f in case.flags if f.reading is not None)
+    limited = sum(
+        1 for f in case.flags if f.reading is not None and f.reading.kind == "reader_disagreement"
+    )
     if limited:
         reasons.append(f"reading_limited:{limited}")
+    no_opening = sum(
+        1 for f in case.flags if f.reading is not None and f.reading.kind == "opening_not_printed"
+    )
+    if no_opening:
+        reasons.append(f"opening_not_printed:{no_opening}")
     pieces = {
         d.statement.group
         for d in case.documents
@@ -165,7 +183,8 @@ def run_stage(ctx: CaseContext) -> StageOutcome:
     """Writes ONLY case.findings, score, coverage, lane and top_finding (idempotent)."""
     case = ctx.case
     min_prob = ctx.settings.classifier_min_prob
-    case.findings = group_flags(case, case.flags)
+    grouped = group_flags(case, case.flags)
+    case.findings = grouped
     case.coverage = compute_coverage(case, min_prob=min_prob)
     reasons = collect_partial_reasons(case)
     case.score, case.findings = score_findings(
@@ -175,7 +194,18 @@ def run_stage(ctx: CaseContext) -> StageOutcome:
         reasons=reasons,
         settings=ctx.settings,
     )
-    case.lane = lane_for(case, min_prob=min_prob)
+    # custom rules never close the fast lane: the lane test reads the score without their points
+    builtin_score: int | None = None
+    if any(is_custom_rule(r) for f in case.findings for r in f.rules):
+        builtin = [f for f in grouped if not any(is_custom_rule(r) for r in f.rules)]
+        builtin_score = score_findings(
+            builtin,
+            [f for f in case.flags if not is_custom_rule(f.rule)],
+            partial=case.score.partial,
+            reasons=reasons,
+            settings=ctx.settings,
+        )[0].value
+    case.lane = lane_for(case, min_prob=min_prob, builtin_score=builtin_score)
     case.top_finding = top_finding_line(case)
     return StageOutcome(
         detail={

@@ -128,6 +128,13 @@ describe("DryRunPanel", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.getByText(/Nothing was changed on any case/)).toBeInTheDocument();
   });
+  it("shows how many cases the rate is out of: those where the field could be read", () => {
+    render(<DryRunPanel result={dryRun({ evaluated: 10, skipped_missing: 7, readable: 3, fired: 3, fire_rate: 1 })} loading={false} error={null} onRun={noop} confirmed={false} onConfirm={noop} />);
+    const dl = screen.getByText("Evaluated").closest("dl") as HTMLElement;
+    expect(dl).toHaveTextContent("Could read3");
+    expect(dl).toHaveTextContent("Fired3100%");
+    expect(dl).toHaveTextContent("Skipped, field missing7");
+  });
   it("asks for Save anyway on a warning", async () => {
     const onConfirm = vi.fn();
     const user = userEvent.setup();

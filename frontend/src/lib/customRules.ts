@@ -140,7 +140,7 @@ export function customRunTally(c: Pick<CaseDetail, "check_runs">): { total: numb
   };
 }
 
-/** "Custom rules: 3 ran, 1 skipped. Not counted in coverage." */
+/** "Custom checks: 3 ran, 1 skipped. Not counted in coverage." */
 export function customCoverageText(t: { ran: number; skipped: number }): string {
-  return `Custom rules: ${t.ran} ran, ${t.skipped} skipped. Not counted in coverage.`;
+  return `Custom checks: ${t.ran} ran, ${t.skipped} skipped. Not counted in coverage.`;
 }

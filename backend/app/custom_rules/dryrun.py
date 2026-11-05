@@ -73,12 +73,14 @@ def dry_run(db: Database, spec: CustomRuleSpec, *, limit: int) -> DryRunResult:
             scanned_fired += any(o.scanned and o.status == "fired" for o in result.outcomes)
             if len(examples) < EXAMPLES:
                 examples.append(case_id)
-    rate = fired / evaluated if evaluated else 0.0
-    warnings = _warnings(spec, evaluated, fired, rate)
+    readable = evaluated - skipped_missing  # the cases the rule could actually read its figure in
+    rate = fired / readable if readable else 0.0
+    warnings = _warnings(spec, evaluated, readable, fired, rate)
     return DryRunResult(
         spec_hash=spec.spec_hash(),
         cases_considered=considered,
         evaluated=evaluated,
+        readable=readable,
         fired=fired,
         skipped_missing=skipped_missing,
         scanned_evaluated=scanned_evaluated,
@@ -90,21 +92,35 @@ def dry_run(db: Database, spec: CustomRuleSpec, *, limit: int) -> DryRunResult:
     )
 
 
-def _warnings(spec: CustomRuleSpec, evaluated: int, fired: int, rate: float) -> list[DryRunWarning]:
+def _warnings(
+    spec: CustomRuleSpec, evaluated: int, readable: int, fired: int, rate: float
+) -> list[DryRunWarning]:
+    label = labels.doc_label(spec.doc_types()[0])
     if evaluated == 0:
-        label = labels.doc_label(spec.doc_types()[0])
         message = f"No stored case has a {label} to test this on."
         return [DryRunWarning(code="no_cases", message=message)]
+    unread = evaluated - readable
+    also = (
+        f" {unread} other case{'s' if unread != 1 else ''} had no value for it to read."
+        if unread
+        else ""
+    )
+    if readable == 0:
+        message = (
+            f"It could not be tested: the figure or date it reads is not printed, or could not be "
+            f"read, on the {label} of any of the {evaluated} cases that have one."
+        )
+        return [DryRunWarning(code="fires_on_none", message=message)]
     if fired == 0:
         message = (
-            f"It fired on none of the {evaluated} cases it could be tested on. "
-            "Check that the limit is not too strict."
+            f"It fired on none of the {readable} cases it could read. "
+            f"Check that the limit is not too strict.{also}"
         )
         return [DryRunWarning(code="fires_on_none", message=message)]
     if rate > DRY_RUN_MAX_FIRE_RATE:
         message = (
-            f"It fired on {fired} of {evaluated} cases ({round(rate * 100)}%); a rule that "
-            "fires that often is noise."
+            f"It fired on {fired} of {readable} cases it could read ({round(rate * 100)}%); a rule "
+            f"that fires that often is noise.{also}"
         )
         return [DryRunWarning(code="fires_too_often", message=message)]
     return []

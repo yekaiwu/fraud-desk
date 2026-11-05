@@ -67,6 +67,7 @@ SKIP_FIELD_MISSING = (
 )
 SKIP_SPEC_INVALID = "custom_spec_invalid"  # a stored spec no longer validates (schema drift)
 SKIP_FAILED = "custom_failed"  # anything unexpected; never an "error" run
+SKIP_NOT_LOADED = "custom_not_loaded"  # more rules than one analysis loads; this one was left out
 CUSTOM_FLAG_CAP = 5  # flags per rule per case; the last says "+N more"
 USABLE_DOC_STATUSES = ("ok", "partial")
 EVIDENCE_VALUE_CHARS = 80
@@ -97,6 +98,8 @@ class LoadedCustomRule:
     author: str  # the owner account
     origin: Literal["own", "adopted"]
     readback: str  # readback.readback(spec), stored with the version
+    # why the rule was NOT run on this analysis (too many rules to load): it is listed as a skipped run
+    not_loaded: str | None = None
 
     def run_info(self) -> CustomRunInfo:
         return CustomRunInfo(
@@ -274,6 +277,8 @@ def _eval_field_vs_constant(spec: CustomRuleSpec, doc: Document) -> _Hit:
             return _Hit("missing")
         fired = _COMPARE[c.operator](got_num, wanted_num)
         evidence = f"{label} {_text(cell.value)} {OPERATOR_TEXT[c.operator]} {c.value}"
+        if info.kind == "money":  # the figure is compared as printed, whatever the currency
+            evidence += " (as printed; currency not compared)"
     if not fired:
         return _Hit("passed")
     return _Hit(
@@ -592,6 +597,19 @@ def run_custom_rules(ctx: CaseContext, taken: set[str]) -> list[CheckRun]:
     runs: list[CheckRun] = []
     for rule in sorted(ctx.custom_rules, key=lambda r: r.rule_id):
         started = time.perf_counter()
+        if rule.not_loaded:  # left out by the loader: said on the case, never dropped silently
+            runs.append(
+                CheckRun(
+                    rule=rule.rule_id,
+                    stage="rules",
+                    status="skipped",
+                    reason=rule.not_loaded,
+                    code=SKIP_NOT_LOADED,
+                    seconds=0.0,
+                    custom=rule.run_info(),
+                )
+            )
+            continue
         try:
             result = evaluate(rule, ctx.case, today=ctx.today)
             flags = []
@@ -634,6 +652,9 @@ def custom_stamp(rules: Sequence[LoadedCustomRule]) -> dict[str, Any] | None:
     """``{"rules": [{rule, version, spec_hash, origin}...sorted by rule], "hash": sha256}``; ``None``
     when no custom rule was loaded, so a case analysed without any keeps a provenance identical to
     before custom rules existed."""
+    rules = [
+        r for r in rules if not r.not_loaded
+    ]  # a rule that did not run is no part of the stamp
     if not rules:
         return None
     import hashlib

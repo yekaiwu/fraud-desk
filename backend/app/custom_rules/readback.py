@@ -27,6 +27,9 @@ from app.custom_rules.spec import (
     parse_number,
 )
 
+CURRENCY_NOT_APPLIED = (
+    "Amounts are compared as printed, in any currency; the currency you named is not applied."
+)
 EXPLANATION_MAX = 300  # Flag.explanation is cut at this length
 PHRASE_SHOWN = 120
 
@@ -72,6 +75,15 @@ def _subject(path: str) -> str:
     return f"{labels.article(label)} {label}'s {labels.field_name(path)}"
 
 
+def as_printed_text(path: str) -> str:
+    """``in whatever currency the invoice prints``: the amount of a money field is compared as printed,
+    with no currency check or conversion (docs/custom-rules.md). Empty for every other kind of field."""
+    info = field_info(path)
+    if info is None or info.kind != "money":
+        return ""
+    return f" in whatever currency the {labels.doc_label(path.partition('.')[0])} prints"
+
+
 def _multiplier_text(text: str) -> str:
     value = normal_number(text)
     return "" if value == "1" else f"{value} times "
@@ -91,7 +103,7 @@ def condition_text(spec: CustomRuleSpec) -> str:
             if info is not None and info.kind == "date"
             else OPERATOR_TEXT[c.operator]
         )
-        return f"{_subject(c.field)} {words} {format_value(c.field, c.value)}"
+        return f"{_subject(c.field)} {words} {format_value(c.field, c.value)}{as_printed_text(c.field)}"
     if isinstance(c, DateWindow):
         subject = _subject(c.field)
         if c.direction == "in_future" or (c.direction == "newer_than" and c.days == 0):
@@ -154,6 +166,12 @@ def will_not_check(parts: Sequence[UnsupportedPart], spec: CustomRuleSpec | None
     out: list[str] = []
     for part in parts:
         phrase = clean_text(part.phrase, PHRASE_SHOWN)
+        if part.detail == CURRENCY_NOT_APPLIED:  # added by code, not by the model
+            out.append(
+                f'"{phrase}": amounts are compared as printed, in any currency; '
+                "the currency you named is not applied"
+            )
+            continue
         out.append(f'"{phrase}": {UNSUPPORTED_REASON_TEXT[part.reason]}')
     if spec is not None and isinstance(spec.condition, FsRatio):
         right = labels.line_label(spec.condition.right)

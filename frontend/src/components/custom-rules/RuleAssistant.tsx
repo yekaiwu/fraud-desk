@@ -56,9 +56,16 @@ export function RuleAssistant({ edit, onSaved, onCancelEdit, onTicket, onOpenRul
     setDry((x) => ({ ...x, loading: true, error: null }));
     try {
       const r = await dryRunCustomDraft(d.draft_id);
-      if (current.current === key) setDry({ result: r, loading: false, error: null });
+      if (current.current === key) {
+        // a new result has new warnings: an earlier "Save anyway" tick was for the old ones
+        setConfirmed(false);
+        setDry({ result: r, loading: false, error: null });
+      }
     } catch (e) {
-      if (current.current === key) setDry({ result: null, loading: false, error: bodyOf(e).message });
+      if (current.current === key) {
+        setConfirmed(false);
+        setDry({ result: null, loading: false, error: bodyOf(e).message });
+      }
     }
   }
 

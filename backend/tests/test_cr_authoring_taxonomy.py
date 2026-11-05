@@ -263,7 +263,7 @@ def test_ready_request_comes_back_ready_with_a_code_built_readback(
     assert (
         r.readback
         == readback.readback(r.spec)
-        == "Flags low when an invoice's total is greater than 100,000.00."
+        == "Flags low when an invoice's total is greater than 100,000.00 in whatever currency the invoice prints."
     )
     assert "MODEL PROSE" not in json.dumps([r.readback, r.will_check, r.will_not_check])
     assert r.will_check[0] == r.readback and r.will_not_check == []

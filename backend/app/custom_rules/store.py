@@ -18,8 +18,9 @@ import json
 import logging
 import sqlite3
 import threading
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -358,6 +359,18 @@ def _insert_version(
     )
 
 
+@contextmanager
+def _tx(db: Database, conn: sqlite3.Connection | None) -> Iterator[sqlite3.Connection]:
+    """The rules lock and a transaction: the caller's own when ``conn`` is given (committed by the
+    caller, together with its other writes), else a new one."""
+    with _lock:
+        if conn is not None:
+            yield conn
+        else:
+            with db.conn() as c:
+                yield c
+
+
 def create_rule(
     db: Database,
     *,
@@ -369,11 +382,12 @@ def create_rule(
     reason: str,
     at: datetime,
     draft_id: str | None,
+    conn: sqlite3.Connection | None = None,
 ) -> RuleRow:
-    """A new private rule at version 1, enabled."""
+    """A new private rule at version 1, enabled. ``conn``: inside the caller's transaction."""
     stamp = ts(at)
     rule_id = new_rule_id()
-    with _lock, db.conn() as c:
+    with _tx(db, conn) as c:
         c.execute(
             "INSERT INTO custom_rules (id, owner, name, description, current_version, enabled, "
             "visibility, status, created_at, updated_at) VALUES (?,?,?,?,1,1,'private','active',?,?)",
@@ -419,12 +433,13 @@ def add_version(
     draft_id: str | None,
     name: str | None = None,
     description: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> RuleRow:
     """A new version of the rule. It is private to its owner whatever the previous version was: a
     public version is never changed, and the published version stays what it was until the owner
-    publishes again."""
+    publishes again. ``conn``: inside the caller's transaction."""
     stamp = ts(at)
-    with _lock, db.conn() as c:
+    with _tx(db, conn) as c:
         before = _must_exist(c, rule_id)
         if before.status != "active":
             raise _retired(rule_id)
@@ -519,6 +534,34 @@ def set_enabled(
     return _update(db, rule_id, actor=actor, reason=reason, at=at, change=change)
 
 
+def _condition_withdrawn_by_admin(c: sqlite3.Connection, rule: RuleRow) -> bool:
+    """Whether an administrator took back, from anybody, a published version with the same condition as
+    this rule's current version. Without it the takedown would be undone by retiring the rule and saving
+    the same idea as a new one."""
+    row = c.execute(
+        "SELECT condition_hash FROM custom_rule_versions WHERE rule_id = ? AND version = ?",
+        (rule.id, rule.current_version),
+    ).fetchone()
+    if row is None:
+        return False
+    for change in c.execute(
+        "SELECT rule_id, \"before\" FROM custom_rule_changes WHERE action = 'admin_unpublish'"
+    ).fetchall():
+        try:
+            version = json.loads(change["before"])["published_version"]
+        except (ValueError, TypeError, KeyError):
+            continue
+        if (
+            isinstance(version, int)
+            and c.execute(
+                "SELECT 1 FROM custom_rule_versions WHERE rule_id = ? AND version = ? AND condition_hash = ?",
+                (change["rule_id"], version, row["condition_hash"]),
+            ).fetchone()
+        ):
+            return True
+    return False
+
+
 def publish(db: Database, rule_id: str, *, actor: str, reason: str, at: datetime) -> RuleRow:
     """Make the current version public (published_version = current_version)."""
     stamp = ts(at)
@@ -537,6 +580,14 @@ def publish(db: Database, rule_id: str, *, actor: str, reason: str, at: datetime
                 "public again. It still runs for you, and you can save the idea as a new rule.",
                 {"rule_id": rule_id},
             )
+        if _condition_withdrawn_by_admin(c, rule):
+            raise ApiError(
+                409,
+                "withdrawn_by_admin",
+                "An administrator took a public rule that does the same back from the public list, so "
+                "this one cannot be made public either. It still runs for you.",
+                {"rule_id": rule_id},
+            )
         if rule.visibility == "public" and rule.published_version == rule.current_version:
             raise ApiError(
                 409,
@@ -551,6 +602,28 @@ def publish(db: Database, rule_id: str, *, actor: str, reason: str, at: datetime
         }
 
     return _update(db, rule_id, actor=actor, reason=reason, at=at, change=change)
+
+
+def _end_adoptions(
+    c: sqlite3.Connection, rule_id: str, *, actor: str, stamp: str, why: str
+) -> None:
+    """End every adoption of the rule, each logged ``unadopt`` in the same transaction as the change that
+    ended it, so the adoption counts and the log stay true."""
+    for a in c.execute(
+        "SELECT * FROM custom_rule_adoptions WHERE rule_id = ?", (rule_id,)
+    ).fetchall():
+        _log(
+            c,
+            rule_id=rule_id,
+            at=stamp,
+            actor=actor,
+            reason=why,
+            action="unadopt",
+            version=a["version"],
+            before={"version": a["version"], "account": a["account"]},
+            after=None,
+        )
+    c.execute("DELETE FROM custom_rule_adoptions WHERE rule_id = ?", (rule_id,))
 
 
 def unpublish(
@@ -568,21 +641,13 @@ def unpublish(
                 409, "not_public", "This custom rule is not public.", {"rule_id": rule_id}
             )
         action = "admin_unpublish" if as_admin and actor != rule.owner else "unpublish"
-        for a in c.execute(
-            "SELECT * FROM custom_rule_adoptions WHERE rule_id = ?", (rule_id,)
-        ).fetchall():
-            _log(
-                c,
-                rule_id=rule_id,
-                at=stamp,
-                actor=actor,
-                reason="the rule was taken back, so this adoption ended",
-                action="unadopt",
-                version=a["version"],
-                before={"version": a["version"], "account": a["account"]},
-                after=None,
-            )
-        c.execute("DELETE FROM custom_rule_adoptions WHERE rule_id = ?", (rule_id,))
+        _end_adoptions(
+            c,
+            rule_id,
+            actor=actor,
+            stamp=stamp,
+            why="the rule was taken back, so this adoption ended",
+        )
         return action, {"visibility": "private", "published_version": None, "published_at": None}
 
     return _update(db, rule_id, actor=actor, reason=reason, at=at, change=change)
@@ -596,6 +661,9 @@ def retire(db: Database, rule_id: str, *, actor: str, reason: str, at: datetime)
     def change(rule: RuleRow, c: sqlite3.Connection) -> tuple[str, dict[str, Any]]:
         if rule.status != "active":
             raise _retired(rule_id)
+        _end_adoptions(
+            c, rule_id, actor=actor, stamp=stamp, why="the rule was retired, so this adoption ended"
+        )
         return "retire", {
             "status": "retired",
             "enabled": 0,
@@ -637,6 +705,20 @@ def adopt(db: Database, rule_id: str, account: str, *, at: datetime) -> Adoption
                 "already_adopted",
                 "You have already adopted this version of the rule.",
                 {"rule_id": rule_id, "version": existing["version"]},
+            )
+        if (
+            existing is None
+            and c.execute(
+                "SELECT COUNT(*) FROM custom_rule_adoptions WHERE account = ?", (account,)
+            ).fetchone()[0]
+            >= MAX_ADOPTED_LOADED
+        ):
+            raise ApiError(
+                409,
+                "adoption_limit",
+                f"You have already adopted {MAX_ADOPTED_LOADED} public rules, the most that can run on "
+                "an analysis. Stop using one first.",
+                {"max_adopted": MAX_ADOPTED_LOADED},
             )
         c.execute(
             "INSERT OR REPLACE INTO custom_rule_adoptions (account, rule_id, version, adopted_at) "
@@ -757,37 +839,53 @@ def load_rule_set(db: Database, account: str) -> list[LoadedCustomRule]:
     """The custom rules an analysis started by ``account`` runs: its own enabled, active rules at their
     current version, plus the public rules it adopted, at the version it adopted. Sorted by rule id.
     A stored spec that no longer validates is left out (logged by id and version only). Another
-    account's private rule is never loaded."""
-    picked: list[tuple[RuleRow, int, str]] = []
+    account's private rule is never loaded. Past ``MAX_OWN_LOADED`` own or ``MAX_ADOPTED_LOADED`` adopted
+    rules the rest are still returned, marked ``not_loaded``: they show on the case as skipped runs
+    (``custom_not_loaded``) instead of vanishing while the pages list them as active."""
+    picked: list[tuple[RuleRow, int, str, bool]] = []
     with db.conn() as c:
         own = c.execute(
             "SELECT * FROM custom_rules WHERE owner = ? AND status = 'active' AND enabled = 1 "
-            "ORDER BY id LIMIT ?",
-            (account, MAX_OWN_LOADED),
+            "ORDER BY id",
+            (account,),
         ).fetchall()
-        picked += [(_rule(r), r["current_version"], "own") for r in own]
+        picked += [
+            (_rule(r), r["current_version"], "own", i >= MAX_OWN_LOADED) for i, r in enumerate(own)
+        ]
         adopted = c.execute(
             "SELECT r.*, a.version AS pinned FROM custom_rule_adoptions a "
             "JOIN custom_rules r ON r.id = a.rule_id "
             "WHERE a.account = ? AND r.visibility = 'public' AND r.status = 'active' "
-            "AND r.owner != ? ORDER BY r.id LIMIT ?",
-            (account, account, MAX_ADOPTED_LOADED),
+            "AND r.owner != ? ORDER BY r.id",
+            (account, account),
         ).fetchall()
-        picked += [(_rule(r), r["pinned"], "adopted") for r in adopted]
+        picked += [
+            (_rule(r), r["pinned"], "adopted", i >= MAX_ADOPTED_LOADED)
+            for i, r in enumerate(adopted)
+        ]
         versions = {
             (rule.id, version): c.execute(
                 "SELECT * FROM custom_rule_versions WHERE rule_id = ? AND version = ?",
                 (rule.id, version),
             ).fetchone()
-            for rule, version, _ in picked
+            for rule, version, _, _ in picked
         }
     loaded: list[LoadedCustomRule] = []
-    for rule, version, origin in picked:
+    for rule, version, origin, over in picked:
         row = versions[(rule.id, version)]
         if row is None:
             log.warning("custom rule %s v%s has no stored version; not loaded", rule.id, version)
             continue
         item = _loaded(rule, _version(row), origin)
-        if item is not None:
-            loaded.append(item)
+        if item is None:
+            continue
+        if over:
+            cap = MAX_OWN_LOADED if origin == "own" else MAX_ADOPTED_LOADED
+            kind = "of your own" if origin == "own" else "adopted"
+            item = replace(
+                item,
+                not_loaded=f"not run: an analysis loads at most {cap} {kind} custom checks, and this "
+                "one is beyond that",
+            )
+        loaded.append(item)
     return sorted(loaded, key=lambda r: r.rule_id)

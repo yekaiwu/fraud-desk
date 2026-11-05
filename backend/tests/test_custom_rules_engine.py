@@ -73,7 +73,10 @@ def test_t1_numeric_operators(operator: str, limit: str, total: str, fires: bool
 
 def test_t1_evidence_quotes_both_numbers() -> None:
     flag = run(loaded(t1("invoice.total", "gt", "100000")), invoice()).flags[0]
-    assert flag.evidence == "invoice total 120000.00 is greater than 100000"
+    assert (
+        flag.evidence
+        == "invoice total 120000.00 is greater than 100000 (as printed; currency not compared)"
+    )
     assert flag.rule == "cus_0123456789" and flag.stage == "rules" and flag.severity == "low"
     assert flag.field == "total" and flag.document_ids == ["d1"]
 

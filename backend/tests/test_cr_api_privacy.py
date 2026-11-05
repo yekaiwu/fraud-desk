@@ -1639,10 +1639,10 @@ def test_a_model_ready_with_an_unmapped_phrase_is_downgraded_by_code(alice: As, 
 def test_an_adopter_is_not_shown_the_name_or_readback_of_a_rule_its_owner_took_back(
     alice: As, bob: As, root: As
 ) -> None:
-    """Unpublished (by the author or an administrator) or retired means private again: the adopter keeps
-    a row saying the rule is no longer active, but nothing the owner wrote. Unpublished means every adoption
-    ended, so there is no row at all."""
-    for take_back in ("unpublish", "admin", "retire"):
+    """Unpublished (by the author or an administrator) or retired means private again and every adoption
+    ended, so the adopter has no row at all and nothing the owner wrote is shown."""
+    # "admin" goes last: an administrator's takedown bars the same condition from being made public again
+    for take_back in ("unpublish", "retire", "admin"):
         text = {"unpublish": TOTAL_REQUEST, "admin": TOTAL_REQUEST, "retire": TOTAL_REQUEST}[
             take_back
         ]
@@ -1656,17 +1656,10 @@ def test_an_adopter_is_not_shown_the_name_or_readback_of_a_rule_its_owner_took_b
         else:
             alice.post(f"/custom-rules/{rid}/retire", {"reason": "retiring it now"})
         listed = bob.get("/custom-rules").json()["adopted"]
+        assert [r for r in listed if r["rule_id"] == rid] == []
+        assert NAME_MARK not in json.dumps(listed)
         if take_back != "retire":
-            assert [r for r in listed if r["rule_id"] == rid] == []
-            assert NAME_MARK not in json.dumps(listed)
             alice.post(f"/custom-rules/{rid}/retire", {"reason": "clean up for next round"})
-            continue
-        row = next(r for r in listed if r["rule_id"] == rid)
-        assert row["active"] is False
-        assert NAME_MARK not in json.dumps(row), take_back
-        assert "100,000" not in row["readback"], take_back
-        assert bob.post(f"/custom-rules/{rid}/unadopt").status_code == 200
-        alice.post(f"/custom-rules/{rid}/retire", {"reason": "clean up for next round"})
 
 
 def test_parallel_turns_on_one_draft_do_not_each_buy_a_model_call(api: Api, alice: As) -> None:

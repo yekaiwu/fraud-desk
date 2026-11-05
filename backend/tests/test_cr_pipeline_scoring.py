@@ -507,7 +507,13 @@ def test_a_hundred_and_fifty_rules_load_with_the_documented_caps_and_still_finis
     for i in range(105):
         seed(db, "alice", t1("invoice.total", "gt", str(10_000_000 + i)), "info", f"own {i}")
     case = analyse(db, on, monkeypatch, *[invoice(id=f"d{i}") for i in range(1, 21)])
-    assert len(custom_runs(case)) == store.MAX_OWN_LOADED == 100
+    runs = custom_runs(case)
+    assert store.MAX_OWN_LOADED == 100 and len(runs) == 105  # none vanishes from the timeline
+    assert sum(1 for r in runs if r.code != "custom_not_loaded") == store.MAX_OWN_LOADED
+    left_out = [r for r in runs if r.code == "custom_not_loaded"]
+    assert len(left_out) == 5 and all(r.status == "skipped" and r.reason for r in left_out)
+    assert case.provenance.custom_rules is not None  # type: ignore[union-attr]
+    assert len(case.provenance.custom_rules["rules"]) == 100  # type: ignore[union-attr]
     assert case.status == "open" and not case.partial
 
 

@@ -501,6 +501,9 @@ class Settings(BaseSettings):
             problems.append(
                 "GLDB_CUSTOM_RULES_MAX_PER_ACCOUNT and GLDB_CUSTOM_RULES_DRY_RUN_CASES must be > 0"
             )
+        # 100 = custom_rules.store.MAX_OWN_LOADED: more rules than an analysis loads would not all run
+        if self.custom_rules_max_per_account > 100:
+            problems.append("GLDB_CUSTOM_RULES_MAX_PER_ACCOUNT must be <= 100")
         if self.monitor_interval_minutes < 0:
             problems.append("GLDB_MONITOR_INTERVAL_MINUTES must be >= 0 (0 = off)")
         if self.alert_renotify_hours <= 0 or self.alert_test_max_age_days <= 0:

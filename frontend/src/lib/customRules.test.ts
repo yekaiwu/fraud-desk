@@ -67,7 +67,7 @@ describe("custom rule helpers", () => {
   it("tallies the custom runs of a case apart from the built-in ones", () => {
     expect(customRunTally(withRuns())).toEqual({ total: 2, ran: 1, skipped: 1, flags: 1 });
     expect(customRunTally(buildCase(SPECS.find((s) => s.id === "c_loan_fraud")!)).total).toBe(0);
-    expect(customCoverageText({ ran: 1, skipped: 1 })).toBe("Custom rules: 1 ran, 1 skipped. Not counted in coverage.");
+    expect(customCoverageText({ ran: 1, skipped: 1 })).toBe("Custom checks: 1 ran, 1 skipped. Not counted in coverage.");
   });
 
   it("states the dry run in one sentence", () => {

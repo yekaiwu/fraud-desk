@@ -722,7 +722,15 @@ def test_disable_and_retire(api: Api, alice: As, bob: As) -> None:
     ]  # still listed, every version kept
     assert alice.get(f"/custom-rules/{rid}").json()["versions"]
     assert bob.get("/custom-rules/shared").json()["rules"] == []
-    assert bob.get("/custom-rules").json()["adopted"][0]["active"] is False
+    # retiring ends every adoption, like taking the rule back does: nothing is left to count or to show
+    assert bob.get("/custom-rules").json()["adopted"] == []
+    assert store.adoption_counts(api.db, [rid]) == {rid: 0}
+    ended = [
+        c
+        for c in store.changes(api.db, viewer="root", admin=True, rule_id=rid)
+        if c["action"] == "unadopt"
+    ]
+    assert [c["actor"] for c in ended] == ["alice"]
     assert code(start_raw(alice, TOTAL_REQUEST, edit_of=rid)) == "rule_retired"
 
 

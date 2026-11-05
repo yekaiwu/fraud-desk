@@ -94,11 +94,6 @@ function RuleCard({ r, onAction, onEdit, onOpen }: { r: CustomRuleView; onAction
             <Meta r={r} />
           </div>
           {newerPrivate ? <p className="mt-1 text-sm text-brass-deep">Version {r.version} is private. Others still get version {r.published_version} until you make it public.</p> : null}
-          {r.last_dry_run ? (
-            <p className="tabular mt-1 text-sm text-ink-2">
-              Last test on stored cases: fired on {r.last_dry_run.fired} of {r.last_dry_run.evaluated}.
-            </p>
-          ) : null}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-rule pt-3">

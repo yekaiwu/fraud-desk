@@ -730,7 +730,7 @@ describe("errors from the server are explained, never raw", () => {
   });
 
   it.each([
-    ["duplicate_custom", 409, { rule_id: "cus_3f9a1c2b7d", name: "Heavy borrowing" }, "A custom rule already does this", /Heavy borrowing/],
+    ["duplicate_custom", 409, { rule_id: "cus_3f9a1c2b7d", name: "Heavy borrowing" }, "A custom check already does this", /Heavy borrowing/],
     ["dry_run_required", 409, undefined, "Test the rule on stored cases first", /Run the test/],
     ["warnings_not_confirmed", 422, undefined, "Confirm the test warnings", /Save anyway/],
     ["narrower_not_accepted", 422, undefined, "Tick the box first", /checks less than you asked for/],
@@ -739,7 +739,7 @@ describe("errors from the server are explained, never raw", () => {
     ["reason_required", 422, undefined, "Reason required", /5 characters/],
     ["draft_closed", 409, undefined, "This request is finished", /Start a new request/],
     ["account_required", 403, undefined, "Sign in with your own account", /typed name/],
-    ["feature_off", 404, undefined, "Custom rules are switched off", /administrator/],
+    ["feature_off", 404, undefined, "Custom checks are switched off", /administrator/],
     ["user_budget_used", 429, undefined, "Your model budget for today is used up", /Listing, adopting and deleting/],
   ])("%s", async (code, status, details, title, detail) => {
     await failSave(code, "server message", status, details);
@@ -794,7 +794,7 @@ describe("authoring unavailable: casework and ticketing carry on", () => {
   it("other errors (feature off, sign-in) do not offer the ticket shortcut", async () => {
     const { user } = setup({ [DRAFTS]: () => errorBody("feature_off", "off", 404) });
     await ask(user, "flag invoices over a hundred thousand");
-    expect(await screen.findByText("Custom rules are switched off")).toBeInTheDocument();
+    expect(await screen.findByText("Custom checks are switched off")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send this idea to the tech team" })).toBeNull();
   });
 

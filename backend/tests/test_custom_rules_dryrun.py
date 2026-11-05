@@ -62,9 +62,12 @@ def test_counts_over_stored_cases(db: Database) -> None:
     store_case(db, "c_c", [invoice(total=None)], minutes=3)  # invoice there, but no total
     store_case(db, "c_d", [make_doc("receipt", id="d1")], minutes=4)  # no invoice at all
     store_case(db, "c_e", [invoice(total="7.00")], minutes=5)
+    store_case(db, "c_f", [invoice(total="8.00")], minutes=6)
+    store_case(db, "c_g", [invoice(total="9.00")], minutes=7)
     got = dry_run(db, BIG, limit=50)
-    assert (got.cases_considered, got.evaluated, got.fired, got.skipped_missing) == (5, 4, 1, 1)
-    assert got.fire_rate == 0.25
+    assert (got.cases_considered, got.evaluated, got.fired, got.skipped_missing) == (7, 6, 1, 1)
+    # the case whose invoice has no total could not be read: it is out of the denominator
+    assert got.readable == 5 and got.fire_rate == 0.2
     assert got.examples == ["c_a"] and got.spec_hash == BIG.spec_hash()
     assert got.warnings == [] and got.needs_confirmation is False
 
@@ -100,8 +103,34 @@ def test_a_rule_that_fires_too_often_warns(db: Database) -> None:
     assert (got.evaluated, got.fired, got.fire_rate) == (10, 4, 0.4)
     assert [w.code for w in got.warnings] == ["fires_too_often"]
     assert got.warnings[0].message == (
-        "It fired on 4 of 10 cases (40%); a rule that fires that often is noise."
+        "It fired on 4 of 10 cases it could read (40%); a rule that fires that often is noise."
     )
+
+
+def test_cases_without_the_figure_are_not_counted_as_cases_it_could_read(db: Database) -> None:
+    """gst_rate >= 9 over 7 cases with no GST rate and 3 at 9%: it fires on every case it can read."""
+    rule = spec_of(t1("invoice.gst_rate", "gte", "9"))
+    for i in range(7):
+        store_case(db, f"c_m{i}", [invoice(gst_rate=None)], minutes=i)
+    for i in range(3):
+        store_case(db, f"c_g{i}", [invoice(gst_rate="9")], minutes=10 + i)
+    got = dry_run(db, rule, limit=50)
+    assert (got.evaluated, got.skipped_missing, got.readable, got.fired) == (10, 7, 3, 3)
+    assert got.fire_rate == 1.0
+    assert [w.code for w in got.warnings] == ["fires_too_often"] and got.needs_confirmation
+    assert got.warnings[0].message == (
+        "It fired on 3 of 3 cases it could read (100%); a rule that fires that often is noise. "
+        "7 other cases had no value for it to read."
+    )
+
+
+def test_a_rule_that_could_read_no_case_says_so_and_needs_confirmation(db: Database) -> None:
+    rule = spec_of(t1("invoice.gst_rate", "gte", "9"))
+    store_case(db, "c_a", [invoice(gst_rate=None)])
+    got = dry_run(db, rule, limit=10)
+    assert (got.evaluated, got.readable, got.fired, got.fire_rate) == (1, 0, 0, 0.0)
+    assert [w.code for w in got.warnings] == ["fires_on_none"] and got.needs_confirmation
+    assert "could not be tested" in got.warnings[0].message
 
 
 def test_exactly_thirty_percent_is_fine(db: Database) -> None:

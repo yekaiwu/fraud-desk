@@ -10,6 +10,7 @@ are kept, never document content.
 from __future__ import annotations
 
 import json
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -142,15 +143,28 @@ def load_draft(db: Database, draft_id: str) -> DraftRecord | None:
 
 
 def update_draft(
-    db: Database, rec: DraftRecord, *, expected_turns: int, now: datetime
+    db: Database,
+    rec: DraftRecord,
+    *,
+    expected_turns: int,
+    now: datetime,
+    release_model: bool = False,
+    conn: sqlite3.Connection | None = None,
 ) -> DraftRecord:
     """Write ``rec`` (body, turns, state, saved rule) if no other turn got in first: the row must still
-    be at ``expected_turns`` and open or the one being closed here. 409 ``draft_busy`` on a lost race."""
-    with db.conn() as c:
+    be at ``expected_turns`` and open or the one being closed here. 409 ``draft_busy`` on a lost race.
+
+    The "waiting for the model" mark is cleared only by ``release_model=True``: the commit of the turn
+    that set it. A dry run or a ticket writes the draft too, and must not let a second paid call start
+    while the first is still out. ``conn``: write inside the caller's transaction (no commit here), so
+    that closing a draft and creating its rule stand or fall together."""
+    sets = "state = ?, turns = ?, request = ?, body = ?, saved_rule_id = ?, updated_at = ?"
+    if release_model:
+        sets += ", model_busy_at = NULL"
+
+    def write(c: sqlite3.Connection) -> DraftRecord:
         cur = c.execute(
-            "UPDATE custom_rule_drafts SET state = ?, turns = ?, request = ?, body = ?, "
-            "saved_rule_id = ?, updated_at = ?, model_busy_at = NULL "
-            "WHERE id = ? AND turns = ? AND state = 'open'",
+            f"UPDATE custom_rule_drafts SET {sets} WHERE id = ? AND turns = ? AND state = 'open'",  # noqa: S608
             (
                 rec.state,
                 rec.turns,
@@ -169,8 +183,27 @@ def update_draft(
                 "Another turn of this draft is in progress or it was closed. Reload it and try again.",
                 {"draft_id": rec.id},
             )
-        row = c.execute("SELECT * FROM custom_rule_drafts WHERE id = ?", (rec.id,)).fetchone()
-    return _record(row)
+        return _record(
+            c.execute("SELECT * FROM custom_rule_drafts WHERE id = ?", (rec.id,)).fetchone()
+        )
+
+    if conn is not None:
+        return write(conn)
+    with db.conn() as c:
+        return write(c)
+
+
+def attach_ticket(db: Database, draft_id: str, ticket_id: str) -> None:
+    """Record the ticket sent with a draft that was just saved (its body is otherwise final)."""
+    with db.conn() as c:
+        row = c.execute("SELECT body FROM custom_rule_drafts WHERE id = ?", (draft_id,)).fetchone()
+        if row is None:
+            return
+        body = DraftState.model_validate_json(row["body"])
+        body.ticket_id = ticket_id
+        c.execute(
+            "UPDATE custom_rule_drafts SET body = ? WHERE id = ?", (_body_text(body), draft_id)
+        )
 
 
 MODEL_BUSY_SECONDS = (
@@ -181,7 +214,7 @@ MODEL_BUSY_SECONDS = (
 def claim_model(db: Database, draft_id: str, *, expected_turns: int, now: datetime) -> None:
     """Mark the draft as waiting for the model BEFORE the paid call, so that of several parallel text
     turns on one draft only one reaches the model. 409 ``draft_busy`` for the others (no money spent).
-    The mark is cleared when the turn is stored (``update_draft``) or given up (``release_model``)."""
+    The mark is cleared when the turn is stored (``update_draft(release_model=True)``) or given up (``release_model``)."""
     stale = ts(now - timedelta(seconds=MODEL_BUSY_SECONDS))
     with db.conn() as c:
         cur = c.execute(

@@ -15,12 +15,12 @@ from tests.custom_rules_helpers import DEBT, EQUITY, spec_of, t1, t2, t3, t4
         (
             t1("invoice.total", "gt", "100000"),
             "low",
-            "Flags low when an invoice's total is greater than 100,000.00.",
+            "Flags low when an invoice's total is greater than 100,000.00 in whatever currency the invoice prints.",
         ),
         (
             t1("invoice.total", "lte", "99.5"),
             "info",
-            "Flags info when an invoice's total is at most 99.50.",
+            "Flags info when an invoice's total is at most 99.50 in whatever currency the invoice prints.",
         ),
         (
             t1("invoice.gst_rate", "eq", "9"),
@@ -129,7 +129,8 @@ def test_money_percent_date_and_number_formats() -> None:
 def test_flag_explanation_is_code_text_and_short() -> None:
     spec = spec_of(t1("invoice.total", "gt", "100000"))
     assert rb.flag_explanation(spec) == (
-        "Custom rule (unreviewed): an invoice's total is greater than 100,000.00."
+        "Custom rule (unreviewed): an invoice's total is greater than 100,000.00 in whatever currency "
+        "the invoice prints."
     )
     assert len(rb.flag_explanation(spec_of(t4(DEBT, EQUITY)))) <= rb.EXPLANATION_MAX
 

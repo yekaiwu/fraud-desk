@@ -1075,6 +1075,7 @@ def test_t1_money_verdict_does_not_depend_on_the_currency_or_scale_cells() -> No
         flags.append(bool(result.flags))
         if result.flags:
             assert currency is None or currency.upper() not in result.flags[0].evidence
+            assert result.flags[0].evidence.endswith("(as printed; currency not compared)")
     assert flags == [True] * 5
 
 
@@ -2168,23 +2169,27 @@ def test_a_spec_that_slipped_past_validation_still_cannot_raise_or_error(forged:
         (
             t1("invoice.total", "gt", "100000"),
             "low",
-            "Flags low when an invoice's total is greater than 100,000.00.",
+            "Flags low when an invoice's total is greater than 100,000.00 in whatever currency the invoice prints.",
         ),
         (
             t1("invoice.total", "gt", "100000.5"),
             "low",
-            "Flags low when an invoice's total is greater than 100,000.50.",
+            "Flags low when an invoice's total is greater than 100,000.50 in whatever currency the invoice prints.",
         ),
         (
             t1("invoice.total", "lte", "-1000.5"),
             "info",
-            "Flags info when an invoice's total is at most -1,000.50.",
+            "Flags info when an invoice's total is at most -1,000.50 in whatever currency the invoice prints.",
         ),
-        (t1("invoice.total", "ne", "0"), "low", "Flags low when an invoice's total is not 0.00."),
+        (
+            t1("invoice.total", "ne", "0"),
+            "low",
+            "Flags low when an invoice's total is not 0.00 in whatever currency the invoice prints.",
+        ),
         (
             t1("invoice.total", "eq", "1000000000000000"),
             "low",
-            "Flags low when an invoice's total is 1,000,000,000,000,000.00.",
+            "Flags low when an invoice's total is 1,000,000,000,000,000.00 in whatever currency the invoice prints.",
         ),
         (
             t1("invoice.gst_rate", "gte", "9.50"),
@@ -2369,7 +2374,12 @@ def test_readback_names_the_exact_number_the_engine_compares_with() -> None:
     for const in ["0", "0.5", "1234.5", "99999999.99", "-7"]:
         spec = spec_of(t1("invoice.total", "gte", const))
         text = readback.readback(spec)
-        shown = text.split("is at least ")[1].rstrip(".").replace(",", "")
+        shown = (
+            text.split("is at least ")[1]
+            .removesuffix(" in whatever currency the invoice prints.")
+            .rstrip(".")
+            .replace(",", "")
+        )
         assert Decimal(shown) == Decimal(const)
         assert run(loaded(t1("invoice.total", "gte", const)), invoice(total=const)).flags
         below = Decimal(const) - Decimal("0.01")
@@ -2785,6 +2795,7 @@ def test_readback_shows_the_exact_number_that_runs(
 ) -> None:
     """The readback is what the officer approves. A limit of 0.0001 must not read back as 0.00."""
     sentence = readback.readback(spec_of(t1(field, operator, constant)))
+    sentence = sentence.removesuffix(" in whatever currency the invoice prints.") + "."
     shown = sentence.rstrip(".").rsplit(" ", 1)[1].replace(",", "").rstrip("%")
     assert Decimal(shown) == Decimal(constant), (sentence, constant)
 

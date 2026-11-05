@@ -621,13 +621,129 @@ def test_a_stored_spec_that_no_longer_validates_is_left_out_and_logged(
     assert version is not None and version.spec is None  # readable as a row, not as a spec
 
 
-def test_load_rule_set_is_bounded(db: Database, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_rule_set_is_bounded_but_never_silent(
+    db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(store, "MAX_OWN_LOADED", 3)
     for i in range(5):
         make(db, spec=total_gt(str(i + 1)))
-    assert len(store.load_rule_set(db, "alice")) == 3
+    got = store.load_rule_set(db, "alice")
+    # the rules past the cap are returned too, marked: they show on the case as skipped runs
+    assert len(got) == 5
+    assert sum(1 for r in got if r.not_loaded is None) == 3
+    left_out = [r for r in got if r.not_loaded]
+    assert len(left_out) == 2 and "at most 3" in left_out[0].not_loaded  # type: ignore[operator]
 
 
 def test_owners_are_matched_exactly(db: Database) -> None:
     make(db, owner="alice")
     assert store.load_rule_set(db, "Alice") == []  # accounts are lower-cased before they get here
+
+
+# ================================================================ second review: limits, takedown, retire
+
+
+def test_adopting_past_the_loaded_cap_is_refused_not_dropped(
+    db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "MAX_ADOPTED_LOADED", 2)
+    rules = [make(db, owner="alice", spec=total_gt(str(10 + i))) for i in range(3)]
+    for r in rules:
+        store.publish(db, r.id, actor="alice", reason="share it", at=at(1))
+    store.adopt(db, rules[0].id, "bob", at=at(2))
+    store.adopt(db, rules[1].id, "bob", at=at(3))
+    assert code_of(lambda: store.adopt(db, rules[2].id, "bob", at=at(4))) == "adoption_limit"
+    assert len(store.list_adoptions(db, "bob")) == 2
+    # moving the pin of a rule already adopted is not a new adoption
+    store.add_version(
+        db,
+        rules[0].id,
+        actor="alice",
+        spec=total_gt("99"),
+        readback="r",
+        reason="newer",
+        at=at(5),
+        draft_id=None,
+    )
+    store.publish(db, rules[0].id, actor="alice", reason="newer", at=at(6))
+    assert store.adopt(db, rules[0].id, "bob", at=at(7)).version == 2
+    store.unadopt(db, rules[1].id, "bob", at=at(8))
+    store.adopt(db, rules[2].id, "bob", at=at(9))  # room again
+
+
+def test_every_adopted_rule_is_listed_even_past_the_cap(
+    db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rules = [make(db, owner="alice", spec=total_gt(str(10 + i))) for i in range(3)]
+    for r in rules:
+        store.publish(db, r.id, actor="alice", reason="share it", at=at(1))
+        store.adopt(db, r.id, "bob", at=at(2))
+    monkeypatch.setattr(store, "MAX_ADOPTED_LOADED", 1)  # e.g. a hand-edited database
+    got = store.load_rule_set(db, "bob")
+    assert len(got) == 3 and sum(1 for r in got if r.not_loaded) == 2
+    assert all("at most 1 adopted" in r.not_loaded for r in got if r.not_loaded)  # type: ignore[operator]
+
+
+def test_the_account_limit_in_the_settings_cannot_exceed_what_an_analysis_loads() -> None:
+    from app.core.config import Settings, SettingsError
+
+    assert store.MAX_OWN_LOADED == 100
+    Settings(_env_file=None, custom_rules_max_per_account=100).validate_startup()
+    with pytest.raises(SettingsError, match="MAX_PER_ACCOUNT must be <= 100"):
+        Settings(_env_file=None, custom_rules_max_per_account=101).validate_startup()
+
+
+def test_an_admin_takedown_cannot_be_undone_by_saving_the_same_idea_as_a_new_rule(
+    db: Database,
+) -> None:
+    first = make(db, owner="alice")
+    store.publish(db, first.id, actor="alice", reason="share it", at=at(1))
+    store.unpublish(db, first.id, actor="root", reason="not appropriate", at=at(2), as_admin=True)
+    assert code_of(
+        lambda: store.publish(db, first.id, actor="alice", reason="again", at=at(3))
+    ) == ("withdrawn_by_admin")
+    store.retire(db, first.id, actor="alice", reason="start over", at=at(4))
+    # the same idea, saved again by the author or by anybody else, at any severity
+    again = make(db, owner="alice", name="Same idea")
+    other = make(db, owner="carol", spec=total_gt(severity="medium"), name="Carol's copy")
+    for rule in (again, other):
+        assert (
+            code_of(
+                lambda rule=rule: store.publish(
+                    db, rule.id, actor=rule.owner, reason="sharing", at=at(5)
+                )
+            )
+            == "withdrawn_by_admin"
+        )
+    # private use is untouched, and a different condition can still be shared
+    store.set_enabled(db, again.id, True, actor="alice", reason="keep it on", at=at(6))
+    assert [r.rule_id for r in store.load_rule_set(db, "alice")] == [again.id]
+    different = make(db, owner="alice", spec=total_gt("5"), name="Different")
+    store.publish(db, different.id, actor="alice", reason="sharing", at=at(7))
+
+
+def test_an_unpublish_by_the_owner_does_not_bar_the_idea(db: Database) -> None:
+    first = make(db, owner="alice")
+    store.publish(db, first.id, actor="alice", reason="share it", at=at(1))
+    store.unpublish(db, first.id, actor="alice", reason="back to private", at=at(2), as_admin=False)
+    store.retire(db, first.id, actor="alice", reason="start over", at=at(3))
+    again = make(db, owner="alice", name="Same idea")
+    store.publish(db, again.id, actor="alice", reason="sharing", at=at(4))
+
+
+def test_retire_ends_and_logs_every_adoption(db: Database) -> None:
+    rule = make(db, owner="alice")
+    store.publish(db, rule.id, actor="alice", reason="share it", at=at(1))
+    store.adopt(db, rule.id, "bob", at=at(2))
+    store.adopt(db, rule.id, "carol", at=at(3))
+    assert store.adoption_counts(db, [rule.id]) == {rule.id: 2}
+    store.retire(db, rule.id, actor="alice", reason="no longer needed", at=at(4))
+    assert store.adoption_counts(db, [rule.id]) == {rule.id: 0}
+    assert store.list_adoptions(db, "bob") == [] and store.load_rule_set(db, "bob") == []
+    ended = [
+        c
+        for c in store.changes(db, viewer="root", admin=True, rule_id=rule.id)
+        if c["action"] == "unadopt"
+    ]
+    assert sorted(c["before"]["account"] for c in ended) == ["bob", "carol"]
+    assert all(c["actor"] == "alice" for c in ended)

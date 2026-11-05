@@ -557,6 +557,13 @@ def parse_spec(raw: object) -> tuple[CustomRuleSpec | None, list[SpecProblem]]:
             for e in exc.errors()[:5]
         ]
         return None, problems
+    except (
+        ValueError,
+        TypeError,
+        ArithmeticError,
+        AttributeError,
+    ):  # a validator that raised, not failed
+        return None, [SpecProblem(loc="spec", message="the rule could not be read")]
 
 
 # --------------------------------------------------------------------------------------
@@ -799,12 +806,15 @@ class DryRunResult(_Frozen):
     spec_hash: str
     cases_considered: int = Field(ge=0)  # stored cases looked at (newest first, capped)
     evaluated: int = Field(ge=0)  # cases with a usable document of the rule's type
+    # evaluated cases minus the ones where the field was missing: the cases the rule could read, and the
+    # denominator of ``fire_rate`` (0 in an older stored result, which has no such count)
+    readable: int = Field(default=0, ge=0)
     fired: int = Field(ge=0)  # cases where the rule raised at least one flag
     # evaluated cases where the field was missing on every document of the type
     skipped_missing: int = Field(ge=0)
     scanned_evaluated: int = Field(ge=0)  # evaluated cases whose document is a scan or a photo
     scanned_fired: int = Field(ge=0)
-    fire_rate: float = Field(ge=0, le=1)  # fired / evaluated (0 when nothing was evaluated)
+    fire_rate: float = Field(ge=0, le=1)  # fired / readable (0 when nothing could be read)
     warnings: list[DryRunWarning] = Field(default_factory=list)
     examples: list[str] = Field(default_factory=list, max_length=5)  # case ids where it fired
     needs_confirmation: bool = False  # any warning: saving needs confirm_warnings=true
