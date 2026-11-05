@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center" >
 
 <img src="assets/banner.svg" alt="Fraud Desk: document-fraud analysis for KYC, AML and loan checks" width="100%">
 
