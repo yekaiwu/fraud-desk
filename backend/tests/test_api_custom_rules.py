@@ -771,6 +771,23 @@ def test_an_identical_own_rule_is_refused_with_a_pointer(alice: As) -> None:
     assert r.json()["error"]["details"] == {"rule_id": rule["rule_id"], "name": "Big invoices"}
 
 
+def test_the_same_rule_can_be_created_again_after_it_was_deleted(alice: As) -> None:
+    first = mk_rule(alice)
+    blocked = start(alice, TOTAL_REQUEST)
+    assert blocked["save_allowed"] is False and blocked["duplicates"][0]["rule"] == first["rule_id"]
+    deleted = alice.post(f"/custom-rules/{first['rule_id']}/retire", {"reason": "deleting it"})
+    assert deleted.status_code == 200
+    again = start(alice, TOTAL_REQUEST)
+    assert again["duplicates"] == [] and again["save_allowed"] is True
+    saved = finish(alice, again["draft_id"], "Big invoices")
+    assert saved.status_code == 201, saved.text
+    new = saved.json()["rule"]
+    assert new["rule_id"] != first["rule_id"] and new["status"] == "active"
+    mine = alice.get("/custom-rules").json()["mine"]
+    states = {m["rule_id"]: m["status"] for m in mine}
+    assert states == {first["rule_id"]: "retired", new["rule_id"]: "active"}
+
+
 def test_a_public_rule_blocks_an_identical_one_and_publishing_a_twin(alice: As, bob: As) -> None:
     mine = mk_rule(alice)
     theirs_draft = start(bob, TOTAL_REQUEST)
