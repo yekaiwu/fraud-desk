@@ -22,6 +22,7 @@ import { EntityGraph } from "@/components/case/EntityGraph";
 import { FindingsPanel, type DecideTarget, type SelectOpts } from "@/components/case/FindingsPanel";
 import { FlagDecisionDialog } from "@/components/case/FlagDecisionDialog";
 import { CaseTimeline } from "@/components/case/CaseTimeline";
+import { OfficerBrief } from "@/components/case/OfficerBrief";
 import { PageViewer } from "@/components/case/PageViewer";
 import { ProcessingStepper } from "@/components/case/ProcessingStepper";
 import { RecommendationHero } from "@/components/case/RecommendationHero";
@@ -408,6 +409,8 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
                 <Keyboard aria-hidden className="h-5 w-5" />
               </button>
             </div>
+            {/* the case officer's summary stays in view whichever tab is open; the Timeline tab holds the full trail */}
+            <OfficerBrief agents={c.agents} onOpenTimeline={tab === "timeline" ? undefined : () => openTab("timeline")} className="mt-4" />
             {tabs.map((t) => (
               <TabPanel key={t.id} group={GROUP} id={t.id} value={tab} keepMounted={false} className="pt-4 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-2">
                 {panels[t.id]}

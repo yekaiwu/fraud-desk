@@ -8,7 +8,7 @@ export { Logo, LogoMark } from "./Logo";
 export { MeterBar, type MeterTone } from "./MeterBar";
 export { Notice, type NoticeVariant } from "./Notice";
 export { Panel } from "./Panel";
-export { HIGH_FROM, MEDIUM_FROM, RiskGauge } from "./RiskGauge";
+export { RiskGauge } from "./RiskGauge";
 export { SectionHeading, type HeadingLevel } from "./SectionHeading";
 export { Skeleton, SkeletonText } from "./Skeleton";
 export { Stagger, riseStyle } from "./Stagger";

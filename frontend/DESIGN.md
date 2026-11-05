@@ -73,7 +73,7 @@ One orchestrated entrance only: wrap a page's main sections in `<Stagger>`; dire
 <RiskBadge band="high" partial />  <ConcernBadge severity="medium" />  <LaneBadge lane="edd" />  <StatusBadge status="open" />
 <Panel title="Findings" eyebrow="3 to check" actions={<Button size="sm" variant="ghost">Expand all</Button>} tone="default|attention|sunken" padding="md|sm|none" footer={...}>...</Panel>
 <SectionHeading level={1} size="page" eyebrow="Worklist" description="Highest risk first." actions={...}>Cases to review</SectionHeading>
-<RiskGauge score={90} band="high" size="lg" partial />             // role="img" "Risk score 90 of 100, high"; case page hero
+<RiskGauge score={90} band="high" size="lg" partial />             // role="img" "Risk score 90 of 100, high"; case page hero; rim marks 25 / 50 / 75 are a plain scale (the band word says which band, the score explanation gives the cutoffs)
 <MeterBar label="Checks completed" value={41} max={54} valueText={coverageText(41, 54)} marker={0.7} tone="brand|medium|..." />
 <Stat label="Cases waiting" value={12} hint="3 are high risk" tone="high" />
 <EmptyState icon={<Inbox aria-hidden className="h-6 w-6" />} title="No cases match" text="Clear a filter." action={<Button variant="secondary">Clear filters</Button>} />

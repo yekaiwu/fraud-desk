@@ -450,6 +450,62 @@ describe("layout and a11y", () => {
   });
 });
 
+describe("case officer's summary", () => {
+  const brief = () => screen.findByRole("region", { name: /Case officer.s summary/ });
+  const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("sits right under the tab bar, above the open panel, and stays there on every tab", async () => {
+    const user = userEvent.setup();
+    setViewport(1280);
+    await openCase("c_loan_fraud");
+    const card = await brief();
+    expect(card).toHaveTextContent("Start with the balance on row 9.");
+    expect(within(card).queryAllByRole("listitem")).toHaveLength(0); // the next steps are one click away
+    await user.click(within(card).getByRole("button", { name: /^Suggested next steps\s*\(3\)$/ }));
+    expect(within(card).getAllByRole("listitem")).toHaveLength(3);
+    expect(follows(screen.getByRole("tablist"), card)).toBe(true);
+    expect(follows(card, screen.getByRole("tabpanel"))).toBe(true);
+    for (const name of [/Documents/, /Decision & activity/, /Timeline/, /Findings/]) {
+      await user.click(screen.getByRole("tab", { name }));
+      const again = await brief();
+      expect(again).toHaveTextContent("Start with the balance on row 9.");
+      expect(follows(screen.getByRole("tablist"), again)).toBe(true);
+      expect(follows(again, screen.getByRole("tabpanel"))).toBe(true);
+    }
+  });
+
+  it("is also there on a phone, under the tabs", async () => {
+    setViewport(390);
+    await openCase("c_loan_fraud");
+    const card = await brief();
+    expect(follows(screen.getByRole("tablist"), card)).toBe(true);
+  });
+
+  it("opens the Timeline from its link, and drops the link once the Timeline is open", async () => {
+    const user = userEvent.setup();
+    await openCase("c_loan_fraud");
+    const card = await brief();
+    await user.click(within(card).getByRole("button", { name: "Review team" }));
+    expect(screen.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-selected", "true");
+    expect(within(await brief()).queryByRole("button", { name: "Review team" })).toBeNull();
+  });
+
+  it("is absent for a case without a review team", async () => {
+    await openCase("c_loan_clean");
+    await screen.findByText("No concerns were found.");
+    expect(screen.queryByRole("region", { name: /Case officer/ })).toBeNull();
+  });
+
+  it("says when the officer could not run, and the flags are still there", async () => {
+    const c = getCaseState("c_loan_fraud");
+    c.agents = (c.agents ?? []).map((a) => (a.agent === "case_officer" ? { ...a, status: "failed" as const, summary: "The case officer could not write a summary.", next_steps: [] } : a));
+    await openCase("c_loan_fraud");
+    expect(await screen.findByText("The case officer could not write a summary")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /Case officer/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Flag 1, bs_running_balance/ })).toBeInTheDocument();
+  });
+});
+
 describe("timeline tab", () => {
   it("opens from the tab list and shows every step the case went through, each opening to its output", async () => {
     const user = userEvent.setup();

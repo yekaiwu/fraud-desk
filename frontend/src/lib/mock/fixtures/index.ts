@@ -13,6 +13,7 @@
  *   ownership  holder row i: baseline y = 220 + 40 i
  */
 import type {
+  AgentReport,
   Annotation,
   Band,
   CaseDetail,
@@ -223,6 +224,8 @@ export type CaseSpec = {
   partialReasons?: string[]; topFinding?: string | null;
   decision?: Verdict | null; escalated_at?: string | null; review?: ReviewEntry[];
   notChecked?: CaseDetail["not_checked_documents"];
+  /** The review team's trail (specialists, challenger, case officer), as the real API returns it once the team has run. */
+  agents?: AgentReport[];
   /** A model read or classified something in this case: records models and a small cost. */
   usesModel?: boolean;
   /** earlier versions of this case (oldest first); each is a full spec rendered with its own version number. */
@@ -302,6 +305,7 @@ export function buildCase(s: CaseSpec): CaseDetail {
     review: structuredClone(s.review ?? []), decision: s.decision ?? null, escalated_at: s.escalated_at ?? null,
     pending_second_approvals: [], allowed_verdicts: [],
     not_checked_documents: s.notChecked ?? [],
+    ...(s.agents ? { agents: structuredClone(s.agents) } : {}),
     cost_summary: s.usesModel
       ? { total_usd: "0.004200", calls: 3, cache_hits: 1, seconds_by_stage: { ingest: 0.8, classify: 0.1, extract: 3.2, forensics: 1.4, rules: 0.2, crossdoc: 0.1, score: 0 }, usd_by_stage: { classify: "0.000900", extract: "0.003300" } }
       : { total_usd: "0.000000", calls: 0, cache_hits: 0, seconds_by_stage: {}, usd_by_stage: {} },
@@ -346,6 +350,40 @@ const fraudFindings = [
   finding("fnd_2", "Revenue 2.4M on the financial statements but only 56K of trade credits in the bank statements", "medium", [fRev], "Declared revenue is not reflected in the account."),
   finding("fnd_3", "Invoices have no matching receipts in the bank statements", "medium", [fInv1, fInv2], "Pattern across two invoice checks."),
   finding("fnd_4", "Invoice price differs from the contract", "medium", [fCon], "Unit price mismatch."),
+];
+
+// ---- the review team as the API returns it after the cross-document stage (docs/agents.md); none of these
+// flags is a judgement flag, so the challenger had nothing to argue and the case officer writes the brief
+const teamRole = {
+  documents: "Examines the files themselves: PDF structure, fonts, images, re-used files.",
+  finance: "Checks the money: statement arithmetic, invoices, financial statements, and how the figures line up across documents.",
+  identity: "Checks who is named: ID numbers, passports, company numbers, directors, owners.",
+  relationships: "Checks how parties and declarations connect: payers, sources of funds, stated business against activity, and model-based fit checks.",
+  challenger: "Argues the innocent reading of each judgement flag, and lowers it only when it can quote the documents' own explanation.",
+  case_officer: "Reads the whole trail and writes the summary and next steps for the reviewer.",
+} as const;
+const member = (agent: AgentReport["agent"], over: Partial<AgentReport>): AgentReport => ({
+  agent, role: teamRole[agent], status: "ok", checks_run: 0, flag_ids: [], summary: "", verdicts: [], next_steps: [], handoff: "", cost_usd: "0.000000", seconds: 0, ...over,
+});
+const fraudTeam: AgentReport[] = [
+  member("documents", { checks_run: 6, summary: "Ran 6 checks. No flags at medium or above." }),
+  member("finance", {
+    checks_run: 9, flag_ids: fraudFlags.map((f) => f.id), handoff: "Nothing for the challenger.",
+    summary: "Ran 9 checks. 5 flag(s) at medium or above: bs_running_balance, x_invoice_vs_contract, x_invoice_vs_receipts, x_revenue_vs_credits.",
+  }),
+  member("identity", { checks_run: 3, summary: "Ran 3 checks. No flags at medium or above." }),
+  member("relationships", { checks_run: 2, summary: "Ran 2 checks. No flags at medium or above." }),
+  member("challenger", { status: "skipped", summary: "No judgement flags to argue." }),
+  member("case_officer", {
+    flag_ids: fraudFlags.map((f) => f.id), cost_usd: "0.000412", seconds: 3.1,
+    summary:
+      "The running balance on row 9 of the bank statement is 10,000.00 above what the previous balance and the credit give, which is the one high concern. The other four flags are about money that does not show up in the account: the invoices have no matching credits, the declared revenue of 2.4M is mostly absent, and one invoice's unit price differs from the contract. Start with the balance on row 9.",
+    next_steps: [
+      "Ask the applicant for the original statement for the month that holds row 9 and compare its balance (bs_running_balance)",
+      "Request the statements of every account that receives customer payments, to see where the invoiced amounts were paid (x_invoice_vs_receipts, x_revenue_vs_credits)",
+      "Compare the invoice's unit price with the signed contract and ask for any price change agreed in writing (x_invoice_vs_contract)",
+    ],
+  }),
 ];
 
 const skipped: CoverageSkip[] = [
@@ -478,7 +516,7 @@ export const SPECS: CaseSpec[] = [
   {
     id: "c_loan_fraud", reference: "ACME-2026-014", use_case: "loan", status: "open", ageSeconds: 3600,
     applicantName: "Example Trading Pte. Ltd.", files: [FILE_STATEMENT(), FILE_INVOICE()], documents: [statementDoc(), invoiceDoc()],
-    flags: fraudFlags, findings: fraudFindings, lane: "loan", applicable: 21, ran: 18, skipped, pagesUnchecked: 1,
+    flags: fraudFlags, findings: fraudFindings, lane: "loan", applicable: 21, ran: 18, skipped, pagesUnchecked: 1, agents: fraudTeam,
   },
   {
     id: "c_kyc_review", reference: "ACME-2026-021", use_case: "kyc", status: "open", ageSeconds: 5400,

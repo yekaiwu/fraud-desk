@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HIGH_FROM as GAUGE_HIGH_FROM, MEDIUM_FROM as GAUGE_MEDIUM_FROM } from "@/components/ui/RiskGauge";
+import { bandFor } from "@/lib/mock/fixtures";
 import {
   EDITED_ROW_ID,
   HIGH_FROM,
@@ -91,8 +91,9 @@ describe("score calculator", () => {
     expect(SCORE_CAP).toBe(100);
   });
 
-  it("matches the gauge's band marks", () => {
-    expect([MEDIUM_FROM, HIGH_FROM]).toEqual([GAUGE_MEDIUM_FROM, GAUGE_HIGH_FROM]);
+  it("puts the band cutoffs where the mock cases do (the gauge no longer draws them)", () => {
+    expect([MEDIUM_FROM, HIGH_FROM]).toEqual([30, 60]);
+    for (const score of [0, 29, 30, 59, 60, 100]) expect(bandOf(score)).toBe(bandFor(score));
   });
 
   it("sums one weight per finding", () => {
