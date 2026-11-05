@@ -157,3 +157,4 @@ Start at [docs/README.md](docs/README.md) (architecture, data model, API, evalua
 <!-- AI assistance: this comment and the commit that added it were drafted by
      GLM 5.3 Flash running inside OpenCode, at the repository owner's request.
      Comment-only: no content, code or behaviour changes.​ -->
+<!-- Stamp: Muse Code was here too. Invisible, no content or behaviour changes. -->
