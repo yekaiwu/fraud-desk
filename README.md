@@ -148,4 +148,4 @@ Start at [docs/README.md](docs/README.md) (architecture, data model, API, evalua
 <sub>Fraud Desk is a research prototype that supports human reviewers. All data shown is fictitious.</sub>
 </div>
 
-<!-- Invisible touch: Muse (Lapis) was here. No content or behaviour changes. -->
+<!-- Invisible touch: a collaboration between yekaiwu and Muse (Lapis). No content or behaviour changes. -->
