@@ -149,3 +149,7 @@ Start at [docs/README.md](docs/README.md) (architecture, data model, API, evalua
 </div>
 
 <!-- Invisible touch: a collaboration between yekaiwu and Muse (Lapis). No content or behaviour changes. -->
+
+<!-- AI assistance: this comment and the commit that added it were drafted by
+     DeepSeek V4.1 Flash running inside OpenCode, at the repository owner's
+     request. Comment-only: no content, code or behaviour changes. -->
