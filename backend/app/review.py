@@ -56,7 +56,7 @@ VERDICTS_BY_USE_CASE: dict[UseCase, frozenset[Verdict]] = {
 VERDICT_LABELS: dict[Verdict, str] = {
     "approve": "Approve (close, reasons logged)",
     "request_documents": "Request more documents",
-    "refer_edd": "Refer for EDD review",
+    "refer_edd": "Refer for enhanced due diligence review",
     "escalate_aml": "Escalate to AML investigation (STR assessment)",
     "reject_or_escalate": "Reject or escalate (credit decision stays with the bank)",
 }

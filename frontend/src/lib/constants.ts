@@ -37,7 +37,7 @@ export const LANE_LABELS: Record<Lane, string> = {
 export const VERDICT_LABELS: Record<Verdict, string> = {
   approve: "Approve",
   request_documents: "Request documents",
-  refer_edd: "Refer for enhanced due diligence",
+  refer_edd: "Refer for enhanced due diligence review",
   escalate_aml: "Escalate to AML investigation",
   reject_or_escalate: "Reject or escalate",
 };
