@@ -3,6 +3,8 @@
 The figures come from the ledgers ``DailySpend`` keeps (``daily_spend`` for the site, ``daily_spend_user``
 for each signed-in account), so they are dollars actually charged by paid backends. An analysis started
 with no account (open mode, scripts) counts toward the site total only and shows as ``unattributed``.
+Every configured account is listed (the proxy names them in ``X-Gldb-Accounts``), with zero when it has
+not used the model.
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from app.api._common import DbDep, SettingsDep, get_clock, signed_in_reviewer
+from app.api._common import DbDep, SettingsDep, get_clock, listed_accounts, signed_in_reviewer
 from app.core.costs import usd6
 from app.core.errors import ApiError
 
@@ -50,7 +52,9 @@ def spending(request: Request, db: DbDep, settings: SettingsDep) -> dict[str, An
     for r in rows:
         week[r["account"]] = week.get(r["account"], 0) + int(r["micro_usd"])
     site_today = site.get(today_key, 0)
-    accounts = sorted(set(by_account_today) | set(week))
+    # every configured account, whether or not it has used the model, plus any that spent and have since
+    # been removed from the configuration
+    accounts = sorted(set(by_account_today) | set(week) | set(listed_accounts(request)))
     return {
         "viewer": who,
         "day": today_key,

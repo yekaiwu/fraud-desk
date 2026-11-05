@@ -56,7 +56,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/cases/{id}/review` | review log | 7.2 |
 | GET | `/cases/{id}/pack` | evidence pack, JSON or readable HTML | 8.3 |
 | GET | `/rules/effectiveness` | rule effectiveness | 8.3, 0.4 theme 6 |
-| GET | `/spending` | model spend today and over 7 days, per signed-in account and for the site; administrator accounts only (403 otherwise) | demo |
+| GET | `/spending` | model spend today and over 7 days, per signed-in account and for the site; every configured account is listed, with 0 when it has not used the model (the proxy names them in `X-Gldb-Accounts` on this route only); administrator accounts only (403 otherwise) | demo |
 | GET | `/jobs/{job_id}` | poll background processing | D4 |
 | POST | `/cases/{id}/files` | add documents (new version, re-analysis) | 7.3 |
 | POST | `/cases/{id}/rerun` | re-run analysis on the same inputs (new version) | 7.2 reproducibility |

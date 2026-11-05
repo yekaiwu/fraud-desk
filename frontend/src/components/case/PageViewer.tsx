@@ -12,6 +12,7 @@ import { pickImageWidth } from "@/lib/regions";
 import type { Document, FileRef, Severity } from "@/lib/types";
 import { usePrefersReducedMotion } from "@/lib/useMedia";
 import { Button, EmptyState, Notice, inputClasses } from "../ui";
+import { FlaggedPagesStrip } from "./FlaggedPagesStrip";
 import { FlagCaption } from "./FlagCaption";
 import { RegionOverlay, SEVERITY_COLOR } from "./RegionOverlay";
 
@@ -215,31 +216,7 @@ export function PageViewer({
         </div>
       </div>
 
-      {withFlags.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-rule bg-paper/60 px-3 py-2">
-          <span className="label-caps mr-1">Pages with flags</span>
-          {withFlags.map((p) => {
-            const on = p.fileId === file.id && p.page === current.page;
-            const full = names.page(p.fileId, p.page);
-            return (
-              <button
-                key={`${p.fileId}:${p.page}`}
-                type="button"
-                aria-pressed={on}
-                title={full}
-                onClick={() => onNavigate({ fileId: p.fileId, page: p.page })}
-                className={clsx(
-                  "inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold pointer-coarse:min-h-11",
-                  on ? "border-brand bg-brand text-on-brand" : "border-rule-strong bg-surface text-ink-2 hover:border-brand-2 hover:bg-brand-tint",
-                )}
-              >
-                <span className="truncate">{full}</span>
-                <span className={clsx("tabular rounded px-1.5 py-px", on ? "bg-on-brand/20" : "bg-paper-2")}>{p.count}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      <FlaggedPagesStrip pages={withFlags} current={{ fileId: file.id, page: current.page }} nameOf={names.page} onNavigate={onNavigate} />
 
       {selectedNf ? <FlagCaption selected={selectedNf} documents={documents} names={names} onNavigate={onNavigate} onFocusPlace={(pl: Place) => { if (pl.region.file_id !== file.id || pl.region.page !== current.page) onNavigate({ fileId: pl.region.file_id, page: pl.region.page }); setFocus({ key: pl.key, t: Date.now() }); }} current={{ fileId: file.id, page: current.page }} /> : null}
 

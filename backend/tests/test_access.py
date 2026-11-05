@@ -333,6 +333,50 @@ def test_spending_is_for_administrator_accounts_only(settings, monkeypatch) -> N
     assert len(body["history"]) == 7 and body["history"][0]["site_usd"] == "0.850000"
 
 
+def test_spending_lists_every_account_the_proxy_names_even_with_no_spend(
+    settings, monkeypatch
+) -> None:
+    from decimal import Decimal
+
+    from app.core.costs import DailySpend
+
+    monkeypatch.setenv("GLDB_PROXY_SECRET", SECRET)
+    s = settings.model_copy(update={"admin_users": "boss"})
+    app = main.create_app(s)
+    c = TestClient(app, client=REMOTE)
+    DailySpend(app.state.db, Decimal("5"), account="user2", user_cap=Decimal("1")).add(
+        Decimal("0.25")
+    )
+    DailySpend(app.state.db, Decimal("5"), account="gone", user_cap=Decimal("1")).add(
+        Decimal("0.1")
+    )  # spent, then was taken off the login list: still shown
+    names = ",".join(["boss", "officer", *[f"user{i}" for i in range(1, 21)], "bad name!", "Boss"])
+    hdr = {**H, "X-Gldb-Reviewer": "boss", "X-Gldb-Accounts": names}
+    body = c.get("/spending", headers=hdr).json()
+    shown = [a["account"] for a in body["accounts"]]
+    assert sorted(shown) == sorted({"boss", "officer", "gone", *[f"user{i}" for i in range(1, 21)]})
+    assert (
+        len(shown) == len(set(shown)) == 23
+    )  # the invalid name is dropped, "Boss" is the same account
+    today = {a["account"]: a["today_usd"] for a in body["accounts"]}
+    assert today["user2"] == "0.250000" and today["user7"] == "0.000000"
+    assert shown[:2] == ["user2", "gone"]  # spenders first, then everyone else by name
+    assert shown[2:] == sorted(shown[2:])
+    # without the list the page shows only who has spent, as before
+    plain = c.get("/spending", headers={**H, "X-Gldb-Reviewer": "boss"}).json()
+    assert [a["account"] for a in plain["accounts"]] == ["user2", "gone"]
+
+
+def test_the_account_list_is_ignored_without_the_proxy_secret(settings, monkeypatch) -> None:
+    monkeypatch.setenv("GLDB_PROXY_SECRET", SECRET)
+    app = main.create_app(settings.model_copy(update={"admin_users": "boss"}))
+    c = TestClient(app, client=REMOTE)
+    r = c.get(
+        "/spending", headers={"X-Gldb-Reviewer": "boss", "X-Gldb-Accounts": "boss,user1,user2"}
+    )
+    assert r.status_code == 401  # no secret: refused before anything is believed
+
+
 def test_one_account_can_have_its_own_daily_budget(settings, monkeypatch) -> None:
     from decimal import Decimal
 

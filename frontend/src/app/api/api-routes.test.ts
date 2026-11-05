@@ -262,6 +262,27 @@ describe("two accounts, officer and boss (the shape of the demo)", () => {
     expect(await reviewerSeenByTheBackend(officer, "boss")).toBe("officer");
   });
 
+  it("names every account to the backend on the spending page only (names, never passwords), and drops a list sent by the browser", async () => {
+    const boss = await cookieOf("boss", BOSS_PW, "203.0.113.51");
+    const accountsSeen = async (path: string, forged?: string) => {
+      let seen: Headers | undefined;
+      vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+        seen = init.headers as Headers;
+        return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+      });
+      const req = new NextRequest(`http://127.0.0.1:3000/api/${path}`, { headers: { cookie: `gldb_session=${boss}`, ...(forged ? { "x-gldb-accounts": forged } : {}) } });
+      expect((await GET(req, ctx(path))).status).toBe(200);
+      return seen!.get("x-gldb-accounts");
+    };
+    const listed = await accountsSeen("spending");
+    expect(listed!.split(",").sort()).toEqual(["boss", "officer"]);
+    expect(listed).not.toContain(OFFICER_PW);
+    expect(listed).not.toContain(BOSS_PW);
+    expect(await accountsSeen("me")).toBeNull();
+    expect(await accountsSeen("me", "mallory")).toBeNull();
+    expect(await accountsSeen("spending", "mallory")).not.toContain("mallory");
+  });
+
   it("a session cookie signed for one account's name with the other's password does not work", async () => {
     const forged = await signSession(SECRET, `boss\u0000${OFFICER_PW}`, Date.now(), undefined, "boss");
     const f = vi.fn();

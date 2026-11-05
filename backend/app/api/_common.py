@@ -119,6 +119,13 @@ def signed_in_reviewer(request: Request) -> str | None:
     return who if isinstance(who, str) and who else None
 
 
+def listed_accounts(request: Request) -> tuple[str, ...]:
+    """Every configured account, as the proxy listed them (``X-Gldb-Accounts``, believed only with the
+    proxy secret); empty when the proxy did not say."""
+    names = getattr(request.state, "accounts", ())
+    return tuple(n for n in names if isinstance(n, str)) if isinstance(names, tuple) else ()
+
+
 def require_user_budget(request: Request) -> str | None:
     """Return the signed-in account that is starting an analysis; refuse (429 ``user_budget_used``)
     when it has already used its share of the day's model spend (``GLDB_MAX_USD_PER_USER_PER_DAY``)."""

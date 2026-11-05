@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const HOP_BY_HOP = ["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"];
-const DROP_REQUEST = [...HOP_BY_HOP, "host", "cookie", "expect", "accept-encoding", "x-gldb-proxy-secret", "x-gldb-reviewer", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "forwarded", "x-real-ip"];
+const DROP_REQUEST = [...HOP_BY_HOP, "host", "cookie", "expect", "accept-encoding", "x-gldb-proxy-secret", "x-gldb-reviewer", "x-gldb-accounts", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "forwarded", "x-real-ip"];
 const DROP_RESPONSE = [...HOP_BY_HOP, "content-encoding", "set-cookie"];
 
 const tooLarge = (limit: number) =>
@@ -67,6 +67,8 @@ async function handle(request: NextRequest, ctx: { params: Promise<{ path: strin
   // The signed-in account, set here and nowhere else: the backend records it as the reviewer and ignores any typed name.
   const who = await sessionUser(cfg, request.cookies.get(SESSION_COOKIE)?.value);
   if (who && proxySecret) headers.set("x-gldb-reviewer", who);
+  // The spending page lists every account, including those that have not used the model: tell the backend which exist (names only).
+  if (proxySecret && cfg.mode === "enforce" && pathname === "/api/spending") headers.set("x-gldb-accounts", Object.keys(cfg.users).slice(0, 200).join(","));
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD" && request.body !== null;
   let exceeded = false;

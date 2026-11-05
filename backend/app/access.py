@@ -12,6 +12,10 @@ address in ``X-Forwarded-For``). This module is the second line of defence, inst
   only when the proxy secret matched, then stored as ``request.state.reviewer``; the review, check
   catalogue and delete endpoints record that name and ignore any name typed in the request. Without a
   proxy secret (local development, tests) the header is ignored.
+* **Which accounts exist.** On ``GET /spending`` only, the proxy also sends the names (never the
+  passwords) of every configured account in ``X-Gldb-Accounts``, believed under the same rule and
+  stored as ``request.state.accounts``, so the spending page can list an account that has not used the
+  model yet instead of only the ones that have.
 * **Per-client rate limits** (sliding window, in memory, single process): ``POST /cases`` at most
   ``GLDB_RATE_CASES_PER_HOUR`` per hour, review ``POST /cases/{id}/review`` at most
   ``GLDB_RATE_REVIEWS_PER_MIN`` per minute. The check catalogue writes (``PUT`` and ``DELETE``
@@ -56,6 +60,8 @@ log = logging.getLogger("gldb.access")
 
 PROXY_SECRET_HEADER = "x-gldb-proxy-secret"
 REVIEWER_HEADER = "x-gldb-reviewer"
+ACCOUNTS_HEADER = "x-gldb-accounts"
+MAX_LISTED_ACCOUNTS = 200
 _REVIEWER_OK = re.compile(r"^[a-z0-9._@-]{3,64}$")
 FORWARDED_FOR_HEADER = "x-forwarded-for"
 REQUEST_ID_HEADER = "X-Request-Id"
@@ -231,6 +237,17 @@ class AccessMiddleware:
                 who = headers.get(REVIEWER_HEADER, "").strip().lower()
                 if _REVIEWER_OK.match(who):
                     scope.setdefault("state", {})["reviewer"] = who
+                listed = {
+                    n
+                    for n in (
+                        p.strip().lower() for p in headers.get(ACCOUNTS_HEADER, "").split(",")
+                    )
+                    if _REVIEWER_OK.match(n)
+                }
+                if listed:
+                    scope.setdefault("state", {})["accounts"] = tuple(
+                        sorted(listed)[:MAX_LISTED_ACCOUNTS]
+                    )
             elif (
                 scope["type"] == "http"
                 and method == "GET"
