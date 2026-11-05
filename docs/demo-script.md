@@ -22,7 +22,7 @@ Ruleset `rs-02de835ec068`, today 2026-10-27 (injected, never the wall clock), se
 3. Open the case. **Findings** tab: expand the first finding, click **Show on page**: the viewer jumps to the page and draws the box on the printed cell.
 4. **Documents** tab: point at the document types and the issuer label; open **Received but not checked** (documents no check examined are listed, never hidden).
 5. **Graph** tab: the in-case entity graph (companies, directors, counterparties).
-6. **Review** tab: select the high flags, **Confirm**, type a reason. Pick the verdict **Refer for EDD review** (the lane suggests it, nothing is preselected), type a reason, submit. The case closes; the review log shows who decided and why.
+6. **Review** tab: select the high flags, **Confirm**, type a reason. Pick the verdict **Refer for enhanced due diligence** (the lane suggests it, nothing is preselected), type a reason, submit. The case closes; the review log shows who decided and why.
 7. **Case pack** (new tab): the evidence pack with flags, coverage and the review log.
 
 **Expected result** (from the acceptance run, digital):

@@ -28,7 +28,7 @@ export const API_BASE_URL = (
 ).replace(/\/+$/, "");
 
 export const LANE_LABELS: Record<Lane, string> = {
-  edd: "EDD review",
+  edd: "Enhanced due diligence",
   aml: "AML investigation",
   loan: "Loan decision",
   fast: "Fast lane",
@@ -37,7 +37,7 @@ export const LANE_LABELS: Record<Lane, string> = {
 export const VERDICT_LABELS: Record<Verdict, string> = {
   approve: "Approve",
   request_documents: "Request documents",
-  refer_edd: "Refer to EDD",
+  refer_edd: "Refer for enhanced due diligence",
   escalate_aml: "Escalate to AML investigation",
   reject_or_escalate: "Reject or escalate",
 };

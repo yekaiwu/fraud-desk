@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildCase, finding, flag, SPECS } from "@/lib/mock/fixtures";
 import type { CaseDetail } from "@/lib/types";
@@ -65,5 +66,21 @@ describe("VerdictForm suggestion badge", () => {
   it("shows the badge on the lane verdict for an elevated case", () => {
     render(<VerdictForm c={fraud} {...props} />);
     expect(screen.getByText("Suggested").closest("label")).toHaveTextContent("Reject or escalate");
+  });
+});
+
+describe("VerdictForm wording", () => {
+  const props = { onDone: vi.fn(), onSelectFlag: vi.fn(), onReload: vi.fn() };
+
+  it("spells out enhanced due diligence instead of the abbreviation, on the choice and on the reason step", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<VerdictForm c={cleanKyc} {...props} />);
+    const option = screen.getByRole("radio", { name: /Refer for enhanced due diligence/ });
+    expect(option.closest("label")).toHaveTextContent("Closes the case and hands it to the enhanced due diligence team");
+    expect(container.textContent).not.toMatch(/\bEDD\b/);
+    await user.click(option);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByText("What should the enhanced due diligence team look at first?")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\bEDD\b/);
   });
 });

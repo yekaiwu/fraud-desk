@@ -20,7 +20,7 @@ import { ReviewFields } from "./ReviewFields";
 export const VERDICT_CONSEQUENCE: Record<Verdict, string> = {
   approve: "Closes the case; every high flag must be decided first",
   request_documents: "Case waits for more documents; nothing is sent to the applicant",
-  refer_edd: "Closes the case for the EDD team",
+  refer_edd: "Closes the case and hands it to the enhanced due diligence team",
   escalate_aml: "Closes the case and records the suspicion-formed time now; compliance decides on an STR outside this tool",
   reject_or_escalate: "Closes the case; the credit decision stays with the bank",
 };
@@ -30,7 +30,7 @@ export const LANE_VERDICT: Record<Lane, Verdict> = { edd: "refer_edd", aml: "esc
 export const VERDICT_NEXT: Record<Verdict, string> = {
   approve: "The case is closed as approved. It leaves your worklist and stays in the review log.",
   request_documents: "The case now waits for documents. Nothing was sent to the applicant; ask for them yourself in neutral terms.",
-  refer_edd: "The case is closed and handed to the EDD team. It leaves your worklist.",
+  refer_edd: "The case is closed and handed to the enhanced due diligence team. It leaves your worklist.",
   escalate_aml: "The case is closed and the suspicion-formed time is recorded. Compliance decides on an STR outside this tool; this tool does not file one.",
   reject_or_escalate: "The case is closed. The credit decision stays with the bank; this tool does not send anything to the applicant.",
 };
@@ -46,7 +46,7 @@ const VERDICT_ICON: Record<Verdict, LucideIcon> = {
 const REASON_PROMPTS: Record<Verdict, string[]> = {
   approve: ["What evidence did you rely on?", "Why are the open concerns acceptable?"],
   request_documents: ["What evidence did you rely on?", "Which documents are missing or unclear?"],
-  refer_edd: ["What evidence did you rely on?", "What should the EDD team look at first?"],
+  refer_edd: ["What evidence did you rely on?", "What should the enhanced due diligence team look at first?"],
   escalate_aml: ["What evidence did you rely on?", "What made you suspect something, and since when?"],
   reject_or_escalate: ["What evidence did you rely on?", "Which findings drove this outcome?"],
 };
