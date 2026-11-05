@@ -23,7 +23,7 @@ describe("suggestedVerdict", () => {
     expect(suggestedVerdict(cleanAml)).toBeNull();
   });
 
-  it("does not suggest EDD referral for a clean KYC case", () => {
+  it("does not suggest enhanced due diligence referral for a clean KYC case", () => {
     expect(suggestedVerdict(cleanKyc)).toBeNull();
   });
 

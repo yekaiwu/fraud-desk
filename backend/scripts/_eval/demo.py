@@ -9,7 +9,7 @@ from scripts._eval import metrics as mx
 from scripts._eval.report import caught_via
 
 VERDICT_LABEL = {
-    "refer_edd": "Refer for EDD review",
+    "refer_edd": "Refer for enhanced due diligence review",
     "escalate_aml": "Escalate for AML investigation",
     "reject_or_escalate": "Reject or escalate",
     "approve": "Approve",

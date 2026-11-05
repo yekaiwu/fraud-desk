@@ -11,6 +11,12 @@ afterEach(cleanup);
 const spec = (id: string) => buildCase(SPECS.find((s) => s.id === id)!);
 const fraud: CaseDetail = { ...spec("c_loan_fraud"), allowed_verdicts: ["approve", "request_documents", "escalate_aml", "reject_or_escalate"] };
 const clean: CaseDetail = { ...spec("c_loan_clean"), allowed_verdicts: ["approve", "request_documents", "refer_edd"] };
+const kycElevated: CaseDetail = {
+  ...clean,
+  use_case: "kyc",
+  lane: "edd",
+  score: { ...clean.score!, value: 42, band: "medium" },
+};
 const partial = spec("c_loan_partial");
 
 function hero(c: CaseDetail, over: Partial<Parameters<typeof RecommendationHero>[0]> = {}) {
@@ -41,6 +47,12 @@ describe("topConcerns", () => {
 });
 
 describe("RecommendationHero", () => {
+  it("spells out enhanced due diligence in the suggested next step", () => {
+    hero(kycElevated);
+    expect(screen.getByRole("heading", { level: 2, name: "Refer for enhanced due diligence review" })).toBeInTheDocument();
+    expect(screen.queryByText(/\bEDD\b/)).toBeNull();
+  });
+
   it("leads with score, the labelled suggestion, the top reasons and the one way to decide", async () => {
     const user = userEvent.setup();
     const p = hero(fraud);
