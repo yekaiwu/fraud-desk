@@ -439,3 +439,25 @@ def test_delete_case_removes_everything_and_frees_files(db: Database) -> None:
         assert c.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0] == 1  # kept
     with pytest.raises(CaseNotFound):
         db.delete_case(gone.id)
+
+
+def test_recovery_also_turns_a_processing_case_without_a_job_into_error(db: Database) -> None:
+    from app.core.fingerprints import SqliteFingerprintStore
+
+    stuck = new_case(status="processing")
+    db.create_case(stuck)
+    SqliteFingerprintStore(db).record("invoice", "fp", case_id=stuck.id, document_id="d1")
+    fine = new_case(status="open")
+    db.create_case(fine)
+    running = new_case(status="processing")
+    db.create_case(running)
+    db.create_job(running.id, "analyse")  # interrupted: handled by the first half
+
+    assert db.recover_interrupted_jobs() != []
+    after = db.load_case(stuck.id)
+    assert after.status == "error" and after.partial
+    assert any(r.startswith("analysis_interrupted") for r in after.partial_reasons)
+    assert SqliteFingerprintStore(db).lookup("invoice", "fp") == []
+    assert db.load_case(fine.id).status == "open"
+    assert db.load_case(running.id).status == "error"
+    assert db.recover_interrupted_jobs() == []

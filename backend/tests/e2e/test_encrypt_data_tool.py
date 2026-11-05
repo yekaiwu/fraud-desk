@@ -34,7 +34,12 @@ def plain_source():  # noqa: ANN201
     run = run_bundle(bundle, tmp=root / "run")
     for n, ref in enumerate(run.case.files[:3]):
         run.db.files.put_render(ref.sha256, "1_1000.png", b"\x89PNG-fake-render-%d" % n)
-    AcraLookup(run.settings.data_dir / "registry-cache")._store("201681302M", {"name": "X"}, 1.0)
+    row = {  # a readable register row (an unreadable one is never served from the cache)
+        "uen": "201681302M",
+        "entity_name": "X PTE. LTD.",
+        "registration_incorporation_date": "2016-01-01",
+    }
+    AcraLookup(run.settings.data_dir / "registry-cache")._store("201681302M", row, 1.0)
     # a job error and a second case version, so every category has something
     run.db.save_case(run.db.load_case(run.case.id), snapshot_version=True)
     markers = sorted(set(NRIC.findall(run.case.model_dump_json())))

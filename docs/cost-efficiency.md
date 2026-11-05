@@ -132,7 +132,7 @@ The stage that hit the limit returns `StageOutcome(partial=True, partial_reason=
 
 | Breach | Text |
 |---|---|
-| pages | `budget_exceeded: max_pages (limit 200, used 237); 37 pages not processed` |
+| pages | `budget_exceeded: max_pages (limit 200, upload has 237); 37 pages not processed` |
 | calls | `budget_exceeded: max_calls (limit 100, used 100); 6 pages not extracted` (classify adds `; N items kept the rules result`) |
 | dollars | `budget_exceeded: max_usd (limit 2.00, used 2.003412); 6 pages not extracted` |
 
@@ -296,7 +296,7 @@ Unit tests use `FakeLLMClient`, a hand-built `PriceTable`, `make_ctx`, a temp SQ
 
 **Pipeline behaviour** (extract/ingest/e2e fixtures)
 8. **Calls cap**: 4 scan pages, `max_calls=2`, Fake with fixtures: `Fake.calls` length exactly 2; pages 3-4 `unreadable: page N: budget_exceeded`; document `partial`; `StageOutcome.partial_reason` starts `budget_exceeded: max_calls (limit 2, used 2)`; a text-layer document in the same case is fully extracted; forensics/rules/crossdoc/score stages ran (`StageRecord.status == "ok"`); `Case.partial` and `Score.partial` true; `Score.partial_reasons` contains the message verbatim; coverage ratio below 1.0.
-9. **Pages cap**: 5 pages with `max_pages=3`: 3 processed, 2 `not_processed`, message `budget_exceeded: max_pages (limit 3, used 5); 2 pages not processed`; the rest of the pipeline runs.
+9. **Pages cap**: 5 pages with `max_pages=3`: 3 processed, 2 `not_processed`, message `budget_exceeded: max_pages (limit 3, upload has 5); 2 pages not processed`; the rest of the pipeline runs.
 10. **Dollar cap** with a price table that makes each call cost `0.60`, `max_usd=1.00`: calls 1-2 succeed (second crosses), call 3 refused; overshoot bound asserted (`total <= limit + max_workers x per_call`).
 11. **Cache bypass of the cap**: after a tripped run, rerun with the same cache and a fresh meter: all earlier pages are hits (`calls_used == 0`), the remaining pages still hit the cap; message again present.
 12. **Never silent**: with the guard tripped, `case.partial_reasons` is non-empty and `GET /cases/{id}` carries it (api-backend test uses this fixture).

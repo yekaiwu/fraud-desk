@@ -466,3 +466,63 @@ def test_a_possible_match_on_a_person_says_what_to_compare(tmp_path: Path) -> No
     (f,) = v.x_sanctions_screen(c)
     assert "A name alone does not identify a person: many people share one." in f.explanation
     assert "date of birth, nationality and ID number" in f.explanation
+
+
+# ------------------------------------- one unanswered document must not throw away the flags found
+
+
+def test_iras_one_unreachable_number_keeps_the_flags_found_on_the_others(tmp_path: Path) -> None:
+    other = gst_inv("M2-7654321-0").model_copy(update={"id": "d5"})
+    c = ctx(
+        [gst_inv(), other],
+        settings(tmp_path, iras_api_key="key"),
+        {
+            "iras:M2-1234567-8": SourceOutcome("ok", data=gst(registered=False)),
+            "iras:M2-7654321-0": SourceOutcome("unavailable", "IRAS could not be asked (503)"),
+        },
+    )
+    (f,) = v.inv_gst_registered(c)
+    assert f.id.endswith("~not_registered") and f.document_ids == ["d4"]
+    assert "1 document(s) not looked up" in c.run_notes["inv_gst_registered"]
+    # every number unanswered: still a skip (counts as not run), as before
+    c = ctx(
+        [gst_inv()],
+        settings(tmp_path, iras_api_key="key"),
+        {"iras:M2-1234567-8": SourceOutcome("unavailable", "IRAS could not be asked (503)")},
+    )
+    assert "could not be asked" in skipped(v.inv_gst_registered, c).reason
+
+
+def test_iras_invoices_beyond_the_lookup_cap_are_reported_not_looked_up(tmp_path: Path) -> None:
+    from app.sources.runner import MAX_GST_LOOKUPS
+
+    ids = [f"M2-{i:07d}-0" for i in range(1, MAX_GST_LOOKUPS + 3)]
+    docs = [gst_inv(gid).model_copy(update={"id": f"d{i + 4}"}) for i, gid in enumerate(ids)]
+    sources = {
+        f"iras:{gid}": SourceOutcome("ok", data=gst(reg_id=gid, registered=False))
+        for gid in ids[:MAX_GST_LOOKUPS]
+    }
+    c = ctx(docs, settings(tmp_path, iras_api_key="key"), sources)
+    flags = v.inv_gst_registered(c)
+    assert len(flags) == MAX_GST_LOOKUPS  # no flag dropped
+    assert (
+        f"2 supplier number(s) not looked up (limit of {MAX_GST_LOOKUPS} per case)"
+        in (c.run_notes["inv_gst_registered"])
+    )
+
+
+def test_onemap_one_unreachable_postal_code_keeps_the_flags_found_on_the_others(
+    tmp_path: Path,
+) -> None:
+    second = profile("5 Orchard Road, Singapore 238841").model_copy(update={"id": "d9"})
+    c = ctx(
+        [profile("1 Raffles Place, Singapore 999999"), second],
+        settings(tmp_path, onemap_token="tok"),
+        {
+            "onemap:999999": SourceOutcome("ok", data=[]),
+            "onemap:238841": SourceOutcome("unavailable", "OneMap could not be asked (503)"),
+        },
+    )
+    (f,) = v.x_address_vs_registry(c)
+    assert f.id.endswith("~postal")
+    assert "not looked up" in c.run_notes["x_address_vs_registry"]

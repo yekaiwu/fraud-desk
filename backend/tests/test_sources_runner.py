@@ -204,3 +204,34 @@ def test_the_live_register_is_not_asked_in_private_mode_and_its_check_says_why(
     c2.case.applicant = APPLICANT
     with pytest.raises(pytest.fail.Exception, match="the register was asked"):
         pipeline.attach_live_entity(c2)
+
+
+def test_any_failure_of_a_source_is_unavailable_never_an_exception(tmp_path: Path) -> None:
+    def odd(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.gleif.org":
+            return httpx.Response(200, json={"data": [{"attributes": None}]})
+        return httpx.Response(200, json={"found": 1, "results": None})
+
+    s = settings(tmp_path, gleif="on", onemap_token="t", iras_api_key="k")
+    c = make(docs(), s)
+    client = mock(odd)
+    reasons = runner.attach_sources(c, clients={"gleif": client, "onemap": client, "iras": client})
+    assert {r.split(":")[0] for r in reasons} >= {"onemap_unavailable", "iras_unavailable"}
+    assert all(o.status in ("ok", "unavailable") for o in c.sources.values())
+
+
+def test_an_unexpected_error_in_an_adapter_marks_that_source_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.sources import gleif as gleif_mod
+
+    def broken(self, uen, name=None):  # noqa: ANN001, ANN202
+        raise AttributeError("'NoneType' object has no attribute 'get'")
+
+    monkeypatch.setattr(gleif_mod.GleifLookup, "lookup", broken)
+    s = settings(tmp_path, gleif="on")
+    c = make(docs(), s)
+    reasons = runner.attach_sources(c, clients={})
+    assert reasons == ["gleif_unavailable: GLEIF could not be asked"]
+    assert c.sources["gleif"].status == "unavailable"
+    assert "AttributeError" in c.sources["gleif"].reason

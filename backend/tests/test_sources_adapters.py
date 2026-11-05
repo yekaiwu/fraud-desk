@@ -385,3 +385,72 @@ def test_no_secret_reaches_a_log_line_or_an_error_message(caplog: pytest.LogCapt
     blob = "\n".join([*errors, *(r.getMessage() for r in caplog.records)])
     for secret in (SECRET, "SECRET-2", "pw-SECRET"):
         assert secret not in blob
+
+
+# ------------------------------------------------------- wrongly shaped answers and slow servers
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"attributes": None},
+        {"attributes": {"entity": None}},
+        {"attributes": {"entity": {"legalName": None}}},
+        {"attributes": []},
+        None,
+        "text",
+    ],
+)
+def test_gleif_wrong_shapes_never_raise_a_type_error(bad: object) -> None:
+    def by_name(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": [bad]})
+
+    try:
+        got = gleif.GleifLookup(client=mock(by_name)).lookup(UEN, "SINGAPORE AIRLINES LIMITED")
+    except SourceUnavailable:
+        return  # a clean "could not be asked" is as good as no record
+    assert got is None
+
+
+def test_gleif_attributes_null_in_a_name_search_with_a_uen() -> None:
+    def by_name(request: httpx.Request) -> httpx.Response:
+        if "filter[entity.legalName]" in request.url.params:
+            return httpx.Response(200, json={"data": [{"id": "X", "attributes": None}]})
+        return httpx.Response(200, json={"data": []})
+
+    assert gleif.GleifLookup(client=mock(by_name)).lookup(UEN, "SINGAPORE AIRLINES LIMITED") is None
+
+
+class _Drip(httpx.SyncByteStream):
+    """A body that arrives a few bytes at a time: every read is fast, the whole is slow."""
+
+    def __init__(self, pieces: int, pause_s: float):
+        self.pieces, self.pause_s = pieces, pause_s
+
+    def __iter__(self):  # noqa: ANN204
+        import threading
+
+        for _ in range(self.pieces):
+            threading.Event().wait(self.pause_s)  # (time.sleep is stubbed out by the fixture)
+            yield b" "
+
+
+def test_a_drip_feeding_server_is_cut_off_by_the_total_deadline() -> None:
+    import time
+
+    def drip(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=_Drip(20, 0.1))
+
+    started = time.monotonic()
+    with pytest.raises(SourceUnavailable, match="took longer"):
+        common.request_json(mock(drip), "GET", "https://x.test/", retries=0, total_s=0.35)
+    assert time.monotonic() - started < 1.0  # not the 2 s the body needs
+
+
+def test_request_json_still_reads_a_normal_answer_and_a_404() -> None:
+    ok = mock(lambda r: httpx.Response(200, json={"a": 1}))
+    assert common.request_json(ok, "GET", "https://x.test/") == (200, {"a": 1})
+    gone = mock(lambda r: httpx.Response(404))
+    assert common.request_json(gone, "GET", "https://x.test/", allow_404=True) == (404, None)
+    with pytest.raises(SourceUnavailable, match="not JSON"):
+        common.request_json(mock(lambda r: httpx.Response(200, text="<html>")), "GET", "https://x/")

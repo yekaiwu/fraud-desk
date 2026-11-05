@@ -358,3 +358,27 @@ def test_the_update_script_downloads_nothing_in_private_mode(
     monkeypatch.setattr(U.httpx, "Client", lambda *a, **k: pytest.fail("a connection was opened"))
     assert U.main([]) == 2
     assert "Private mode" in capsys.readouterr().err
+
+
+def test_a_lookalike_letter_does_not_hide_a_listed_name(screener) -> None:  # noqa: ANN001
+    # a Cyrillic a, o and e in an otherwise Latin name: the same person to a reader
+    for disguised in (
+        "Tariq Mikhail Aziz".replace("a", "а", 1),
+        "Tаriq Mikhаil Aziz",
+        "Тariq Mikhail Aziz",  # Cyrillic capital Te
+        "Tarіq Mikhail Aziz",  # Cyrillic i
+        "Tariq Mikhail Αziz",  # Greek capital Alpha
+    ):
+        (h,) = hits(screener, disguised, dob=date(1936, 7, 1))
+        assert (h.name_match, h.level, h.entry["id"]) == ("exact", "high", "un:1"), disguised
+
+
+def test_a_company_with_a_lookalike_letter_is_still_screened(screener) -> None:  # noqa: ANN001
+    (h,) = hits(screener, "Nоrthern Trading Company", kind="entity")  # Cyrillic o
+    assert h.entry["id"] == "un:3"
+
+
+def test_names_wholly_in_another_script_are_left_alone() -> None:
+    assert S.fold_confusables("Тарик") == "Тарик"
+    assert S.fold_confusables("Tariq") == "Tariq"
+    assert S.fold_confusables("Tаriq") == "Tariq"

@@ -203,3 +203,36 @@ def test_unknown_applicant_name_never_swallows_counterparties() -> None:
     )
     g = EntityGraph.build(ctx)
     assert len(g.flows()) == 1
+
+
+def test_a_name_of_only_invisible_characters_is_a_missing_name() -> None:
+    invisible = "​‮⁠"
+    g = build(
+        [
+            {"date": "2026-02-02", "credit": "9000.00", "cp": invisible},
+            {"date": "2026-02-03", "credit": "7000.00", "cp": "ACME TRADING PTE LTD"},
+        ]
+    )
+    assert len(g.flows()) == 1  # the unnamed row is dropped, the graph is still built
+    # and an invoice party of invisible characters is no party
+    inv = invoice_doc("d2", buyer=invisible)
+    EntityGraph.build(ctx_for([inv], use_case="aml", registry=False))
+
+
+def test_pass_through_window_at_the_edge_of_the_calendar_does_not_raise() -> None:
+    g = build(
+        [
+            {"date": "9999-12-31", "credit": "100000.00", "cp": "ALPHA TRADING PTE LTD"},
+            {"date": "9999-12-31", "debit": "98000.00", "cp": "BETA ENTERPRISE"},
+        ]
+    )
+    from decimal import Decimal as D
+
+    g.pass_through(
+        window_days=5,
+        tol_pct=D("0.05"),
+        min_amount=D("1000"),
+        min_pairs=1,
+        min_entities=1,
+        tolerance_abs=D("1"),
+    )

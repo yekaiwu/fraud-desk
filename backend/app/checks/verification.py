@@ -34,7 +34,7 @@ from app.names import (
     safe_text,
     sorted_rows,
 )
-from app.sources.runner import postal_codes, source_status
+from app.sources.runner import MAX_GST_LOOKUPS, postal_codes, source_status
 from app.sources.sanctions import SOURCE_LABELS, SOURCE_ORDER, Hit, Screener, Subject
 
 # --------------------------------------------------------------------------------------
@@ -56,6 +56,21 @@ def _outcome(ctx: CaseContext, source: str, key: str):  # noqa: ANN202
             out.status if out.status in ("not_configured", "private_mode") else None,
         )
     return out
+
+
+def _first_skip(skips: list[CheckSkipped]) -> CheckSkipped:
+    return skips[0]
+
+
+def _note_unasked(ctx: CaseContext, rule: str, skips: list[CheckSkipped], extra: str = "") -> None:
+    """Say on the run which documents the source could not answer for, so flags found on the others
+    are kept and the gap is still visible."""
+    if not skips and not extra:
+        return
+    parts = [extra] if extra else []
+    if skips:
+        parts.append(f"{len(skips)} document(s) not looked up ({skips[0].reason[:120]})")
+    ctx.run_notes[rule] = "; ".join(parts) + "."
 
 
 def _cell(doc: Document, name: str) -> str:
@@ -536,6 +551,7 @@ def _block_and_road(address: str) -> tuple[str | None, str]:
 )
 def x_address_vs_registry(ctx: CaseContext) -> list[Flag]:
     flags: list[Flag] = []
+    skips: list[CheckSkipped] = []
     asked = False
     for doc in _usable(ctx, "company_profile"):
         cell = doc.fields.get("registered_address")
@@ -544,7 +560,11 @@ def x_address_vs_registry(ctx: CaseContext) -> list[Flag]:
         if not address or not postals:
             continue
         postal = postals[0]
-        records = _outcome(ctx, "onemap", f"onemap:{postal}").data
+        try:
+            records = _outcome(ctx, "onemap", f"onemap:{postal}").data
+        except CheckSkipped as skip:  # this postal code could not be asked; the others still count
+            skips.append(skip)
+            continue
         asked = True
         region = labelled(cell_region(cell), "address")
         if not records:
@@ -606,14 +626,29 @@ def x_address_vs_registry(ctx: CaseContext) -> list[Flag]:
                     ),
                 )
             )
+    if skips and not asked and not flags:
+        raise _first_skip(skips)
     if not asked and not flags:
         raise CheckSkipped("no registered address with a postal code on the profile")
+    _note_unasked(ctx, "x_address_vs_registry", skips)
     return flags
 
 
 # --------------------------------------------------------------------------------------
 # inv_gst_registered
 # --------------------------------------------------------------------------------------
+
+
+def _beyond_cap(ctx: CaseContext) -> set[str]:
+    """Supplier ids on the invoices that the runner did not ask for (it asks the first MAX_GST_LOOKUPS)."""
+    ids = []
+    for doc in _usable(ctx, "invoice"):
+        ident = "".join(
+            (_cell(doc, "supplier_gst_no") or _cell(doc, "supplier_uen")).split()
+        ).upper()
+        if ident and ident not in ids:
+            ids.append(ident)
+    return set(ids[MAX_GST_LOOKUPS:])
 
 
 @check(
@@ -627,14 +662,24 @@ def x_address_vs_registry(ctx: CaseContext) -> list[Flag]:
 )
 def inv_gst_registered(ctx: CaseContext) -> list[Flag]:
     flags: list[Flag] = []
+    skips: list[CheckSkipped] = []
     asked = False
+    unlooked = 0
+    beyond = _beyond_cap(ctx)
     for doc in _usable(ctx, "invoice"):
         ident = "".join(
             (_cell(doc, "supplier_gst_no") or _cell(doc, "supplier_uen")).split()
         ).upper()
         if not ident:
             continue
-        status = _outcome(ctx, "iras", f"iras:{ident}").data
+        try:
+            status = _outcome(ctx, "iras", f"iras:{ident}").data
+        except CheckSkipped as skip:  # this number could not be asked; the others still count
+            if ident in beyond and not source_status(ctx.settings, "iras")[0]:
+                unlooked += 1  # past MAX_GST_LOOKUPS: not asked, said so on the run
+            else:
+                skips.append(skip)
+            continue
         asked = True
         gst_cell = doc.fields.get("supplier_gst_no") or doc.fields.get("supplier_uen")
         region = labelled(cell_region(gst_cell), "gst")
@@ -699,6 +744,18 @@ def inv_gst_registered(ctx: CaseContext) -> list[Flag]:
                     )
             except ValueError:
                 pass
-    if not asked:
+    if skips and not asked and not flags:
+        raise _first_skip(skips)
+    if not asked and not flags:
+        if unlooked:
+            raise CheckSkipped(
+                f"{unlooked} supplier number(s) not looked up (limit of {MAX_GST_LOOKUPS} per case)"
+            )
         raise CheckSkipped("no supplier GST number or UEN on the invoices")
+    extra = (
+        f"{unlooked} supplier number(s) not looked up (limit of {MAX_GST_LOOKUPS} per case)"
+        if unlooked
+        else ""
+    )
+    _note_unasked(ctx, "inv_gst_registered", skips, extra)
     return flags

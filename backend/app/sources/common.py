@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -18,7 +19,8 @@ from app.core.crypto import DecryptionError, Vault, ctx_registry, plaintext_vaul
 log = logging.getLogger("gldb.sources")
 
 USER_AGENT = "fraud-desk/0.1 (document-fraud research prototype)"
-TIMEOUT_S = 12.0
+TIMEOUT_S = 12.0  # per network read; the whole request is capped by REQUEST_TOTAL_S
+REQUEST_TOTAL_S = 20.0  # a server that drips bytes cannot keep one request open longer than this
 RETRIES = 2
 BACKOFF_S = 1.5
 HIT_TTL_S = 7 * 86400
@@ -62,6 +64,34 @@ def make_client(timeout_s: float = TIMEOUT_S) -> httpx.Client:
     return httpx.Client(timeout=timeout_s, headers={"User-Agent": USER_AGENT})
 
 
+def send_within(
+    client: httpx.Client,
+    method: str,
+    url: str,
+    total_s: float,
+    clock: Callable[[], float],
+    **kwargs: Any,
+) -> tuple[int, bytes]:
+    """One request whose whole answer (headers and body) must arrive within ``total_s``. The client's
+    own timeout is per read, so a server that sends a byte every few seconds would keep it open for
+    ever; the body is therefore read in pieces with the clock checked between them, and the per-read
+    timeout is never longer than what is left of the budget."""
+    end = clock() + total_s
+    request = client.build_request(
+        method, url, timeout=httpx.Timeout(max(0.1, min(TIMEOUT_S, total_s))), **kwargs
+    )
+    resp = client.send(request, stream=True)
+    try:
+        chunks: list[bytes] = []
+        for chunk in resp.iter_bytes():
+            chunks.append(chunk)
+            if clock() > end:
+                raise SourceUnavailable("the answer took longer than the time allowed")
+        return resp.status_code, b"".join(chunks)
+    finally:
+        resp.close()
+
+
 def request_json(
     client: httpx.Client,
     method: str,
@@ -70,6 +100,8 @@ def request_json(
     deadline: Deadline | None = None,
     allow_404: bool = False,
     retries: int = RETRIES,
+    total_s: float = REQUEST_TOTAL_S,
+    clock: Callable[[], float] = time.monotonic,
     **kwargs: Any,
 ) -> tuple[int, Any]:
     """``(status, parsed json)``. 404 returns ``(404, None)`` only with ``allow_404``. Rate limits and
@@ -80,12 +112,12 @@ def request_json(
     for attempt in range(retries + 1):
         if deadline is not None:
             deadline.check()
+        budget = total_s if deadline is None else min(total_s, deadline.remaining())
         try:
-            resp = client.request(method, url, **kwargs)
+            code, raw = send_within(client, method, url, budget, clock, **kwargs)
         except httpx.HTTPError as exc:
             last = type(exc).__name__
         else:
-            code = resp.status_code
             if code == 404 and allow_404:
                 return 404, None
             if code in TRANSIENT_STATUSES:
@@ -96,7 +128,7 @@ def request_json(
                 raise SourceUnavailable(f"answered {code}")
             else:
                 try:
-                    return code, resp.json()
+                    return code, json.loads(raw)
                 except ValueError:
                     raise SourceUnavailable("answered something that is not JSON") from None
         if attempt < retries:

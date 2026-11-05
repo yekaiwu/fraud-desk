@@ -10,13 +10,15 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from itertools import combinations
 
 from app.assemble import logical_docs
+from app.checks._dedupe import distinct_files
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
+from app.core.dates import add_days
 from app.core.models import Cell, Document, Flag, Region, Row, Table
 from app.core.money import approx_eq, fmt_money, quantize
 from app.core.textnorm import company_disc, company_key, company_match, uen_disc
@@ -69,7 +71,9 @@ def _regions(cells: list[Cell], limit: int = 4) -> list[Region]:
 def _docs(ctx: CaseContext, *types: str) -> list[Document]:
     # bank statements that arrived page by page are read as one statement; pieces that could not
     # be assembled are left out (the statement counts as not provided, and is reported as such)
-    return [d for d in logical_docs(ctx, *types, whole_only=True) if d.status in USABLE]
+    docs = [d for d in logical_docs(ctx, *types, whole_only=True) if d.status in USABLE]
+    # a byte-identical file uploaded twice counts once (file_reuse reports the repeat)
+    return distinct_files(ctx, docs)
 
 
 def _c(doc: Document, name: str) -> Cell:
@@ -126,7 +130,7 @@ def _period(doc: Document) -> tuple[date, date] | None:
 def _merge(intervals: list[tuple[date, date]]) -> list[tuple[date, date]]:
     out: list[tuple[date, date]] = []
     for s, e in sorted(intervals):
-        if out and s <= out[-1][1] + timedelta(days=1):
+        if out and s <= add_days(out[-1][1], 1):
             out[-1] = (out[-1][0], max(out[-1][1], e))
         else:
             out.append((s, e))
@@ -646,11 +650,11 @@ def x_invoice_vs_receipts(ctx: CaseContext) -> list[Flag]:
             uncovered.append((inv, "no invoice date"))
             continue
         paid_date = _c(inv, "paid_date").date_()
-        w_start = inv_date - timedelta(days=X_RECEIPT_EARLY_DAYS)
+        w_start = add_days(inv_date, -X_RECEIPT_EARLY_DAYS)
         w_end = (
-            paid_date + timedelta(days=X_RECEIPT_AFTER_PAID_DAYS)
+            add_days(paid_date, X_RECEIPT_AFTER_PAID_DAYS)
             if paid_date is not None
-            else inv_date + timedelta(days=X_RECEIPT_UNPAID_WINDOW_DAYS)
+            else add_days(inv_date, X_RECEIPT_UNPAID_WINDOW_DAYS)
         )
         same = [s for s in statements if _same_cur(_cur(inv), _cur(s))]
         if not same:
@@ -990,7 +994,7 @@ def x_invoice_vs_contract(ctx: CaseContext) -> list[Flag]:
                             explanation="The invoice date is outside the contract term.",
                         )
                     )
-                elif end is not None and inv_date > end + timedelta(days=X_CONTRACT_POST_END_DAYS):
+                elif end is not None and inv_date > add_days(end, X_CONTRACT_POST_END_DAYS):
                     flags.append(
                         make_flag(
                             "x_invoice_vs_contract",

@@ -102,6 +102,16 @@ def _sanctions(settings: Any, now: datetime) -> tuple[SourceOutcome, str | None]
     return SourceOutcome("ok", "", screener), None
 
 
+def _why(exc: Exception) -> str:
+    """What to say about a failed source. A SourceUnavailable message is written never to hold a
+    secret; anything else (an answer of an unexpected shape, a bug) is named by its class only."""
+    return (
+        str(exc)
+        if isinstance(exc, SourceUnavailable)
+        else f"unexpected answer: {type(exc).__name__}"
+    )
+
+
 def _docs(ctx: CaseContext, *types: str) -> list[Any]:
     return [d for d in ctx.docs(*types) if d.status in ("ok", "partial")]
 
@@ -149,7 +159,14 @@ def attach_sources(
 
     # --- sanctions (offline: a local file)
     if not source_status(s, "sanctions")[0]:
-        outcome, reason = _sanctions(s, now or datetime.now(UTC))
+        try:
+            outcome, reason = _sanctions(s, now or datetime.now(UTC))
+        except Exception as exc:  # noqa: BLE001 - a broken snapshot never stops the analysis
+            log.warning("sanctions screen failed for %s: %s", ctx.case.id, type(exc).__name__)
+            outcome = SourceOutcome(
+                "unavailable", f"the sanctions snapshot could not be used ({_why(exc)})"
+            )
+            reason = "sanctions_unavailable: no usable snapshot"
         ctx.sources["sanctions"] = outcome
         if reason:
             reasons.append(reason)
@@ -163,9 +180,11 @@ def attach_sources(
         try:
             record = GleifLookup(cache_dir, clients.get("gleif"), vault, deadline).lookup(uen, name)
             ctx.sources["gleif"] = SourceOutcome("ok", data=record)
-        except SourceUnavailable as exc:
-            log.warning("GLEIF unavailable for %s: %s", ctx.case.id, exc)
-            ctx.sources["gleif"] = SourceOutcome("unavailable", f"GLEIF could not be asked ({exc})")
+        except Exception as exc:  # noqa: BLE001 - any failure of a source makes it unavailable
+            log.warning("GLEIF unavailable for %s: %s", ctx.case.id, _why(exc))
+            ctx.sources["gleif"] = SourceOutcome(
+                "unavailable", f"GLEIF could not be asked ({_why(exc)})"
+            )
             reasons.append("gleif_unavailable: GLEIF could not be asked")
 
     # --- OneMap
@@ -186,10 +205,10 @@ def attach_sources(
         ):
             try:
                 ctx.sources[f"onemap:{postal}"] = SourceOutcome("ok", data=lookup.lookup(postal))
-            except SourceUnavailable as exc:
-                log.warning("OneMap unavailable for %s: %s", ctx.case.id, exc)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("OneMap unavailable for %s: %s", ctx.case.id, _why(exc))
                 ctx.sources[f"onemap:{postal}"] = SourceOutcome(
-                    "unavailable", f"OneMap could not be asked ({exc})"
+                    "unavailable", f"OneMap could not be asked ({_why(exc)})"
                 )
                 failed = True
         if failed:
@@ -211,10 +230,10 @@ def attach_sources(
         for reg_id in ids:
             try:
                 ctx.sources[f"iras:{reg_id}"] = SourceOutcome("ok", data=iras.lookup(reg_id))
-            except SourceUnavailable as exc:
-                log.warning("IRAS unavailable for %s: %s", ctx.case.id, exc)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("IRAS unavailable for %s: %s", ctx.case.id, _why(exc))
                 ctx.sources[f"iras:{reg_id}"] = SourceOutcome(
-                    "unavailable", f"IRAS could not be asked ({exc})"
+                    "unavailable", f"IRAS could not be asked ({_why(exc)})"
                 )
                 failed = True
         if failed:

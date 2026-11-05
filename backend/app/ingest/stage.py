@@ -236,7 +236,7 @@ def _run(ctx: CaseContext) -> StageOutcome:
         limits = ctx.costs.limits
         state.partial_reasons.insert(
             0,
-            f"budget_exceeded: max_pages (limit {limits.max_pages}, used {ctx.costs.pages_used}); "
+            f"budget_exceeded: max_pages (limit {limits.max_pages}, upload has {ctx.costs.pages_used}); "
             f"{page_budget} pages not processed",
         )
 

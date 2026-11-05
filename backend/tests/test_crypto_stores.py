@@ -585,7 +585,12 @@ def test_register_cache_is_encrypted_and_a_wrong_key_is_a_miss(tmp_path: Path) -
 
     v = vault_of("k1")
     cache = AcraLookup(tmp_path / "rc", vault=v)
-    cache._store("201912345R", {"entity_name": NAME}, 100.0)
+    row = {
+        "uen": "201912345R",
+        "entity_name": NAME,
+        "registration_incorporation_date": "2019-01-01",
+    }
+    cache._store("201912345R", row, 100.0)
     raw = (tmp_path / "rc" / "acra-201912345R.json").read_bytes()
     assert Vault.is_encrypted(raw) and NAME.encode() not in raw
     hit, entity = cache._cached("201912345R", 101.0)

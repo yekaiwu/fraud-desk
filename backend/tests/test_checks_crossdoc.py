@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from datetime import date
 
 import pytest
 
-from app.checks.registry import all_checks, run_stage_checks
+from app.checks.registry import CheckSkipped, all_checks, run_stage_checks
 from app.core.fingerprints import MemoryFingerprintStore
 from app.core.models import Annotation, Applicant, Document, FileRef
 from app.core.testing import make_doc
@@ -828,3 +829,43 @@ def test_annotation_import_is_used_for_c4_fixtures() -> None:
     doc = march_statement("d3")
     assert doc.tables["transactions"].rows[0].annotations["c4"].label == ann.label
     assert date.fromisoformat(doc.fields["period_end"].value) > date(2026, 3, 1)
+
+
+# ---------------------------------------------------------------- a double click, and open-ended dates
+
+
+def test_x_receipts_a_byte_identical_second_upload_is_not_counted_twice() -> None:
+    march, april = _march_april(
+        [R("2026-04-03", "FAST PAYMENT FROM ACME", None, "10900.00", BUYER, "trade_receipt")]
+    )
+    same = [(_fileref("f1"), b"%PDF-inv"), (_fileref("f2"), b"%PDF-inv")]
+    copy = _paid("d2").model_copy(update={"file_id": "f2"})
+    ctx = ctx_of(_paid("d1"), copy, march, april, files=same)
+    assert run_rule("x_invoice_vs_receipts", ctx) == []
+    # control: the same invoice read from two different files does need two deposits
+    other = ctx_of(_paid("d1"), _paid("d2"), march, april)
+    assert len(run_rule("x_invoice_vs_receipts", other)) == 1
+
+
+def test_x_contract_open_ended_end_date_does_not_raise() -> None:
+    contract = make_contract(fields={"end_date": "9999-12-31"})
+    assert run_rule("x_invoice_vs_contract", ctx_of(_cited(), contract)) == []
+    # and an invoice dated at the edge of the calendar neither
+    late = _cited(invoice_date="9999-12-31", due_date=None)
+    run_rule("x_invoice_vs_contract", ctx_of(late, make_contract()))
+
+
+def test_x_receipts_dates_at_the_edge_of_the_calendar_do_not_raise() -> None:
+    march, april = _march_april(
+        [R("2026-04-03", "FAST PAYMENT", None, "10900.00", BUYER, "trade_receipt")]
+    )
+    for fields in ({"paid_date": "9999-12-31"}, {"payment_status": "paid", "paid_date": None}):
+        inv = _paid("d1", invoice_date="9999-12-31", **fields)
+        with contextlib.suppress(CheckSkipped):  # a skip is fine, an OverflowError is the bug
+            run_rule("x_invoice_vs_receipts", ctx_of(inv, march, april))
+
+
+def test_the_clean_case_with_an_open_ended_contract_keeps_all_its_checks() -> None:
+    ctx = ctx_of(*clean_bundle(), make_contract(fields={"end_date": "9999-12-31"}))
+    runs = run_stage_checks(ctx, "crossdoc")
+    assert [r.rule for r in runs if r.status == "error"] == []

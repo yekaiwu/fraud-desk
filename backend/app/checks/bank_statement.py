@@ -16,7 +16,7 @@ import re
 from bisect import bisect_right
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from fractions import Fraction
 
@@ -25,7 +25,8 @@ from rapidfuzz import fuzz
 from app.assemble import AssembledStatement, logical_docs
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
-from app.core.models import Cell, Document, Flag, Region, Row, Table, truncate
+from app.core.dates import add_days
+from app.core.models import Cell, Document, Flag, ReadingNote, Region, Row, Table, truncate
 from app.core.money import approx_eq, fmt_money, quantize
 from app.core.textnorm import company_disc, company_keys, company_match, normalise_uen, uen_disc
 
@@ -177,8 +178,10 @@ def bs_running_balance(ctx: CaseContext) -> list[Flag]:
     evaluated = 0
     evaluated_docs: list[Document] = []
     skipped_docs: list[Document] = []
+    whole = _whole_statements(ctx)
     for doc in _statements(ctx):
-        flag = _check_statement(ctx, doc)
+        opening, source = _opening_of(doc, whole)
+        flag = _check_statement(ctx, doc, opening, source)
         if flag is _NOT_EVALUATED:
             skipped_docs.append(doc)
             continue
@@ -189,7 +192,110 @@ def bs_running_balance(ctx: CaseContext) -> list[Flag]:
     if evaluated == 0:
         raise CheckSkipped("no statement with an opening balance and a balance column")
     flags += _missing_balance_flags(skipped_docs, evaluated_docs)
+    for doc in evaluated_docs:
+        if doc in whole and _fmoney(doc, "opening_balance") is None:
+            flags += _no_opening_flags(doc, whole, "bs_running_balance")
     return flags
+
+
+# ---------------------------------------------------------------------------------------------
+# a statement whose opening balance is not printed (blanked, or an edited page that dropped it)
+# ---------------------------------------------------------------------------------------------
+
+
+def _account_key(doc: Document) -> str:
+    return _acct_key(doc) or _ftext(doc, "bank_name").upper()
+
+
+def _previous_closing(doc: Document, whole: list[Document]) -> Decimal | None:
+    """The closing balance of the statement of the same account (and currency) that ends the day
+    before, or on the day, this one starts; None when the case holds no such statement."""
+    key, start = _account_key(doc), _fdate(doc, "period_start")
+    if not key or start is None:
+        return None
+    best: tuple[date, Decimal] | None = None
+    for other in whole:
+        if other is doc or _account_key(other) != key or _currency(other) != _currency(doc):
+            continue
+        end, closing = _fdate(other, "period_end"), _fmoney(other, "closing_balance")
+        if end is None or closing is None or not 0 <= (start - end).days <= 1:
+            continue  # not the neighbour: with a gap or an overlap the balances legitimately differ
+        if best is None or end > best[0]:
+            best = (end, closing)
+    return best[1] if best is not None else None
+
+
+def _opening_of(doc: Document, whole: list[Document]) -> tuple[Decimal | None, str]:
+    """``(opening balance, where it came from)``: the printed one, else the closing balance of the
+    previous statement of the same account ("previous"), else ``(None, "none")``."""
+    printed = _fmoney(doc, "opening_balance")
+    if printed is not None:
+        return printed, "printed"
+    previous = _previous_closing(doc, whole)
+    if previous is not None:
+        return previous, "previous"
+    return None, "none"
+
+
+def _no_opening_flags(doc: Document, whole: list[Document], rule: str) -> list[Flag]:
+    """LOW flag "opening balance not printed" when the other statements of this account print one
+    and at least one of them comes earlier (the first statement of a newly opened account has no
+    opening balance to print).
+
+    Blanking the opening balance used to switch off the running-balance, totals and continuity checks
+    together, so an edited credit passed unseen. The checks now work around the gap where they can
+    (the previous statement's closing balance, else the first printed balance), but this statement
+    is still not fully checked: the flag says so, and it carries a reading note so that coverage
+    counts the check as not settled for the case. Low, not higher: the cause is as often a template
+    quirk as a tamper, and the rows after the first printed balance are still checked."""
+    key = _account_key(doc)
+    siblings = [
+        d
+        for d in whole
+        if d is not doc and key and _account_key(d) == key and _fmoney(d, "opening_balance")
+    ]
+    if not siblings:
+        return []
+    start = _fdate(doc, "period_start")
+    if start is not None and all(
+        (other_start := _fdate(d, "period_start")) is not None and other_start >= start
+        for d in siblings
+    ):
+        return []  # the earliest statement of the account: nothing before it to carry a balance
+    previous = _previous_closing(doc, whole)
+    how = (
+        "its rows were checked from the closing balance of the previous statement"
+        if previous is not None
+        else "its rows were checked only from the first printed balance"
+    )
+    evidence = (
+        f"opening balance not printed on {doc.id}, while {len(siblings)} other statement(s) of the "
+        f"same account print one; {how}"
+    )
+    flag = make_flag(
+        rule,
+        docs=[doc],
+        field="opening_balance",
+        region=_box(_field(doc, "opening_balance"), "opening balance"),
+        severity="low",
+        discriminator="no_opening",
+        evidence=evidence,
+        explanation=(
+            "This statement has no opening balance although the other statements of the account "
+            "print one, so it could not be checked in full. Compare it with the page image."
+        ),
+    )
+    return [
+        flag.model_copy(
+            update={
+                "reading": ReadingNote(
+                    severity="low",
+                    kind="opening_not_printed",
+                    cells=[f"{doc.id} opening balance: not printed"],
+                )
+            }
+        )
+    ]
 
 
 def _missing_balance_flags(skipped: list[Document], evaluated: list[Document]) -> list[Flag]:
@@ -237,17 +343,24 @@ _NOT_EVALUATED = object()
 _MONEY_TOKEN = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2}")
 
 
-def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | None | sentinel
+def _check_statement(  # noqa: ANN202 - Flag | None | sentinel
+    ctx: CaseContext, doc: Document, opening: Decimal | None, source: str = "printed"
+):
+    """Walk the rows from the opening balance. ``source`` says where it came from: "printed", or
+    "previous" (the closing balance of the previous statement of the account, used when this one
+    prints none). With no opening balance at all the first printed balance is the anchor and every
+    row after it is checked (the first row's own amount cannot be); a statement where that leaves
+    nothing to compare is not evaluated."""
     table = doc.tables.get("transactions")
-    opening = doc.fields["opening_balance"].money() if "opening_balance" in doc.fields else None
-    if table is None or not table.rows or opening is None:
+    if table is None or not table.rows:
         return _NOT_EVALUATED
     if not any(r.cells["balance"].money() is not None for r in table.rows):
         return _NOT_EVALUATED
 
     tol = _tol(ctx)
     anchor = opening
-    anchor_label = "previous"
+    anchor_label = "previous" if source == "printed" else "previous statement's closing"
+    compared = 0
     anchor_row: int | None = None  # 0-based index of the anchor row; None = opening balance
     net = ZERO
     first_since: int | None = None
@@ -272,6 +385,12 @@ def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | 
             continue
         if debit is None and credit is None and balance is None:
             continue  # nothing printed on this row
+        if (
+            anchor is None
+        ):  # no opening balance: rows before the first printed balance are unchecked
+            if balance is not None:
+                anchor, anchor_label, anchor_row = balance, "first printed balance", i
+            continue
         for col, value in (("credit", credit), ("debit", debit)):
             raw = (row.cells[col].raw or "").strip()
             if value is None and raw:
@@ -288,6 +407,7 @@ def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | 
             continue  # carried forward to the next printed balance
 
         expected = anchor + net
+        compared += 1
         if not approx_eq(expected, balance, tol):
             if first_break is None:
                 first_break = {
@@ -309,6 +429,8 @@ def _check_statement(ctx: CaseContext, doc: Document):  # noqa: ANN202 - Flag | 
         anchor, anchor_label, anchor_row = balance, "previous", i
         net, first_since, amount_parts, unread = ZERO, None, [], []
 
+    if compared == 0:
+        return _NOT_EVALUATED
     if first_break is None:
         return None
     return _build_flag(doc, table, first_break, later)
@@ -341,6 +463,8 @@ def _build_flag(doc: Document, table, brk: dict, later: int) -> Flag:  # noqa: A
             f"anchor row {brk['anchor_row'] + 1} balance"
             if brk["anchor_row"] is not None
             else "opening balance"
+            if brk["anchor_label"] == "previous"
+            else "closing balance of the previous statement"
         )
         evidence = (
             f"{anchor_text} {fmt_money(anchor)} + net {fmt_money(brk['net'])} since row "
@@ -425,12 +549,19 @@ def bs_totals(ctx: CaseContext) -> list[Flag]:
     tol = _tol(ctx)
     flags: list[Flag] = []
     evaluated = 0
-    for doc in _whole_statements(ctx):
+    whole = _whole_statements(ctx)
+    for doc in whole:
         table = doc.tables.get("transactions")
-        opening = _fmoney(doc, "opening_balance")
+        opening, _source = _opening_of(doc, whole)  # printed, else the previous statement's closing
         closing = _fmoney(doc, "closing_balance")
-        if table is None or not table.rows or opening is None or closing is None:
+        if table is None or not table.rows or closing is None:
             continue
+        if opening is None:
+            # nothing to close the equation with; the printed totals can still be checked, and a
+            # statement whose siblings print an opening balance is reported as not fully checked
+            flags += _no_opening_flags(doc, whole, "bs_totals")
+            if all(_fmoney(doc, n) is None for n in ("total_debits", "total_credits")):
+                continue
         evaluated += 1
         credits = debits = ZERO
         n_credit = n_debit = invalid = 0
@@ -457,9 +588,9 @@ def bs_totals(ctx: CaseContext) -> list[Flag]:
                 used[f"credit row {i + 1}"] = row.cells["credit"]
         note = f"; {invalid} invalid row(s) excluded" if invalid else ""
 
-        expected = quantize(opening + credits - debits)
+        expected = quantize(opening + credits - debits) if opening is not None else None
         opening_cell, closing_cell = _field(doc, "opening_balance"), _field(doc, "closing_balance")
-        if not approx_eq(expected, closing, tol):
+        if opening is not None and expected is not None and not approx_eq(expected, closing, tol):
             cells = {"opening_balance": opening_cell, "closing_balance": closing_cell, **used}
             unread_note, fits = "", []
             for r, col, raw, _cell in unread:
@@ -571,7 +702,7 @@ def _gap_explained(
     that together cover every day between the two statements. A page without a period, or one
     that covers only part of the gap, explains nothing: one stray page must not hide a month
     that is absent."""
-    first, last = a_end + timedelta(days=1), b_start - timedelta(days=1)
+    first, last = add_days(a_end, 1), add_days(b_start, -1)
     spans = sorted(
         (max(start, first), min(end, last))
         for piece_acct, start, end in pieces
@@ -581,9 +712,9 @@ def _gap_explained(
         and start <= last
         and end >= first
     )
-    reached = first - timedelta(days=1)  # last day covered so far
+    reached = add_days(first, -1)  # last day covered so far
     for start, end in spans:
-        if start > reached + timedelta(days=1):
+        if start > add_days(reached, 1):
             return False
         reached = max(reached, end)
     return reached >= last
@@ -605,7 +736,8 @@ def _gap_explained(
 def bs_period_continuity(ctx: CaseContext) -> list[Flag]:
     tol = _tol(ctx)
     groups: dict[tuple[str, str], list[tuple[date, date, Document]]] = defaultdict(list)
-    for doc in _whole_statements(ctx):
+    whole = _whole_statements(ctx)
+    for doc in whole:
         start, end = _fdate(doc, "period_start"), _fdate(doc, "period_end")
         acct = _acct_key(doc)
         if not acct or start is None or end is None:
@@ -630,6 +762,9 @@ def bs_period_continuity(ctx: CaseContext) -> list[Flag]:
                 # Contiguous periods: closing of A must equal opening of B. With a gap or an
                 # overlap the balances legitimately differ, so they are not compared then.
                 closing, opening = _fmoney(a, "closing_balance"), _fmoney(b, "opening_balance")
+                if opening is None and closing is not None:
+                    # nothing to compare with: said so, not left as "ran, no flag"
+                    flags += _no_opening_flags(b, whole, "bs_period_continuity")
                 if closing is None or opening is None or approx_eq(closing, opening, tol):
                     continue
                 cells = {
@@ -790,7 +925,6 @@ def _date_flags(ctx: CaseContext, doc: Document) -> list[Flag] | None:
     ):
         return None
     today = ctx.today
-    grace = timedelta(days=BS_DATE_GRACE_DAYS)
 
     def date_flag(i: int, evidence: str, explanation: str, disc: str) -> dict:
         assert table is not None
@@ -840,7 +974,9 @@ def _date_flags(ctx: CaseContext, doc: Document) -> list[Flag] | None:
         order.append(date_flag(i, evidence, f"The date on row {i + 1} is out of order.", "order"))
 
     for i, d in dated:
-        if (start is not None and d < start - grace) or (end is not None and d > end + grace):
+        if (start is not None and d < add_days(start, -BS_DATE_GRACE_DAYS)) or (
+            end is not None and d > add_days(end, BS_DATE_GRACE_DAYS)
+        ):
             span = f"{start.isoformat() if start else '?'}..{end.isoformat() if end else '?'}"
             out_of_range.append(
                 date_flag(

@@ -25,7 +25,7 @@ def test_page_cap_processes_first_pages_only(tmp_path: Path) -> None:
     assert ("f2", 2) not in ctx.page_words
     assert outcome.partial is True
     assert outcome.partial_reason == (
-        "budget_exceeded: max_pages (limit 3, used 6); 3 pages not processed"
+        "budget_exceeded: max_pages (limit 3, upload has 6); 3 pages not processed"
     )
     assert outcome.detail["not_processed_pages"] == 3 and outcome.detail["unreadable_pages"] == 0
 
@@ -34,7 +34,7 @@ def test_page_cap_message_form_from_the_spec(tmp_path: Path) -> None:
     ctx = ctx_with_files(tmp_path, [make_pdf([lines_page(BODY)] * 5)], max_pages_per_case=3)
     outcome = run_stage(ctx)
     assert outcome.partial_reason == (
-        "budget_exceeded: max_pages (limit 3, used 5); 2 pages not processed"
+        "budget_exceeded: max_pages (limit 3, upload has 5); 2 pages not processed"
     )
 
 

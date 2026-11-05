@@ -164,6 +164,10 @@ def record_fingerprints(ctx: CaseContext) -> int:
     if callable(forget):
         forget(case.id)
     uen = case.applicant.uen
+    # who sent it, so a later case can tell its own applicant's resubmission from someone else's copy
+    who: dict[str, Any] = {"applicant_uen": uen}
+    if key := company_key(case.applicant.name or ""):
+        who["applicant_key"] = key
     count = 0
     for f in case.files:
         first = next((d for d in ctx.docs() if d.file_id == f.id), None)
@@ -172,7 +176,7 @@ def record_fingerprints(ctx: CaseContext) -> int:
             f.sha256,
             case_id=case.id,
             document_id=first.id if first else None,
-            meta={"applicant_uen": uen, "doc_type": first.doc_type if first else None},
+            meta={**who, "doc_type": first.doc_type if first else None},
         )
         count += 1
     for doc in ctx.docs("invoice"):
@@ -180,7 +184,7 @@ def record_fingerprints(ctx: CaseContext) -> int:
         number = _cell_text(doc, "invoice_number")
         date_ = _cell_text(doc, "invoice_date")
         total = _cell_text(doc, "total")
-        meta = {"applicant_uen": uen, "doc_type": "invoice"}
+        meta = {**who, "doc_type": "invoice"}
         if supplier and number and date_ and total:
             store.record(
                 "invoice",
@@ -209,7 +213,7 @@ def record_fingerprints(ctx: CaseContext) -> int:
                 receipt_fingerprint(merchant, date_, total, _cell_text(doc, "receipt_number")),
                 case_id=case.id,
                 document_id=doc.id,
-                meta={"applicant_uen": uen, "doc_type": "receipt"},
+                meta={**who, "doc_type": "receipt"},
             )
             count += 1
     count += _record_crop_fingerprints(ctx)
@@ -314,7 +318,7 @@ def attach_live_entity(ctx: CaseContext) -> None:
     ):  # private mode: the register is not asked, and the check says why (outside coverage)
         ctx.sources["acra"] = SourceOutcome("blocked", blocked)
         return
-    from app.registry_live import AcraLookup, RegistryUnavailable, with_live_entity
+    from app.registry_live import AcraLookup, with_live_entity
 
     try:
         ctx.registry = with_live_entity(
@@ -328,7 +332,7 @@ def attach_live_entity(ctx: CaseContext) -> None:
                 private=ctx.settings.private_mode == "on",
             ),
         )
-    except RegistryUnavailable as exc:
+    except Exception as exc:  # noqa: BLE001 - RegistryUnavailable, or anything the register sent back
         log.warning("live registry unavailable for %s: %s", ctx.case.id, exc)
         ctx.registry = None
         _add_reason(ctx.case, "registry_unavailable: the company register could not be asked")
@@ -388,38 +392,41 @@ def run_pipeline(
     if looks_analysed(case):
         case = prepare_rerun(db, case_id)  # version + 1, old version snapshotted
 
-    cache = ResponseCache(db, enabled=settings.cache_enabled)
-    if registry is None:
-        try:
-            registry = load_registry(settings.registry_path)
-        except ValueError as exc:  # malformed registry: registry checks skip, and we say so
-            log.warning("registry unusable: %s", exc)
-            _add_reason(case, "registry_unreadable: registry checks did not run")
-    prices = PriceTable.load(settings.prices_path)
-    custom_rules, custom_warning = _load_custom_rules(db, settings, account)
-    ctx = CaseContext(
-        case=case,
-        today=case.today,
-        settings=settings,
-        llm=llm if llm is not None else get_llm_client(settings, cache=cache),
-        registry=registry,
-        fingerprints=SqliteFingerprintStore(db),
-        costs=CostMeter(
-            BudgetLimits.from_settings(settings),
-            prices,
-            daily=DailySpend.from_settings(db, settings, prices, account=account),
-        ),
-        cache=cache,
-        page_words={},
-        overrides=db.rule_overrides(),  # check catalogue: read once, applies to this run only
-        custom_rules=custom_rules,
-    )
-    if custom_warning:
-        ctx.costs.add_warning(custom_warning)
-    case.status = "processing"
-    db.save_case(case)
-
+    # From here the case is "processing". Everything that can raise, setting up included (prices,
+    # registry, model client, daily spend), sits inside this try, so a failure leaves the case in
+    # "error" and never "processing" for ever (a rerun, a delete and the queue refuse such a case).
     try:
+        cache = ResponseCache(db, enabled=settings.cache_enabled)
+        if registry is None:
+            try:
+                registry = load_registry(settings.registry_path)
+            except Exception as exc:  # noqa: BLE001 - registry checks skip, and we say so
+                log.warning("registry unusable: %s", exc)
+                _add_reason(case, "registry_unreadable: registry checks did not run")
+        prices = PriceTable.load(settings.prices_path)
+        custom_rules, custom_warning = _load_custom_rules(db, settings, account)
+        ctx = CaseContext(
+            case=case,
+            today=case.today,
+            settings=settings,
+            llm=llm if llm is not None else get_llm_client(settings, cache=cache),
+            registry=registry,
+            fingerprints=SqliteFingerprintStore(db),
+            costs=CostMeter(
+                BudgetLimits.from_settings(settings),
+                prices,
+                daily=DailySpend.from_settings(db, settings, prices, account=account),
+            ),
+            cache=cache,
+            page_words={},
+            overrides=db.rule_overrides(),  # check catalogue: read once, applies to this run only
+            custom_rules=custom_rules,
+        )
+        if custom_warning:
+            ctx.costs.add_warning(custom_warning)
+        case.status = "processing"
+        db.save_case(case)
+
         for stage in STAGES:
             if stage == "forensics":
                 case.applicant = resolve_applicant(ctx)
@@ -431,16 +438,40 @@ def run_pipeline(
             record_fingerprints(ctx)
         except Exception:
             log.exception("fingerprint recording failed for %s", case.id)
+        # one answer to "is this case partial": a check that raised makes the score partial (see
+        # score.collect_partial_reasons), and the case says so too
+        if case.score is not None and case.score.partial:
+            case.partial = True
         case.status = "open"
         db.save_case(case, snapshot_version=True)
-    except BaseException:
+    except BaseException as exc:
         case.status = "error"
+        try:  # an errored case must not make later invoices look like duplicates of its own
+            SqliteFingerprintStore(db).forget_case(case.id)
+        except Exception:  # noqa: BLE001
+            log.exception("could not forget the fingerprints of %s", case.id)
+        if isinstance(exc, Exception):
+            _add_reason(case, f"analysis_failed: {_short_error(exc)}")
         try:
             db.save_case(case)
         except Exception:  # noqa: BLE001
             log.exception("could not persist error status for %s", case.id)
         raise
     return case
+
+
+def mark_case_error(db: Database, case_id: str, reason: str) -> None:
+    """Move a case that is still "processing" to "error" and say why. For a job that could not even
+    start, so the case is never left waiting for an analysis that is not coming. Never raises."""
+    try:
+        case = db.load_case(case_id)
+        if case.status != "processing":
+            return
+        case.status = "error"
+        _add_reason(case, reason)
+        db.save_case(case)
+    except Exception:  # noqa: BLE001
+        log.exception("could not mark case %s as error", case_id)
 
 
 def _run_one_stage(
@@ -540,10 +571,25 @@ class JobRunner:
         job = self.db.create_job(case_id, kind)
         if account:
             self._accounts[job.id] = account
-        future = self._pool.submit(self._run, job.id, case_id)
+        try:
+            future = self._pool.submit(self._run, job.id, case_id)
+        except BaseException as exc:  # the pool refused the job (shut down, no threads)
+            self._accounts.pop(job.id, None)
+            self._fail(job.id, case_id, exc)
+            raise
         with self._lock:
             self._futures[job.id] = future
         return job
+
+    def _fail(self, job_id: str, case_id: str, exc: BaseException) -> None:
+        """The job failed (or never started): record it, and never leave its case "processing"."""
+        try:
+            self.db.update_job(
+                job_id, state="failed", finished_at=utcnow(), error=_short_error(exc)
+            )
+        except Exception:  # noqa: BLE001
+            log.exception("could not record the failure of job %s", job_id)
+        mark_case_error(self.db, case_id, f"analysis_failed: {_short_error(exc)}")
 
     def wait(self, job_id: str, timeout: float | None = None) -> JobRecord:
         """Block until the job finished (for tests and scripts)."""
@@ -570,8 +616,8 @@ class JobRunner:
                 stages.append(rec)
             self.db.update_job(job_id, stages=stages)
 
-        self.db.update_job(job_id, state="running", started_at=utcnow())
         try:
+            self.db.update_job(job_id, state="running", started_at=utcnow())
             run_pipeline(
                 case_id,
                 db=self.db,
@@ -583,8 +629,6 @@ class JobRunner:
             )
         except Exception as exc:  # noqa: BLE001
             log.exception("job %s failed", job_id)
-            self.db.update_job(
-                job_id, state="failed", finished_at=utcnow(), error=_short_error(exc)
-            )
+            self._fail(job_id, case_id, exc)
             return
         self.db.update_job(job_id, state="succeeded", finished_at=utcnow(), stages=stages)

@@ -449,11 +449,20 @@ def test_running_balance_skips_when_unevaluable() -> None:
 
     for doc in (
         statement([]),
-        statement(F_BS_1, opening=None),
+        # no opening balance and a single printed balance: no row left to compare it with
+        statement([tx("2026-03-01", credit="1.00", balance="5.00")], opening=None),
         statement([tx("2026-03-01", credit="1.00")]),
     ):  # no balance column values
         with pytest.raises(CheckSkipped):
             bs_running_balance(make_ctx([doc]))
+
+
+def test_running_balance_without_an_opening_balance_checks_from_the_first_balance() -> None:
+    rows = [dict(r) for r in F_BS_1]
+    assert run(statement(rows, opening=None)) == []
+    rows[2]["credit"] = "1500.00"  # an edited credit after the first printed balance
+    (flag,) = run(statement(rows, opening=None))
+    assert flag.rule == "bs_running_balance" and flag.row == 2
 
 
 def test_running_balance_unverified_reading_is_appended() -> None:

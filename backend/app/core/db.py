@@ -1028,7 +1028,11 @@ class Database:
 
     def recover_interrupted_jobs(self) -> list[str]:
         """Jobs left ``queued``/``running`` at startup become ``failed("interrupted")`` and their
-        ``processing`` case ``status="error"`` (api.md section 7). Returns the affected job ids."""
+        ``processing`` case ``status="error"`` (api.md section 7). A ``processing`` case with no
+        queued or running job (its job was never created, or failed before it could mark the case)
+        is turned into ``error`` too, with the reason recorded: nothing else would ever move it, and
+        a rerun, a delete and the queue all refuse a case that is still processing. Returns the
+        affected job ids."""
         now = ts(utcnow())
         with self.conn() as c:
             rows = c.execute(
@@ -1040,13 +1044,23 @@ class Database:
                     "WHERE id = ?",
                     (now, r["id"]),
                 )
-        for case_id in sorted({r["case_id"] for r in rows}):
+            stuck = c.execute(
+                "SELECT id FROM cases WHERE status = 'processing' AND id NOT IN "
+                "(SELECT case_id FROM jobs WHERE state IN ('queued', 'running'))"
+            ).fetchall()
+        for case_id in sorted({r["case_id"] for r in rows} | {r["id"] for r in stuck}):
             try:
                 case = self.load_case(case_id)
             except CaseNotFound:
                 continue
             if case.status == "processing":
                 case.status = "error"
+                case.partial = True
+                with self.conn() as c:  # an errored case is not a source of duplicates
+                    c.execute("DELETE FROM fingerprints WHERE case_id = ?", (case_id,))
+                reason = "analysis_interrupted: the analysis did not finish; run it again"
+                if reason not in case.partial_reasons:
+                    case.partial_reasons.append(reason)
                 self.save_case(case)
         return [r["id"] for r in rows]
 

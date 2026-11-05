@@ -466,3 +466,116 @@ def test_malformed_registry_degrades_instead_of_crashing(env, tmp_path) -> None:
     assert out.status == "open" and any(
         r.startswith("registry_unreadable") for r in out.partial_reasons
     )
+
+
+# ---------------------------------------------------------------- a failure before the first stage
+
+
+def test_a_malformed_prices_file_leaves_the_case_in_error_not_processing(env, tmp_path) -> None:  # noqa: ANN001
+    db, settings, case = env
+    bad = tmp_path / "prices.json"
+    bad.write_text("{nope")
+    s = settings.model_copy(update={"prices_path": bad})
+    runner = JobRunner(db, s)
+    try:
+        done = runner.wait(runner.submit(case.id).id, timeout=30)
+    finally:
+        runner.shutdown()
+    assert done.state == "failed" and done.error
+    loaded = db.load_case(case.id)
+    assert loaded.status == "error"  # a rerun is possible, delete is possible
+    assert any(r.startswith("analysis_failed") for r in loaded.partial_reasons)
+    # and with the file fixed the case can be run again
+    assert run_pipeline(case.id, db=db, settings=settings).status == "open"
+
+
+@pytest.mark.parametrize("name", ["get_llm_client", "PriceTable", "DailySpend", "overrides"])
+def test_any_setup_failure_ends_in_error(env, monkeypatch, name) -> None:  # noqa: ANN001
+    db, settings, case = env
+
+    def boom(*a, **k):  # noqa: ANN002, ANN003, ANN202
+        raise RuntimeError(f"{name} failed")
+
+    if name == "get_llm_client":
+        monkeypatch.setattr(pipeline, "get_llm_client", boom)
+    elif name == "PriceTable":
+        monkeypatch.setattr(pipeline.PriceTable, "load", staticmethod(boom))
+    elif name == "DailySpend":
+        monkeypatch.setattr(pipeline.DailySpend, "from_settings", staticmethod(boom))
+    else:
+        monkeypatch.setattr(db, "rule_overrides", boom)
+    with pytest.raises(RuntimeError, match=name):
+        run_pipeline(case.id, db=db, settings=settings)
+    assert db.load_case(case.id).status == "error"
+
+
+def test_an_unreadable_registry_file_of_any_kind_degrades(env, monkeypatch) -> None:  # noqa: ANN001
+    db, settings, case = env
+
+    def denied(path):  # noqa: ANN001, ANN202
+        raise PermissionError("registry.json")
+
+    monkeypatch.setattr(pipeline, "load_registry", denied)
+    out = run_pipeline(case.id, db=db, settings=settings)
+    assert out.status == "open" and any(
+        r.startswith("registry_unreadable") for r in out.partial_reasons
+    )
+
+
+def test_a_job_that_cannot_start_does_not_leave_the_case_processing(env, monkeypatch) -> None:  # noqa: ANN001
+    db, settings, case = env
+    runner = JobRunner(db, settings)
+    real = db.update_job
+
+    def refuse_running(job_id, **kw):  # noqa: ANN001, ANN003, ANN202
+        if kw.get("state") == "running":
+            raise OSError("database is locked")
+        return real(job_id, **kw)
+
+    monkeypatch.setattr(db, "update_job", refuse_running)
+    try:
+        done = runner.wait(runner.submit(case.id).id, timeout=30)
+    finally:
+        runner.shutdown()
+    assert done.state == "failed" and "database is locked" in (done.error or "")
+    assert db.load_case(case.id).status == "error"
+
+
+def test_a_job_the_pool_refuses_marks_the_job_and_the_case(env) -> None:  # noqa: ANN001
+    db, settings, case = env
+    runner = JobRunner(db, settings)
+    runner.shutdown()
+    with pytest.raises(RuntimeError):
+        runner.submit(case.id)
+    assert db.load_case(case.id).status == "error"
+    with db.conn() as c:
+        states = [r["state"] for r in c.execute("SELECT state FROM jobs").fetchall()]
+    assert states == ["failed"]
+
+
+def test_case_partial_follows_a_failed_check(env, monkeypatch) -> None:  # noqa: ANN001
+    from app.core.models import CheckRun
+
+    db, settings, case = env
+
+    def rules(ctx):  # noqa: ANN001, ANN202
+        ctx.case.check_runs.append(
+            CheckRun(rule="inv_total", stage="rules", status="error", reason="boom")
+        )
+        return StageOutcome()
+
+    monkeypatch.setitem(pipeline.STAGE_RUNNERS, "rules", rules)
+    out = run_pipeline(case.id, db=db, settings=settings)
+    assert out.score is not None and out.score.partial
+    assert out.partial is True  # the case and its score agree
+    assert db.load_case(case.id).partial is True
+
+
+def test_an_errored_case_forgets_its_fingerprints(env, monkeypatch) -> None:  # noqa: ANN001
+    db, settings, case = env
+    store = SqliteFingerprintStore(db)
+    store.record("invoice", "fp-old", case_id=case.id, document_id="d1", meta={})
+    monkeypatch.setattr(pipeline, "build_provenance", lambda ctx: 1 / 0)
+    with pytest.raises(ZeroDivisionError):
+        run_pipeline(case.id, db=db, settings=settings)
+    assert store.lookup("invoice", "fp-old") == []

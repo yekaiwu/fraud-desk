@@ -11,12 +11,14 @@ descriptions are data. No wall clock: ``ctx.today`` only.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from app.assemble import logical_docs
+from app.checks._dedupe import distinct_files
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
+from app.core.dates import add_days
 from app.core.models import Cell, Document, Flag, Region, Row
 from app.core.money import fmt_money
 from app.graph import APPLICANT_KEY, EntityGraph, counterparty_of, doc_number, uen_in
@@ -71,7 +73,8 @@ SOF_COMPANY_ORIGINS = {
 def _docs(ctx: CaseContext, *types: str) -> list[Document]:
     # bank statements that arrived page by page are read as one statement; pieces that could not
     # be assembled are left out (the statement counts as not provided, and is reported as such)
-    return [d for d in logical_docs(ctx, *types, whole_only=True) if d.status in USABLE]
+    docs = [d for d in logical_docs(ctx, *types, whole_only=True) if d.status in USABLE]
+    return distinct_files(ctx, docs)  # a byte-identical file uploaded twice counts once
 
 
 def _cell(doc: Document, name: str) -> Cell:
@@ -315,10 +318,9 @@ def _is_applicant(name: str | None, uen: str | None, app_name: str, app_uen: str
 
 def _window(inv: _Invoice) -> tuple[date, date]:
     if inv.paid is not None:
-        d = timedelta(days=RV_PAID_WINDOW_DAYS)
-        return inv.paid - d, inv.paid + d
-    due = inv.due or inv.when + timedelta(days=RV_DEFAULT_TERMS_DAYS)
-    return inv.when, due + timedelta(days=RV_AFTER_DUE_DAYS)
+        return add_days(inv.paid, -RV_PAID_WINDOW_DAYS), add_days(inv.paid, RV_PAID_WINDOW_DAYS)
+    due = inv.due or add_days(inv.when, RV_DEFAULT_TERMS_DAYS)
+    return inv.when, add_days(due, RV_AFTER_DUE_DAYS)
 
 
 def _find_set(pool: list[_Credit], total: Decimal, tol: Decimal) -> list[_Credit] | None:
@@ -439,7 +441,7 @@ def x_remitter_vs_buyer(ctx: CaseContext) -> list[Flag]:  # noqa: PLR0912, PLR09
             # in the wider window (invoice date to paid date + 5 days) and kept only when it is a
             # mixed set (some parts from the buyer, a real share from someone else), so a lucky
             # subset sum among unrelated credits cannot raise a flag.
-            wide_lo, wide_hi = inv.when, inv.paid + timedelta(days=RV_PAID_WINDOW_DAYS)
+            wide_lo, wide_hi = inv.when, add_days(inv.paid, RV_PAID_WINDOW_DAYS)
             candidate = _find_set([c for c in pool if wide_lo <= c.when <= wide_hi], inv.total, tol)
             wide = bool(candidate)
         if not candidate:

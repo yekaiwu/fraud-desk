@@ -130,3 +130,45 @@ def test_parse_number_shapes() -> None:
     assert parse_number("0.005") == Decimal("0.005")
     assert parse_number("1e5") is None
     assert parse_number("") is None
+
+
+# ---- other minus signs, the point as a decimal mark, and figures too large to round
+
+
+@pytest.mark.parametrize("minus", ["−", "–", "‒"])
+def test_unicode_minus_signs_are_a_minus(minus: str) -> None:
+    from app.extract.normalise import canonical
+
+    assert parse_money(f"{minus}1,234.56") == Decimal("-1234.56")
+    assert parse_money(f"S${minus}12.5") == Decimal("-12.50")
+    assert canonical("money", f"{minus}1,234.56") == ("-1234.56", None)
+    # in a debit/credit column the sign is dropped and said so
+    assert canonical("money", f"{minus}50.00", magnitude=True) == (
+        "50.00",
+        "negative_in_amount_column",
+    )
+
+
+def test_a_point_is_always_the_decimal_mark() -> None:
+    from app.core.money import parse_number
+
+    assert parse_money("12.500") == Decimal("12.50")  # zeros after the cents, never 12,500
+    assert parse_money("12.505") == Decimal("12.505")
+    assert parse_number("0.005") == Decimal("0.005")
+    # points are not thousands separators: two readings, so not an amount
+    assert parse_money("1.000.000") is None
+    assert parse_money("1.234.567") is None
+    # a comma followed by three digits still is
+    assert parse_money("1,000") == Decimal("1000.00")
+
+
+def test_a_figure_too_large_to_round_is_unreadable_not_an_exception() -> None:
+    from app.extract.normalise import canonical
+
+    huge = "9" * 29
+    assert parse_money(huge) is None
+    assert canonical("money", huge) == (None, "unparsed")
+    assert to_decimal(huge) is None
+    # a Decimal that got in some other way is still rounded without raising
+    assert quantize(Decimal(huge)) == Decimal(huge + ".00")
+    assert fmt_money(Decimal("1E+50")) == "1" + "0" * 50 + ".00"

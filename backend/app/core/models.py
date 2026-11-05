@@ -358,9 +358,14 @@ class Document(Strict):
 
 class ReadingNote(Strict):
     """Why a flag is "reading unreliable": two readers of the same photo read a figure differently, and
-    the check passes on the other reader's figure. ``severity`` is what the flag would have been."""
+    the check passes on the other reader's figure. ``severity`` is what the flag would have been.
+    ``kind`` "opening_not_printed" is the other case that leaves a check not settled: a statement
+    whose opening balance is blank (no reader is involved; coverage words it differently)."""
 
     severity: Severity
+    kind: Literal["reader_disagreement", "opening_not_printed"] = Field(
+        default="reader_disagreement", exclude_if=lambda v: v == "reader_disagreement"
+    )
     cells: list[
         str
     ]  # "where: reader 1 / reader 2", one entry per disagreeing figure the flag rests on

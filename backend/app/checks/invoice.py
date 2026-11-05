@@ -16,6 +16,7 @@ from decimal import Decimal
 from stdnum.exceptions import ValidationError
 from stdnum.sg import uen as sg_uen
 
+from app.checks._dedupe import distinct_files, same_applicant
 from app.checks.registry import CheckSkipped, check, make_flag
 from app.core.context import CaseContext, natural_key
 from app.core.fingerprints import invoice_fingerprint, invoice_key_fingerprint
@@ -63,8 +64,11 @@ def _lab(box: Region | None, label: str | None = None) -> Region | None:
     return box.model_copy(update={"label": label}) if label else box
 
 
-def _docs(ctx: CaseContext, *types: str) -> list[Document]:
-    return [d for d in ctx.docs(*types) if d.status in USABLE]
+def _docs(ctx: CaseContext, *types: str, keep_repeats: bool = False) -> list[Document]:
+    docs = [d for d in ctx.docs(*types) if d.status in USABLE]
+    # a byte-identical file uploaded twice counts once (file_reuse reports the repeat); inv_duplicate
+    # asks to keep it, because the same invoice sent twice is what that rule is for
+    return docs if keep_repeats else distinct_files(ctx, docs)
 
 
 _EMPTY = Cell(value=None)
@@ -758,7 +762,7 @@ def _inv_keys(doc: Document) -> tuple[str | None, str | None]:
     tamper="The same invoice submitted twice, or an invoice number reused with an edited total.",
 )
 def inv_duplicate(ctx: CaseContext) -> list[Flag]:
-    invoices = _docs(ctx, "invoice")
+    invoices = _docs(ctx, "invoice", keep_repeats=True)
     keyed = [(d, *_inv_keys(d)) for d in invoices]
     keyed = [(d, full, key) for d, full, key in keyed if key is not None]
     if not keyed:
@@ -817,7 +821,7 @@ def inv_duplicate(ctx: CaseContext) -> list[Flag]:
 
     # 2. store: earlier cases (the current case is excluded, so a rerun never matches itself)
     for d, full, key in keyed:
-        seen: dict[str, tuple[str, str, str | None, str]] = {}
+        seen: dict[str, tuple[str, str, str | None, str, bool | None]] = {}
         for fp in (full, key):
             if fp is None:
                 continue
@@ -828,12 +832,21 @@ def inv_duplicate(ctx: CaseContext) -> list[Flag]:
             for hit in hits:
                 seen.setdefault(
                     hit.case_id,
-                    (fp, hit.case_id, hit.document_id, hit.created_at.date().isoformat()),
+                    (
+                        fp,
+                        hit.case_id,
+                        hit.document_id,
+                        hit.created_at.date().isoformat(),
+                        same_applicant(ctx, hit.meta),
+                    ),
                 )
         for case_id in sorted(seen):
-            fp, _, hit_doc, when = seen[case_id]
+            fp, _, hit_doc, when, mine = seen[case_id]
             where = f" (document {hit_doc})" if hit_doc else ""
             num_c = _c(d, "invoice_number")
+            # always high: an invoice already financed in another case is double financing, whoever
+            # sends it again. The analyst dismisses a genuine resubmission with a reason; the remark
+            # only says which it looks like
             flags.append(
                 make_flag(
                     "inv_duplicate",
@@ -841,8 +854,14 @@ def inv_duplicate(ctx: CaseContext) -> list[Flag]:
                     field="invoice_number",
                     region=_lab(num_c.box, "invoice_number"),
                     discriminator="store:" + case_id,
-                    evidence=f"fingerprint {fp[:8]} seen in case {case_id}{where} on {when}",
-                    explanation=f"This invoice was already submitted in case {case_id}.",
+                    evidence=(
+                        f"fingerprint {fp[:8]} seen in case {case_id}{where} on {when}"
+                        + ("; same applicant" if mine else "")
+                    ),
+                    explanation=(
+                        f"This invoice was already submitted in case {case_id}"
+                        + (" by the same applicant." if mine else ".")
+                    ),
                 )
             )
     return flags

@@ -126,3 +126,81 @@ def test_the_other_letters_are_asked_together_and_the_first_hit_wins() -> None:
         "197200078R", "Singapore Airlines"
     )  # S first, found in Q
     assert entity is not None and len(seen) == len(rl.DATASETS)
+
+
+# ---- wrongly shaped answers, unreadable rows, a slow scan: the case goes partial, never to error
+
+
+def raw_client(body: object, status: int = 200) -> httpx.Client:
+    return httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status, json=body)))
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"success": True, "result": None},
+        {"success": True, "result": {"records": None}},
+        {"success": True, "result": {"records": [None]}},
+        {"success": True, "result": {"records": ["x"]}},
+        {"success": True, "result": []},
+        [],
+        None,
+    ],
+)
+def test_a_wrongly_shaped_answer_is_unavailable(body: object) -> None:
+    with pytest.raises(rl.RegistryUnavailable):
+        rl.AcraLookup(client=raw_client(body)).lookup("197200078R", "Singapore Airlines")
+
+
+def test_a_matched_row_that_cannot_be_read_is_unavailable_and_not_cached(tmp_path: Path) -> None:
+    bad = {**ROW, "registration_incorporation_date": "not a date"}
+    c = client({rl.DATASETS["S"]: [bad]})
+    with pytest.raises(rl.RegistryUnavailable):
+        rl.AcraLookup(tmp_path, c).lookup("197200078R", "Singapore Airlines")
+    assert not list(tmp_path.glob("*.json"))  # never "UEN not found", and never remembered
+
+
+def test_an_unreadable_cached_row_is_asked_again(tmp_path: Path) -> None:
+    import time
+
+    bad = {**ROW, "registration_incorporation_date": ""}
+    (tmp_path / "acra-197200078R.json").write_text(json.dumps({"at": time.time(), "record": bad}))
+    entity = rl.AcraLookup(tmp_path, client({rl.DATASETS["S"]: [ROW]})).lookup(
+        "197200078R", "Singapore Airlines"
+    )
+    assert entity is not None and entity.incorporation_date == date(1972, 1, 28)
+
+
+def test_a_timeout_in_the_scan_of_the_other_letters_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+
+    def slow(request: httpx.Request) -> httpx.Response:
+        if request.url.params["resource_id"] != rl.DATASETS["S"]:
+            threading.Event().wait(0.3)  # (time.sleep is stubbed out by the autouse fixture)
+        return httpx.Response(200, json={"success": True, "result": {"records": []}})
+
+    monkeypatch.setattr(rl, "TOTAL_BUDGET_S", 0.05)
+    c = httpx.Client(transport=httpx.MockTransport(slow))
+    with pytest.raises(rl.RegistryUnavailable):
+        rl.AcraLookup(client=c).lookup("197200078R", "Singapore Airlines")
+
+
+def test_attach_live_entity_makes_the_case_partial_on_any_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.models import Applicant
+    from app.core.testing import make_ctx
+    from app.pipeline import attach_live_entity
+
+    ctx = make_ctx([], applicant=Applicant(name="X", uen="197200078R", source="upload"))
+    object.__setattr__(ctx.settings, "registry_live", True)
+
+    def boom(*a: object, **k: object) -> None:
+        raise TimeoutError("the scan ran out of time")
+
+    monkeypatch.setattr(rl, "with_live_entity", boom)
+    attach_live_entity(ctx)
+    assert ctx.case.partial
+    assert any(r.startswith("registry_unavailable") for r in ctx.case.partial_reasons)

@@ -26,7 +26,7 @@ import json
 import re
 import threading
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -203,6 +203,30 @@ class Hit:
         return "medium"
 
 
+# Cyrillic and Greek letters that read as a Latin letter. One of them inside an otherwise Latin name
+# (a Cyrillic "a" in "Ahmad") must not hide the name from the screen.
+_CONFUSABLES = str.maketrans(
+    {
+        # Cyrillic, upper then lower case
+        **dict(zip("АВЕКМНОРСТХУІЈЅ", "ABEKMHOPCTXYIJS", strict=True)),
+        **dict(zip("авекмнорстхуіјѕһ", "abekmhopctxyijsh", strict=True)),
+        # Greek
+        **dict(zip("ΑΒΕΖΗΙΚΜΝΟΡΤΥΧ", "ABEZHIKMNOPTYX", strict=True)),
+        **dict(zip("αειοκρτυχνϲ", "aeiokrtuxvc", strict=True)),
+        "ı": "i",  # dotless i
+    }
+)
+_LATIN_LETTER = re.compile(r"[A-Za-z]")
+
+
+def fold_confusables(name: str) -> str:
+    """``name`` with Cyrillic and Greek lookalikes written as Latin letters. Only a name that already
+    holds a Latin letter is changed: a name wholly in Cyrillic or Greek is a name in that script."""
+    if not _LATIN_LETTER.search(name):
+        return name
+    return name.translate(_CONFUSABLES)
+
+
 def _person_words(name: str) -> tuple[str, ...] | None:
     p = normalise_person(name)
     if p.script == "empty" or p.script == "mixed":
@@ -261,18 +285,24 @@ class Screener:
 
     # ---- one subject
     def screen(self, subject: Subject, *, limit: int = 3) -> list[Hit]:
+        found: dict[int, Hit] = {}
+        self._screen_name(subject, found)
+        folded = fold_confusables(subject.name)
+        if folded != subject.name:  # a lookalike letter changes the spelling, not the person
+            self._screen_name(replace(subject, name=folded), found)
+        self._by_identifier(subject, found)
+        order = {"high": 0, "medium": 1, "low": 2}
+        hits = sorted(found.values(), key=lambda h: (order[h.level], h.entry["id"]))
+        return hits[:limit]
+
+    def _screen_name(self, subject: Subject, found: dict[int, Hit]) -> None:
         words = (
             _person_words(subject.name)
             if subject.kind == "person"
             else _company_words(subject.name)
         )
-        found: dict[int, Hit] = {}
         if words is not None:
             self._by_name(subject, words, found)
-        self._by_identifier(subject, found)
-        order = {"high": 0, "medium": 1, "low": 2}
-        hits = sorted(found.values(), key=lambda h: (order[h.level], h.entry["id"]))
-        return hits[:limit]
 
     def _hit(
         self, subject: Subject, i: int, name: str, how: Literal["exact", "fuzzy", "identifier"]

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext, localcontext
 
 MONEY = Decimal("0.01")
 DEFAULT_TOLERANCE = Decimal("1.00")
@@ -19,18 +19,34 @@ _CURRENCY_PREFIX = re.compile(
     re.IGNORECASE,
 )
 _SUFFIX = re.compile(r"\s+(CR|DR)$", re.IGNORECASE)
-# Number shapes. A mark followed by exactly three digits is a thousands separator, a mark followed
-# by one or two digits at the very end is the decimal mark; anything else is not a number.
+# Number shapes. A COMMA followed by exactly three digits is a thousands separator ("1,234"), a comma
+# followed by one or two digits at the very end is the decimal mark ("978,12"). A POINT is always the
+# decimal mark, whatever follows it: "12.500" is twelve and a half, and points are never read as
+# thousands separators, so "1.000.000" is not an amount (it can be read two ways, and an id or a
+# version number looks the same). Anything else is not a number.
 _US = re.compile(r"^(?:\d{1,3}(?:,\d{3})+|\d+)?(?:\.\d+)?$")  # 1,234.56  1234.5  .5
 _EU = re.compile(r"^(?:\d{1,3}(?:\.\d{3})+|\d+),\d{1,2}$")  # 1.234,56  978,12  9,5
 _SPACED = re.compile(r"^\d{1,3}(?: \d{3})+(?:[.,]\d{1,2})$")  # 2 053,73  1 319.97 (decimals needed)
 _EMPTY = {"", "-", "--", "N/A", "NA", "NIL", "N.A."}
+# the other minus signs a PDF prints (U+2212 minus, U+2013 en dash, U+2012 figure dash) are a minus
+_MINUS = str.maketrans({"\u2212": "-", "\u2013": "-", "\u2012": "-"})
+# More integer digits than this is not an amount (a trillion-trillion is a misread, not a balance), and
+# a document that prints one is unreadable, not a crash: rounding it would exceed the decimal context.
+MAX_INTEGER_DIGITS = 18
 
 
 def quantize(d: Decimal, places: int = 2) -> Decimal:
     """Round half up to ``places`` decimals; never returns negative zero."""
     q = Decimal(1).scaleb(-places)
-    out = d.quantize(q, rounding=ROUND_HALF_UP)
+    need = d.adjusted() + places + 2 if d.is_finite() else 0
+    if (
+        need > getcontext().prec
+    ):  # a very large figure: round it in a context wide enough to hold it
+        with localcontext() as wide:
+            wide.prec = need
+            out = d.quantize(q, rounding=ROUND_HALF_UP)
+    else:
+        out = d.quantize(q, rounding=ROUND_HALF_UP)
     return abs(out) if out == 0 else out
 
 
@@ -47,7 +63,7 @@ def parse_money(text: str | None) -> Decimal | None:
         return None
     if not isinstance(text, str):
         raise TypeError(f"parse_money expects str or None, got {type(text).__name__}")
-    s = " ".join(text.split())
+    s = " ".join(text.translate(_MINUS).split())
     if s.upper() in _EMPTY:
         return None
 
@@ -75,7 +91,9 @@ def parse_money(text: str | None) -> Decimal | None:
     value = parse_number(s)
     if value is None:
         return None
-    if value.as_tuple().exponent > -2:  # type: ignore[operator]
+    exponent = value.as_tuple().exponent
+    # whole numbers and one decimal get cents; so do zeros after the cents ("12.500" is 12.50)
+    if exponent > -2 or value == value.quantize(MONEY):  # type: ignore[operator]
         value = value.quantize(MONEY)
     if negative:
         value = -value
@@ -100,9 +118,12 @@ def parse_number(text: str) -> Decimal | None:
     else:
         return None
     try:
-        return Decimal(digits)
+        out = Decimal(digits)
     except InvalidOperation:
         return None
+    if out.adjusted() >= MAX_INTEGER_DIGITS:
+        return None
+    return out
 
 
 def to_decimal(value: str | None) -> Decimal | None:
@@ -118,7 +139,7 @@ def to_decimal(value: str | None) -> Decimal | None:
         d = Decimal(s)
     except InvalidOperation:
         return None
-    return d if d.is_finite() else None
+    return d if d.is_finite() and d.adjusted() < MAX_INTEGER_DIGITS else None
 
 
 def fmt_money(d: Decimal) -> str:

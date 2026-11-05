@@ -296,3 +296,10 @@ def test_currency_mismatch_and_unknown_applicant() -> None:
 def test_row_without_a_counterparty_is_an_extraction_gap_not_a_finding() -> None:
     doc = statement_doc("d3", [{"date": "2026-03-04", "credit": "12500.00", "desc": "  "}])
     assert run(invoice_doc("d1"), doc) == []
+
+
+def test_open_ended_invoice_dates_do_not_raise() -> None:
+    doc = statement_doc("d3", [credit("2026-03-04", "12500.00", "BETA HOLDINGS PTE LTD")])
+    for due, paid in (("9999-12-31", None), (None, "9999-12-31"), (None, None)):
+        inv = invoice_doc("d1", date_="9999-12-31", due=due, paid=paid)
+        run(inv, doc)

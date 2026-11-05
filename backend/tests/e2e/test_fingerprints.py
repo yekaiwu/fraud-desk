@@ -47,7 +47,9 @@ def test_second_submission_of_the_same_bundle_is_flagged_on_the_second_case_only
     assert not [f for f in first.flags("file_reuse")]
     # second case: every invoice and the files are recognised from the first case
     dup = second.flags("inv_duplicate")
+    # double financing is high even for the same applicant; the evidence remarks it is the same one
     assert len(dup) == 14 and all(f.severity == "high" for f in dup)
+    assert all("same applicant" in f.evidence for f in dup)
     assert first.case.id in dup[0].evidence or "earlier case" in dup[0].evidence.lower()
     reused = second.flags("file_reuse")
     assert reused and all(first.case.id in f.evidence for f in reused)

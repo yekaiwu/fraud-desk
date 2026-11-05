@@ -309,11 +309,107 @@ def test_rb_hard_case_consistent_recomputation_is_a_known_miss() -> None:
 def test_rb_skip_when_nothing_evaluable() -> None:
     for doc in (
         statement([]),
-        statement(opening_balance=None),
         statement([tx("2026-03-01", credit="1.00")]),
+        # a blank opening balance and a single printed balance: no row left to compare
+        statement([tx("2026-03-01", credit="1.00", balance="5.00")], opening_balance=None),
     ):
         with pytest.raises(CheckSkipped):
             run_rb(doc)
+
+
+# ------------------------------------------------- a blank opening balance must not hide a tamper
+
+
+def tampered_march(**fields: str | None) -> Document:
+    """March with the 8000.00 credit on row 4 edited to 18000.00 and its balance left as printed."""
+    rows = f_bs_1_rows()
+    rows[3] = tx(
+        "2026-03-20", "FAST PAYMENT FROM BETA PTE LTD", credit="18000.00", balance="26287.50"
+    )
+    return statement(rows, **fields)
+
+
+def test_rb_blank_opening_balance_still_checks_the_rows_after_the_first_balance() -> None:
+    # printed opening: the edit is caught (control) ...
+    assert [f.rule for f in run_rb(tampered_march())] == ["bs_running_balance"]
+    # ... and with the opening balance blanked it still is (anchored on row 1's printed balance)
+    (flag,) = run_rb(tampered_march(opening_balance=None))
+    assert flag.rule == "bs_running_balance" and flag.severity == "high" and flag.row == 3
+    # an untouched statement with a blank opening balance and no sibling stays silent
+    assert run_rb(statement(opening_balance=None)) == []
+
+
+def test_rb_blank_opening_balance_takes_the_previous_statements_closing_balance() -> None:
+    # edit on the very first row of April: only the previous closing balance can expose it
+    rows = [
+        tx(
+            "2026-04-10",
+            "FAST PAYMENT FROM ACME TRADING PTE LTD",
+            credit="9000.00",
+            balance="31290.71",
+        )
+    ]
+    april_blank = statement(
+        rows, id="d2", period_start="2026-04-01", period_end="2026-04-30",
+        opening_balance=None, closing_balance="31290.71",
+    )  # fmt: skip
+    flags = run_rb(statement(id="d1"), april_blank)
+    high = [f for f in flags if f.severity == "high"]
+    assert len(high) == 1 and high[0].document_ids == ["d2"] and high[0].row == 0
+    assert "previous statement" in high[0].evidence
+
+
+def test_rb_blank_opening_balance_with_siblings_is_a_low_flag_that_costs_coverage() -> None:
+    from app.score import compute_coverage
+
+    ctx = ctx_of(statement(id="d1"), april(id="d2", opening_balance=None), applicant=APPLICANT)
+    run_stage_checks(ctx, "rules")
+    low = [f for f in ctx.case.flags if f.id.endswith("~no_opening")]
+    assert {f.rule for f in low} == {"bs_running_balance", "bs_period_continuity"}
+    assert all(f.severity == "low" and f.field == "opening_balance" for f in low)
+    assert all("opening balance not printed on d2" in f.evidence for f in low)
+    # nothing else fires: the statement is clean, it is only not fully checked
+    assert [f for f in ctx.case.flags if f.severity not in ("low", "info")] == []
+    cov = compute_coverage(ctx.case)
+    limited = {s["rule"]: s for s in cov.skipped if s.get("code") == "opening_not_printed"}
+    assert {"bs_running_balance", "bs_period_continuity"} <= set(limited)
+    # its own wording: nothing here is about two readers of a photo
+    for entry in limited.values():
+        assert entry["reason"].startswith("opening balance not printed on one statement")
+        assert "photo" not in entry["reason"] and "reader" not in entry["reason"]
+    assert not any(s.get("code") == "reading_limited" for s in cov.skipped)
+    from app.score import collect_partial_reasons
+
+    reasons = collect_partial_reasons(ctx.case)
+    assert any(r.startswith("opening_not_printed:") for r in reasons)
+    assert not any(r.startswith("reading_limited") for r in reasons)
+    # the same case with the opening balance printed is fully covered
+    clean = ctx_of(statement(id="d1"), april(id="d2"), applicant=APPLICANT)
+    run_stage_checks(clean, "rules")
+    assert not any(
+        s.get("code") in ("reading_limited", "opening_not_printed")
+        for s in compute_coverage(clean.case).skipped
+    )
+
+
+def test_blank_opening_balance_on_the_earliest_statement_of_an_account_is_not_flagged() -> None:
+    # a newly opened account: its first statement has no opening balance to print, the later ones do
+    ctx = ctx_of(statement(id="d1", opening_balance=None), april(id="d2"), applicant=APPLICANT)
+    run_stage_checks(ctx, "rules")
+    assert [f for f in ctx.case.flags if f.id.endswith("~no_opening")] == []
+    # ... and the later statement with the blank is flagged, whichever order they were uploaded in
+    later = ctx_of(april(id="d1", opening_balance=None), statement(id="d2"), applicant=APPLICANT)
+    run_stage_checks(later, "rules")
+    assert {f.document_ids[0] for f in later.case.flags if f.id.endswith("~no_opening")} == {"d1"}
+
+
+def test_totals_blank_opening_balance_uses_the_previous_closing_balance() -> None:
+    edited = april(id="d2", opening_balance=None, closing_balance="41290.71")
+    (flag,) = [f for f in bs.bs_totals(ctx_of(statement(id="d1"), edited)) if f.severity == "high"]
+    assert flag.field == "closing_balance" and "opening 26290.71" in flag.evidence
+    # no neighbour in the case and nothing printed to compare: the check cannot run
+    with pytest.raises(CheckSkipped):
+        bs.bs_totals(ctx_of(statement(opening_balance=None)))
 
 
 # ----------------------------------------------------------------------------- bs_period_continuity
@@ -1099,3 +1195,11 @@ def test_bs_totals_without_an_unreadable_cell_keeps_its_plain_wording() -> None:
     (flag,) = [f for f in bs.bs_totals(ctx_of(doc)) if f.field == "closing_balance"]
     assert flag.explanation.startswith("Opening balance plus deposits minus withdrawals is ")
     assert "not one amount" not in flag.evidence
+
+
+def test_period_continuity_with_an_open_ended_period_does_not_raise() -> None:
+    forever = april(id="d2", period_end="9999-12-31")
+    later = april(
+        id="d3", period_start="9999-12-31", period_end="9999-12-31", opening_balance="1.00"
+    )
+    bs.bs_period_continuity(ctx_of(statement(id="d1"), forever, later))

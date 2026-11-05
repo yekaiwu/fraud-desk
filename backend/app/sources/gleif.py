@@ -81,12 +81,16 @@ def record_from_resource(res: dict[str, Any]) -> GleifRecord | None:
         entity = attrs["entity"]
         name = str(entity["legalName"]["name"]).strip()
         lei = str(attrs.get("lei") or res.get("id") or "").strip()
-    except (KeyError, TypeError):
+        if not isinstance(entity, dict) or not isinstance(attrs, dict):
+            return None
+    except (KeyError, TypeError, AttributeError):
         return None
     if not name or not lei:
         return None
-    addr = entity.get("legalAddress") or {}
-    registration = attrs.get("registration") or {}
+    addr = entity.get("legalAddress")
+    addr = addr if isinstance(addr, dict) else {}
+    registration = attrs.get("registration")
+    registration = registration if isinstance(registration, dict) else {}
     return GleifRecord(
         lei=lei,
         legal_name=name,
@@ -99,6 +103,13 @@ def record_from_resource(res: dict[str, Any]) -> GleifRecord | None:
         address=_join(*(addr.get("addressLines") or []), addr.get("city"), addr.get("country")),
         postal_code=addr.get("postalCode"),
     )
+
+
+def _registered_as(res: dict[str, Any]) -> Any:
+    """The registration number a resource names, tolerating any wrong shape on the way down."""
+    attrs = res.get("attributes")
+    entity = attrs.get("entity") if isinstance(attrs, dict) else None
+    return entity.get("registeredAs") if isinstance(entity, dict) else None
 
 
 def _lei_link(res: dict[str, Any], relation: str) -> str | None:
@@ -131,7 +142,7 @@ class GleifLookup:
         data = body.get("data") if isinstance(body, dict) else None
         if not isinstance(data, list):
             raise SourceUnavailable("answered something that is not a list of records")
-        return data
+        return [r for r in data if isinstance(r, dict)]  # a null or odd entry is not a record
 
     def _parent(self, client: httpx.Client, url: str | None) -> GleifParent | None:
         """Parents are context. A parent that cannot be fetched is simply not shown."""
@@ -141,7 +152,8 @@ class GleifLookup:
             status, body = self._get(client, url, allow_404=True)
         except SourceUnavailable:
             return None
-        rec = record_from_resource(body["data"]) if status == 200 and body.get("data") else None
+        data = body.get("data") if status == 200 and isinstance(body, dict) else None
+        rec = record_from_resource(data) if isinstance(data, dict) else None
         return GleifParent(rec.lei, rec.legal_name) if rec else None
 
     def lookup(self, uen: str | None, name: str | None = None) -> GleifRecord | None:
@@ -180,8 +192,8 @@ class GleifLookup:
                     )
                     # a record that names another registration number is another company
                     if not wanted
-                    or not (r.get("attributes", {}).get("entity", {}).get("registeredAs"))
-                    or normalise_uen(r["attributes"]["entity"]["registeredAs"]) == wanted
+                    or not _registered_as(r)
+                    or normalise_uen(str(_registered_as(r))) == wanted
                 ]
             record, resource = None, None
             for res in resources:

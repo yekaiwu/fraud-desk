@@ -744,3 +744,86 @@ def test_line_flags_are_capped_with_a_count_of_the_rest() -> None:
     flags = run_rule("inv_lines", ctx_of(inv))
     assert len(flags) == 5
     assert flags[-1].evidence.endswith("; +2 more")
+
+
+# ---------------------------------------------------------------- inv_duplicate: who sent it before
+
+
+def _store_for(applicant_uen: str | None, *, applicant_key: str | None = None, case_id="c_old"):  # noqa: ANN001, ANN202
+    store = MemoryFingerprintStore()
+    fp = invoice_fingerprint(UEN_A, "INV-0042", "2026-03-10", "10900.00")
+    meta: dict = {"role": "full", "applicant_uen": applicant_uen}
+    if applicant_key:
+        meta["applicant_key"] = applicant_key
+    store.record("invoice", fp, case_id=case_id, document_id="d1", meta=meta)
+    return store
+
+
+def test_inv_duplicate_same_applicant_earlier_case_is_still_high() -> None:
+    # double financing: the same applicant's earlier case counts too (the analyst dismisses a
+    # genuine resubmission with a reason); the evidence only remarks that it is the same applicant
+    flag = one("inv_duplicate", make_invoice(), fingerprints=_store_for(APPLICANT.uen))
+    assert flag.severity == "high" and flag.id.endswith("~store:c_old")
+    assert "same applicant" in flag.evidence
+
+
+def test_inv_duplicate_same_applicant_by_name_when_no_uen_was_recorded() -> None:
+    from app.core.textnorm import company_key
+
+    key = company_key(APPLICANT.name)
+    flag = one("inv_duplicate", make_invoice(), fingerprints=_store_for(None, applicant_key=key))
+    assert flag.severity == "high" and "same applicant" in flag.evidence
+
+
+def test_inv_duplicate_other_applicant_or_unknown_is_high() -> None:
+    other = one("inv_duplicate", make_invoice(), fingerprints=_store_for(UEN_C))
+    assert other.severity == "high" and "same applicant" not in other.evidence
+    unknown = one("inv_duplicate", make_invoice(), fingerprints=_store_for(None))
+    assert unknown.severity == "high" and "same applicant" not in unknown.evidence
+
+
+def test_inv_duplicate_same_applicant_with_an_edited_total_is_high() -> None:
+    edited = make_invoice(
+        fields={"subtotal": "9000.00", "gst_amount": "810.00", "total": "9810.00"}
+    )
+    store = _store_for(APPLICANT.uen)  # the full fingerprint no longer matches; the key does
+    store.record(
+        "invoice",
+        invoice_key_fingerprint(UEN_A, "INV-0042"),
+        case_id="c_old",
+        document_id="d1",
+        meta={"role": "key", "applicant_uen": APPLICANT.uen},
+    )
+    flag = one("inv_duplicate", edited, fingerprints=store)
+    assert flag.severity == "high" and "same applicant" in flag.evidence
+
+
+def test_inv_duplicate_rerun_still_excludes_itself_with_an_applicant_recorded() -> None:
+    store = _store_for(APPLICANT.uen, case_id="c_test00000000")
+    assert run_rule("inv_duplicate", ctx_of(make_invoice(), fingerprints=store)) == []
+
+
+def _same_bytes_twice(*docs):  # noqa: ANN001, ANN202
+    from app.core.models import FileRef
+
+    ref = lambda i: FileRef(  # noqa: E731
+        id=f"f{i}", name=f"inv{i}.pdf", sha256="0" * 64, size_bytes=0, mime="application/pdf"
+    )
+    docs = [d.model_copy(update={"file_id": f"f{i + 1}"}) for i, d in enumerate(docs)]
+    return ctx_of(*docs, files=[(ref(1), b"%PDF-same"), (ref(2), b"%PDF-same")])
+
+
+def test_inv_duplicate_still_flags_a_byte_identical_copy_in_the_same_case() -> None:
+    # the same invoice file sent twice in one bundle is the tamper T16a: high, not collapsed away
+    ctx = _same_bytes_twice(make_invoice("d1"), make_invoice("d2"))
+    flags = run_rule("inv_duplicate", ctx)
+    assert len(flags) == 1 and flags[0].severity == "high"
+    assert flags[0].document_ids == ["d1", "d2"]
+
+
+def test_the_other_invoice_rules_count_a_byte_identical_copy_once() -> None:
+    bad = {"subtotal": "9000.00", "gst_amount": "810.00", "total": "1.00"}
+    ctx = _same_bytes_twice(make_invoice("d1", fields=bad), make_invoice("d2", fields=bad))
+    assert len(run_rule("inv_total", ctx)) == 1
+    other = ctx_of(make_invoice("d1", fields=bad), make_invoice("d2", fields=bad))
+    assert len(run_rule("inv_total", other)) == 2

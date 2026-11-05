@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 
 import networkx as nx
 
 from app.core.context import CaseContext, natural_key
+from app.core.dates import add_days
 from app.core.models import Row
 from app.names import (
     entity_key,
@@ -244,9 +245,10 @@ class EntityGraph:
             if amount is None or amount <= 0:
                 continue
             raw = counterparty_of(row)
-            if raw is None:
-                continue
             desc_uen = uen_in(row.cells["description"].text())
+            # a name of only control, bidi or zero-width characters is no name at all
+            if raw is None or not (safe_text(raw, 120) or desc_uen):
+                continue
             entity = self.resolve(raw, desc_uen)
             if entity.key == APPLICANT_KEY:
                 continue  # own-account transfer: dropped
@@ -280,7 +282,7 @@ class EntityGraph:
             )
 
     def _party(self, name: str | None, uen: str | None, kind: str) -> Entity | None:
-        if not (name or "").strip() and not (uen or "").strip():
+        if not safe_text(name, 120) and not safe_text(uen, 40):
             return None
         return self.resolve(name or "", uen, kind=kind)
 
@@ -409,7 +411,7 @@ class EntityGraph:
             if credit.amount < min_amount or credit.c4 == "refund":
                 continue
             allowed = max(tolerance_abs, tol_pct * credit.amount)
-            last = credit.date + timedelta(days=window_days)
+            last = add_days(credit.date, window_days)
             best: tuple[tuple[int, Decimal, int, int], int] | None = None
             j = bisect_left(debit_dates, credit.date)
             while j < len(debits) and debits[j].date <= last:

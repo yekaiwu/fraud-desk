@@ -20,6 +20,7 @@ import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ import httpx
 from app.core.crypto import DecryptionError, Vault, ctx_registry, plaintext_vault
 from app.core.registry import MockRegistry, RegistryEntity
 from app.core.textnorm import normalise_uen
+from app.sources.common import REQUEST_TOTAL_S, SourceUnavailable, send_within
 
 log = logging.getLogger("gldb.registry")
 
@@ -110,7 +112,9 @@ def _address(rec: dict[str, Any]) -> str | None:
 
 
 def entity_from_record(rec: dict[str, Any]) -> RegistryEntity | None:
-    """One open-data row as a registry entity; None when the row lacks what an entity needs."""
+    """One open-data row as a registry entity; None when the row lacks what an entity needs.
+    (A caller that matched the row by UEN must not read None as "the register has no such UEN":
+    see :func:`_entity_or_unavailable`.)"""
     try:
         incorporated = date.fromisoformat(
             str(rec.get("registration_incorporation_date") or "")[:10]
@@ -138,23 +142,42 @@ def entity_from_record(rec: dict[str, Any]) -> RegistryEntity | None:
     )
 
 
+def _entity_or_unavailable(rec: dict[str, Any]) -> RegistryEntity:
+    """The entity of a row that matched the UEN. A matched row that cannot be read (no usable
+    incorporation date, name missing) is a register we could not read, never "UEN not found"."""
+    entity = entity_from_record(rec)
+    if entity is None:
+        raise RegistryUnavailable("the register row for this UEN could not be read")
+    return entity
+
+
 def _ask(client: httpx.Client, dataset: str, uen: str) -> list[dict[str, Any]]:
     params = {"resource_id": dataset, "filters": json.dumps({"uen": uen}), "limit": "2"}
     last: Exception | None = None
     for attempt in range(RETRIES + 1):
         try:
-            resp = client.get(API, params=params)
-            if resp.status_code in (400, 404):  # not transient: asking again changes nothing
-                raise RegistryUnavailable(f"register answered {resp.status_code}") from None
-            if resp.status_code in (403, 429, 500, 502, 503, 504):
-                raise _Transient(f"register answered {resp.status_code}")
-            resp.raise_for_status()
-            data = resp.json()
-            if not data.get("success"):
+            # the whole answer within a time limit, not only each read (a drip-feeding server)
+            code, raw = send_within(
+                client, "GET", API, REQUEST_TOTAL_S, time.monotonic, params=params
+            )
+            if code in (400, 404):  # not transient: asking again changes nothing
+                raise RegistryUnavailable(f"register answered {code}") from None
+            if code in (403, 429, 500, 502, 503, 504):
+                raise _Transient(f"register answered {code}")
+            if code >= 400:
+                raise _Transient(f"register answered {code}")
+            data = json.loads(raw)
+            if not isinstance(data, dict) or not data.get("success"):
                 raise RegistryUnavailable("register answered success=false")
-            return list(data["result"]["records"])
+            result = data.get("result")
+            records = result.get("records") if isinstance(result, dict) else None
+            if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
+                raise RegistryUnavailable("register answered an unexpected shape")
+            return records
         except RegistryUnavailable:
             raise
+        except SourceUnavailable as exc:  # the answer did not arrive within the time allowed
+            raise RegistryUnavailable(str(exc)) from exc
         except (httpx.HTTPError, ValueError, KeyError, _Transient) as exc:
             last = exc
             if attempt < RETRIES:
@@ -191,7 +214,12 @@ class AcraLookup:
             ttl = HIT_TTL_S if record else MISS_TTL_S
             if now - float(blob["at"]) > ttl:
                 return False, None
-            return True, entity_from_record(record) if record else None
+            if not record:
+                return True, None
+            entity = entity_from_record(record)
+            return (
+                (True, entity) if entity is not None else (False, None)
+            )  # unreadable row: ask again
         except (OSError, ValueError, KeyError, TypeError, DecryptionError):
             return False, None  # unreadable or undecryptable cache entry: ask the register again
 
@@ -235,14 +263,24 @@ class AcraLookup:
             # the letter of the name first (one call in the usual case), then the rest, a few at a time
             rec = find(order[0])
             if rec is None and len(order) > 1:
-                with ThreadPoolExecutor(max_workers=PARALLEL) as pool:
+                pool = ThreadPoolExecutor(max_workers=PARALLEL)
+                try:
                     for found in pool.map(find, order[1:], timeout=TOTAL_BUDGET_S):
                         if found is not None:
                             rec = found
                             break
+                except (TimeoutError, FuturesTimeout) as exc:
+                    raise RegistryUnavailable("the register scan ran out of time") from exc
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
             if rec is not None:
+                entity = _entity_or_unavailable(rec)  # an unreadable matched row is not cached
                 self._store(wanted, rec, now)
-                return entity_from_record(rec)
+                return entity
+        except RegistryUnavailable:
+            raise
+        except Exception as exc:  # noqa: BLE001 - whatever the register sent, the case goes partial
+            raise RegistryUnavailable(f"{type(exc).__name__}: {str(exc)[:80]}") from exc
         finally:
             if own:
                 client.close()

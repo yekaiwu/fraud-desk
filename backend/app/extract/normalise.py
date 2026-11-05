@@ -287,7 +287,7 @@ def canonical(
             return None, "unparsed"
         if magnitude:
             inner = _SUFFIX.sub("", text).strip()
-            printed_negative = inner[:1] in ("(", "-", "\u2212")
+            printed_negative = inner[:1] in ("(", "-", "\u2212", "\u2013", "\u2012")
             warn = "negative_in_amount_column" if printed_negative else None
             return fmt_money(abs(value)), warn
         return fmt_money(value), None
