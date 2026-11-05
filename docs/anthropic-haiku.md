@@ -60,7 +60,7 @@ One `messages.create` call per model call, with exactly these fields:
 | `system` | the fixed instructions plus "Reply only by calling the tool `<name>` once." | document text never goes in `system` (untrusted-data rule) |
 | `messages` | one `user` turn: image blocks first, then the wrapped document text; on the retry a second text block carries the validation error | never an assistant prefill (a 400 on this model) |
 | `tools` | one tool whose `input_schema` is the JSON schema; no `strict` | our schemas may not meet the requirements of strict mode; we validate ourselves |
-| `tool_choice` | `{"type": "auto"}` | forced tool choice is not used; the prompt instructs the call |
+| `tool_choice` | `{"type": "tool", "name": "<schema name>"}` | forced. Left to `auto`, Haiku often answered in plain text instead of calling the tool (replaying one real case, 5 of 6 case officer calls: `Briefing( summary="...", next_steps=[...])`, which is not JSON), the retry did the same, and the case officer showed "Could not run" with `$.summary: required property missing`. Forced, 35 of 35 replays across 7 real cases succeeded on the first attempt. The prompt still instructs the call |
 | `thinking` | `{"type": "disabled"}` | extraction copies printed values; reasoning tokens would only cost money. Thinking blocks are never read or stored |
 | `output_config` | `{"effort": "low"}` | disabled thinking is only accepted at effort `high` or below, and the default effort is `medium` |
 

@@ -8,8 +8,9 @@ the request is the Messages API shape of Haiku 5.5:
   only accepted at effort ``high`` or below; the default effort is medium);
 * no ``temperature``/``top_p``/``top_k`` (non-default values are a 400 on this model) and no
   assistant prefill (a 400);
-* structured output is one user tool whose ``input_schema`` is the JSON schema, ``tool_choice``
-  ``auto`` (forced choice is not used) plus an instruction to call it; no ``strict``;
+* structured output is one user tool whose ``input_schema`` is the JSON schema, called by a forced
+  ``tool_choice`` (left to ``auto``, Haiku sometimes answered in text such as ``Briefing( summary=...``,
+  which is not JSON) plus an instruction to call it; no ``strict``;
 * the SDK does its own 429/5xx retries (``max_retries=2``); there is no second retry layer here.
 
 Only ``ALLOWED_ANTHROPIC_MODELS`` can be sent: checked at settings validation, at construction and
