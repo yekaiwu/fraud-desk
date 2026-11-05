@@ -34,9 +34,17 @@ from PIL import Image, PngImagePlugin  # noqa: E402
 from reportlab.pdfgen import canvas as rl_canvas  # noqa: E402
 
 from scripts._gen.ids import make_uen  # noqa: E402
-from scripts._gen.render_common import FOOTER_TEXT, finalize_pdf  # noqa: E402
+from scripts._gen.render_common import (  # noqa: E402
+    A4_W,
+    FOOTER_TEXT,
+    DocCanvas,
+    finalize_pdf,
+    fmt_amount,
+    fmt_date,
+)
+from scripts._gen.render_contract import LEFT, signature_png  # noqa: E402
 from scripts._gen.render_invoice import render_invoice  # noqa: E402
-from scripts._gen.world_types import InvLine, Invoice, Party  # noqa: E402
+from scripts._gen.world_types import Contract, InvLine, Invoice, Party  # noqa: E402
 
 D = Decimal
 BUYER = Party(
@@ -361,6 +369,154 @@ def demo_extras(out: Path, variant: int = 1) -> dict[str, list[str]]:
     return listed
 
 
+# The challenger demo (docs/demo-script.md 3c): an AML case whose S$1,000,000 invoice was paid by three other
+# companies, and the one document that gives that an innocent reading. Company index 6 is "Yishun Anchor Pte. Ltd.":
+# it is in the registry file the demo reads (samples/registry.json), so the upload never waits on the live register,
+# and no other demo or sample case uses its files.
+CHALLENGER_COMPANY = 6
+CHALLENGER_BUYER = Party(name="Orchid Bay Holdings Pte. Ltd.", uen="201840771G")
+# the three companies that paid the invoice, as the statements print them with the legal ending left off: the
+# extractor reads the payment terms from one printed line, so they have to fit on it
+CHALLENGER_PAYERS = ("VANTAGE CREST", "SILVERLINE IMPORTS", "PACIFIC ANCHOR")
+
+
+def supply_agreement(seller: Party, signatory_seller: str) -> tuple[str, bytes]:
+    """A supply agreement between ``seller`` and Orchid Bay whose payment terms name the three companies that
+    paid the invoice. It uses the contract layout the extractor reads (same labels, same specimen footer); the
+    scope says general merchandise and the payment line is set a little smaller so the names fit on one line."""
+    c = Contract(
+        n=2,
+        number="C-2026-002",
+        title="Supply Agreement for General Merchandise",
+        contract_date=date(2026, 6, 10),
+        effective=date(2026, 6, 15),
+        end=date(2026, 12, 31),
+        seller=seller,
+        buyer=CHALLENGER_BUYER,
+        value=D("1200000.00"),
+        payment_terms=(
+            "Net 30; payable by Orchid Bay or its affiliates "
+            f"{', '.join(CHALLENGER_PAYERS[:-1])} and {CHALLENGER_PAYERS[-1]}"
+        ),
+        signatory_seller=signatory_seller,
+        signatory_buyer="Lim Hui Ying",
+        sig_seller_seed=71,
+        sig_buyer_seed=72,
+    )
+    ds = "long"
+    cv = DocCanvas()
+    cv.text(A4_W / 2, 50, c.title.upper(), size=13, font="Helvetica-Bold", align="c")
+    cv.text(A4_W / 2, 70, f"Contract No: {c.number}", size=10, align="c")
+    cv.text(LEFT, 98, c.title, size=9, color=(0.3, 0.3, 0.3))
+    cv.text(LEFT, 120, f"This Agreement is made on {fmt_date(c.contract_date, ds)}", size=9.5)
+    cv.text(LEFT, 146, "BETWEEN", size=9, font="Helvetica-Bold")
+    cv.text(LEFT, 162, f"(1) {c.seller.name} (UEN {c.seller.uen}), the Seller;", size=9.5)
+    cv.text(LEFT, 180, "AND", size=9, font="Helvetica-Bold")
+    cv.text(LEFT, 196, f"(2) {c.buyer.name} (UEN {c.buyer.uen}), the Buyer.", size=9.5)
+    y = 232.0
+    cv.text(LEFT, y, "1. Scope", size=10, font="Helvetica-Bold")
+    scope = (
+        "The Seller shall supply, and the Buyer shall purchase, general merchandise in bulk",
+        "consignments on the terms of this Agreement, as ordered by the Buyer by purchase order.",
+    )
+    for i, line in enumerate(scope):
+        cv.text(LEFT, y + 16 + i * 13, line, size=9)
+    y += 70
+    cv.text(LEFT, y, "2. Contract value", size=10, font="Helvetica-Bold")
+    value_line = (
+        f"The total value of this Agreement is S$ {fmt_amount(c.value)} (exclusive of GST)."
+    )
+    cv.text(LEFT, y + 16, value_line, size=9.5)
+    y += 52
+    cv.text(LEFT, y, "3. Term", size=10, font="Helvetica-Bold")
+    cv.text(LEFT, y + 16, f"This Agreement takes effect on {fmt_date(c.effective, ds)}", size=9.5)
+    cv.text(LEFT, y + 30, f"and continues until {fmt_date(c.end, ds)}.", size=9.5)
+    y += 66
+    cv.text(LEFT, y, "4. Payment", size=10, font="Helvetica-Bold")
+    cv.text(LEFT, y + 16, f"Payment terms: {c.payment_terms}.", size=8)
+    cv.footer("Page 1 of 2")
+    cv.new_page()
+    cv.text(LEFT, 50, c.title.upper() + " (continued)", size=11, font="Helvetica-Bold")
+    y = 80.0
+    clauses = (
+        (
+            "5. Delivery",
+            "Goods are delivered to the Buyer's nominated address; risk passes on delivery.",
+        ),
+        ("6. Warranty", "The Seller warrants the goods are free from defects for twelve months."),
+        (
+            "7. Termination",
+            "Either party may terminate on thirty days' written notice for material breach.",
+        ),
+        ("8. Governing law", "This fictitious Agreement is a specimen for software testing only."),
+    )
+    for head, body in clauses:
+        cv.text(LEFT, y, head, size=10, font="Helvetica-Bold")
+        cv.text(LEFT, y + 15, body, size=9)
+        y += 46
+    y = max(y + 20, 330)
+    cv.text(LEFT, y, "SIGNED by the parties:", size=9.5, font="Helvetica-Bold")
+    y += 24
+    cv.text(LEFT, y, "For the Seller", size=9, font="Helvetica-Bold")
+    cv.text(310, y, "For the Buyer", size=9, font="Helvetica-Bold")
+    cv.image(signature_png(c.sig_seller_seed, f"{c.key}:seller"), LEFT, y + 14, 170, 56)
+    cv.image(signature_png(c.sig_buyer_seed, f"{c.key}:buyer"), 310, y + 14, 170, 56)
+    cv.line(LEFT, y + 76, LEFT + 200, y + 76, 0.6)
+    cv.line(310, y + 76, 510, y + 76, 0.6)
+    cv.text(LEFT, y + 82, c.signatory_seller, size=9)
+    cv.text(310, y + 82, c.signatory_buyer, size=9)
+    cv.text(LEFT, y + 96, "Director", size=8.5)
+    cv.text(310, y + 96, "Authorised signatory", size=8.5)
+    cv.footer("Page 2 of 2")
+    pdf = finalize_pdf(
+        cv.finish(),
+        producer="Mock Ledger 5.0",
+        creator="Mock Ledger Desktop",
+        title=f"Contract {c.number}",
+        doc_date=c.contract_date,
+    )
+    return f"supply_agreement_{c.number}.pdf", pdf
+
+
+def challenger_demo(out: Path) -> dict[str, list[str]]:
+    """The challenger demo folder: ``1-upload-first`` (the 22 files of an AML fraud bundle) and ``2-add-after`` (the
+    supply agreement, to add with "Add documents" once the first analysis has been read). Returns the file names."""
+    from scripts import make_bundle
+
+    if out.exists():
+        shutil.rmtree(out)
+    work = out.parent / ".challenger-work"
+    if work.exists():
+        shutil.rmtree(work)
+    rc = make_bundle.main(
+        [
+            "--scenario", "aml", "--variant", "fraud", "--seed", "4002",
+            "--company-index", str(CHALLENGER_COMPANY), "--render", "digital", "--out", str(work),
+        ]
+    )  # fmt: skip
+    if rc:
+        raise RuntimeError(f"make_bundle failed with {rc}")
+    bundle = next((work / "bundles").iterdir())
+    manifest = json.loads((bundle / "manifest.json").read_text())
+    truth = json.loads((bundle / "ground_truth.json").read_text())
+    seller = Party(name=manifest["applicant"]["name"], uen=manifest["applicant"]["uen"])
+    declaration = next(
+        d for d in truth["documents"] if d["doc_type"] == "source_of_funds_declaration"
+    )
+    first, later = out / "1-upload-first", out / "2-add-after"
+    first.mkdir(parents=True)
+    later.mkdir()
+    listed: dict[str, list[str]] = {"1-upload-first": [], "2-add-after": []}
+    for pdf in sorted((bundle / "digital").glob("*.pdf")):
+        shutil.copy(pdf, first / pdf.name)
+        listed["1-upload-first"].append(pdf.name)
+    name, data = supply_agreement(seller, declaration["fields"]["declarant_name"]["raw"])
+    (later / name).write_bytes(data)
+    listed["2-add-after"].append(name)
+    shutil.rmtree(work, ignore_errors=True)
+    return listed
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", type=Path, required=True)
@@ -370,7 +526,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="write only the files that join three existing bundles",
     )
+    ap.add_argument(
+        "--challenger",
+        action="store_true",
+        help="write the challenger demo: an AML case to upload, and the agreement to add afterwards",
+    )
     a = ap.parse_args(argv)
+    if a.challenger:
+        for step, names in challenger_demo(a.out).items():
+            print(f"{step}: {len(names)} file(s)")
+        return 0
     if a.extras:
         for slug, names in demo_extras(a.out, a.variant).items():
             print(f"{slug}: {', '.join(names)}")

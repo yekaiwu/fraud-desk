@@ -33,6 +33,40 @@ def _strip_flag_brackets(text: str) -> str:
     return _TRAILING_BRACKETS.sub("", _ALIAS_BRACKET.sub("", text))
 
 
+_ID = r"F\d+"
+_SEPARATOR = r"\s*(?:[,;&]|\band\b|-|\u2013|\u2014|\bto\b)\s*"
+_ALIAS_GROUP = re.compile(rf"\(\s*{_ID}(?:{_SEPARATOR}{_ID})*\s*\)")
+_ALIAS_RANGE = re.compile(r"\bF(\d+)\s*(?:-|\u2013|\u2014|\bto\b)\s*F(\d+)\b")
+# a summary is two or three sentences; naming the checks makes it a little longer
+SUMMARY_CHARS = 800
+
+
+def _checks_named(text: str, rule_of: dict[str, str]) -> list[str]:
+    """The distinct checks behind the ids in ``text``; a range such as "F2-F4" counts every id between."""
+    numbers: set[int] = set()
+    for first, last in _ALIAS_RANGE.findall(text):
+        numbers.update(range(int(first), min(int(last), len(rule_of)) + 1))
+    numbers.update(int(n) for n in re.findall(r"\bF(\d+)\b", text))
+    return sorted({rule_of[f"F{n}"] for n in numbers if f"F{n}" in rule_of})
+
+
+def _name_rules(text: str, rule_of: dict[str, str]) -> str:
+    """The model sometimes writes the ids it was given ("F1") in the summary, ids no reviewer has seen. They
+    become the names of the checks, which the screen shows: "(F1, F2)" or "(F1-F2)" reads "(bs_totals,
+    x_directors)". An id that is not one of the flags is left as written."""
+
+    def group(m: re.Match[str]) -> str:
+        found = _checks_named(m.group(), rule_of)
+        return f"({', '.join(found)})" if found else m.group()
+
+    def span(m: re.Match[str]) -> str:
+        found = _checks_named(m.group(), rule_of)
+        return ", ".join(found) if found else m.group()
+
+    text = _ALIAS_RANGE.sub(span, _ALIAS_GROUP.sub(group, text))
+    return _FLAG_ID.sub(lambda m: rule_of.get(m.group(), m.group()), text)
+
+
 TASK = """You are the case officer leading a fraud-review team at a bank. Specialist reviewers and a \
 challenger have examined a customer's documents. You receive what they found. Write for the human \
 reviewer who will decide the case.
@@ -96,10 +130,10 @@ def brief(ctx: CaseContext, team: list[AgentReport]) -> tuple[str, list[str]]:
         schema_name="Briefing",
         json_schema=SCHEMA,
     )
-    summary = clean_text(str(reply.get("summary", "")), 600)
+    rule_of = {a: f.rule for f in flags for a in [alias[f.id]]}
+    summary = clean_text(_name_rules(str(reply.get("summary", "")), rule_of), SUMMARY_CHARS)
     if not summary:
         raise AgentFailed("empty summary")
-    rule_of = {a: f.rule for f in flags for a in [alias[f.id]]}
     steps: list[str] = []
     for item in reply.get("next_steps", [])[:MAX_STEPS]:
         text = str(item.get("step", "")) if isinstance(item, dict) else str(item)

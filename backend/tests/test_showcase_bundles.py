@@ -91,3 +91,38 @@ def test_extras_bill_the_bundle_company_so_cross_document_checks_stay_quiet(tmp_
             assert kiln.name in pymupdf.open(path)[0].get_text()
     gldb = pymupdf.open(tmp_path / "x" / "gldb" / listed["gldb"][0])[0].get_text()
     assert sb.GLDB_NAME in gldb and "Chonmyong Shipping Co" in gldb
+
+
+def test_challenger_demo_has_an_upload_and_an_agreement_that_names_the_payers(
+    tmp_path: Path,
+) -> None:
+    listed = sb.challenger_demo(tmp_path / "demo")
+    assert len(listed["1-upload-first"]) == 22 and len(listed["2-add-after"]) == 1
+    first = tmp_path / "demo" / "1-upload-first"
+    assert (first / "invoice_INV-2026-0117.pdf").exists()
+    agreement = pymupdf.open(tmp_path / "demo" / "2-add-after" / listed["2-add-after"][0])
+    text = " ".join(page.get_text() for page in agreement)
+    assert "Orchid Bay Holdings Pte. Ltd." in text and "specimen" in text.lower()
+    statements = " ".join(
+        page.get_text()
+        for p in sorted(first.glob("bank_statement_*.pdf"))
+        for page in pymupdf.open(p)
+    )
+    for (
+        payer
+    ) in sb.CHALLENGER_PAYERS:  # the agreement names the companies the statements show paying
+        assert payer in text and payer in statements
+    invoice = pymupdf.open(first / "invoice_INV-2026-0117.pdf")[0].get_text()
+    assert "Orchid Bay Holdings Pte. Ltd." in invoice and sg_uen.is_valid(sb.CHALLENGER_BUYER.uen)
+
+
+def test_challenger_agreement_is_signed_by_a_director_of_the_applicant(tmp_path: Path) -> None:
+    listed = sb.challenger_demo(tmp_path / "demo")
+    profile = pymupdf.open(tmp_path / "demo" / "1-upload-first" / "company_profile.pdf")[
+        0
+    ].get_text()
+    agreement = pymupdf.open(tmp_path / "demo" / "2-add-after" / listed["2-add-after"][0])
+    text = " ".join(page.get_text() for page in agreement)
+    # company index 6 with seed 4002 is "Yishun Anchor"; if the generator changes its people, update this name
+    assert "Yishun Anchor Pte. Ltd." in profile and "Yishun Anchor Pte. Ltd." in text
+    assert "Nadia Hartmann" in profile and "Nadia Hartmann" in text

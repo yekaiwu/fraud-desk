@@ -202,6 +202,34 @@ def test_only_flag_alias_brackets_are_removed_from_a_next_step(step: str, expect
     assert steps == [expected]
 
 
+@pytest.mark.parametrize(
+    ("summary", "expected"),
+    [
+        ("Two flags stand (F1, F2).", "Two flags stand (bs_totals, x_directors)."),
+        ("F1 is high and F2 is medium.", "bs_totals is high and x_directors is medium."),
+        (
+            "The director (F2) and the totals (F1 and F2).",
+            "The director (x_directors) and the totals (bs_totals, x_directors).",
+        ),
+        ("Both (F1; F1) point at one check.", "Both (bs_totals) point at one check."),
+        ("Both are medium (F1-F2).", "Both are medium (bs_totals, x_directors)."),
+        ("Both are medium (F1\u2013F2).", "Both are medium (bs_totals, x_directors)."),
+        ("F1 to F2 are medium.", "bs_totals, x_directors are medium."),
+        ("Two (F2-F2) are the same.", "Two (x_directors) are the same."),
+        ("An unknown id (F9) is left alone.", "An unknown id (F9) is left alone."),
+        (
+            "The 2024 figures and the F18 car are not flag ids here.",
+            "The 2024 figures and the F18 car are not flag ids here.",
+        ),
+    ],
+)
+def test_flag_ids_in_the_summary_become_check_names(summary: str, expected: str) -> None:
+    flags = [flag("a", "bs_totals", ["d1"], stage="rules"), flag("b", "x_directors", ["d1"])]
+    llm = StubLLM({"agent:case_officer": {"summary": summary, "next_steps": []}})
+    text, _ = officer.brief(ctx_with(flags, llm), [])
+    assert text == expected
+
+
 def test_off_means_nothing_runs_and_the_json_is_unchanged() -> None:
     llm = StubLLM({})
     ctx = ctx_with(
