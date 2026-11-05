@@ -31,8 +31,6 @@
 Fraud Desk reads a bundle of documents, runs the checks an analyst would do by hand, and ranks the cases that need a person.
 
 <div align="center">
-  <img src="https://img.shields.io/badge/checks-69%20rule--based%20%2B%205%20model--based-2f4858?style=for-the-badge" alt="69 rule-based and 5 model-based checks">
-  <img src="https://img.shields.io/badge/forgery%20attacks%20red--teamed-71-b8893b?style=for-the-badge" alt="71 forgery attacks red-teamed">
   <img src="https://img.shields.io/badge/automated%20tests-6%2C800%2B-3776AB?style=for-the-badge" alt="More than 6,800 automated tests">
 </div>
 
