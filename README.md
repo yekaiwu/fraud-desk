@@ -30,12 +30,50 @@
 
 Fraud Desk reads a bundle of documents, runs the checks an analyst would do by hand, and ranks the cases that need a person.
 
-- **Riskiest cases first.** A score and a one-line plain-English reason for each case. Analysts make every decision.
-- **Evidence you can see.** Each flag is highlighted on the exact figure on the exact page, and every score shows its coverage: which checks ran and which pages went unreviewed.
-- **69 rule-based checks plus 5 model-based, across 13 document types.** The rule-based ones cover statement, invoice, receipt and financial-statement arithmetic, ID and ownership records, cross-document reconciliation, name matching, file forensics. The model-based ones read meaning and quote the text they rely on (name linking is opt-in). Optional outside sources: ACRA company lookup, sanctions lists, GLEIF ([docs/verification-sources.md](docs/verification-sources.md)).
-- **Review team and workflow.** Four specialist reviewers and a case officer summarise each flagged case. Verdicts need a reason, high-severity dismissals need a second approver, and everything lands in an append-only audit log ([docs/agents.md](docs/agents.md)).
-- **Your own checks, optional.** Describe a check in plain English and a fixed engine runs it, with a dry run first ([docs/custom-rules.md](docs/custom-rules.md)).
-- **Safe by design.** Encrypted at rest, red-teamed with 71 forgery attacks, per-case and per-day spend caps, and it can run fully in-house on a local model ([docs/red-team.md](docs/red-team.md), [docs/local-llm.md](docs/local-llm.md)).
+<div align="center">
+  <img src="https://img.shields.io/badge/held--out%20digital%3A%20tampered%20caught-465%20%2F%20465-1b5e46?style=for-the-badge" alt="465 of 465 tampered digital cases caught on the held-out seed">
+  <img src="https://img.shields.io/badge/digital%3A%20clean%20falsely%20flagged-0%20%2F%2033-1b5e46?style=for-the-badge" alt="0 of 33 clean digital bundles falsely flagged">
+  <img src="https://img.shields.io/badge/checks-69%20rule--based%20%2B%205%20model--based-2f4858?style=for-the-badge" alt="69 rule-based and 5 model-based checks">
+  <img src="https://img.shields.io/badge/forgery%20attacks%20red--teamed-71-b8893b?style=for-the-badge" alt="71 forgery attacks red-teamed">
+  <img src="https://img.shields.io/badge/automated%20tests-6%2C800%2B-3776AB?style=for-the-badge" alt="More than 6,800 automated tests">
+</div>
+
+<br>
+
+<table>
+  <tr>
+    <td valign="top" width="50%">
+      <h4>🎯 Riskiest cases first</h4>
+      A score and a one-line plain-English reason for every case, so the analyst opens the right one next. People make every decision.
+    </td>
+    <td valign="top" width="50%">
+      <h4>🔎 Evidence you can see</h4>
+      Each flag is drawn on the exact figure on the exact page. Every score shows its coverage: which checks ran and which pages went unreviewed.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h4>🧪 69 rule-based checks plus 5 model-based</h4>
+      Across 13 document types: statement, invoice, receipt and financial-statement arithmetic, ID and ownership records, cross-document reconciliation, name matching, file forensics. The model-based checks read meaning and quote the text they rely on. Optional outside sources: ACRA, sanctions lists, GLEIF (<a href="docs/verification-sources.md">details</a>).
+    </td>
+    <td valign="top">
+      <h4>🧩 Write your own check</h4>
+      In the Check catalogue, describe a check in plain English. A fixed engine runs it, shows exactly what it will and will not check, and tests it on stored cases first. Anything it cannot do goes to the tech team as a request (<a href="docs/custom-rules.md">details</a>).
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h4>👥 Review team and audit trail</h4>
+      Four specialist reviewers and a case officer summarise each flagged case. Verdicts need a reason, high-severity dismissals need a second approver, and everything lands in an append-only log (<a href="docs/agents.md">details</a>).
+    </td>
+    <td valign="top">
+      <h4>🔒 Safe by design</h4>
+      Encrypted at rest, red-teamed with 71 forgery attacks, per-case and per-day spend caps, and it can run fully in-house on a local model (<a href="docs/red-team.md">red team</a>, <a href="docs/local-llm.md">local model</a>).
+    </td>
+  </tr>
+</table>
+
+<sub>Numbers are measured on fictitious test documents; see [Results](#results) for the method and the misses.</sub>
 
 ## See it
 
