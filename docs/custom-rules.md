@@ -19,6 +19,10 @@ The assistant may only pick from the fields the system really reads. The list is
 
 The assistant is told this list and must report these instead of guessing: anything the system does not read (notes to the accounts, lender names, loan terms, credit scores, transaction rows), other kinds of document (tax returns, utility bills, social media), outside lookups, more than this year against last year, pictures, logos and layout, fuzzy judgement ("looks suspicious"), other cases, comparing two documents, counting or matching (distinct lenders, similar names), "and" / "or", and anything that changes built-in checks or the score.
 
+## Where it lives
+
+There is no separate page or navigation entry. On the **Check catalogue** page, when `/me` says `custom_rules` is on, a **Create custom check** button sits next to "Change log" and opens a popup (the rule assistant, every step of it, up to saving). Closing the popup throws away an unsaved draft; after a save the saved view stays in the popup, and "Go to my checks" closes it and scrolls to the section. Under the built-in list the **Custom checks** section ("Written by officers, not reviewed by the development team") has three tabs: **My checks** (switch on or off, make public, new version, delete, and the public checks adopted), **Public checks** (adopt, unadopt, administrators can take back) and **Requests to the tech team**. With the feature off, none of this renders. The old `/rules/custom` address redirects to `/rules`.
+
 ## What happens to a request
 
 1. **Classified first.** Code checks the words first (empty, instructions to the assistant, protected attributes, "high", "hard stop", switching off built-in checks, changing the score). Then one model call. The final status is decided by code and can only be lowered from what the model said: a "ready" with a word nobody accounted for, a part that cannot be done, a question left open or an invalid rule is not ready. Answering a question never settles a phrase or word the model dropped: it becomes a line in "It will NOT check", and saving then needs the tick that the rule checks less than asked. Wording about a protected attribute (nationality or origin, age, sex, and the like) is refused by word lists in code, also when the model files it under another reason, and is never sent to the tech team. Words the model refused are not kept or sent on.
@@ -36,7 +40,7 @@ A rule belongs to the account that wrote it and is **private**: nobody else can 
 
 At the start of an analysis the rules of the account that started it are loaded: its own enabled rules and the public ones it adopted. A rule runs only when a document of its type is in the case, once per document. A custom flag is at most medium, is never a hard stop, is not counted in coverage (a rule that did not apply cannot lower it), and counts as one score family. Rules never raise: any surprise becomes a skip. If a figure it uses is unverified or the two readings disagree, the flag drops to low and says so. Evidence quotes the document as plain text.
 
-Every loaded rule appears on the case whether it fired or not: in the list of checks that ran, with 0 flags when it found nothing, and in the case timeline, with who wrote it and which version. Flags show as findings labelled as custom. The catalogue page lists the viewer's own and adopted rules with a "Custom" badge.
+Every loaded rule appears on the case whether it fired or not: in the list of checks that ran, with 0 flags when it found nothing, and in the case timeline, with who wrote it and which version. Flags show as findings labelled as custom. The Check catalogue page has a "Custom checks" section under the built-in list (see Where it lives); its entries carry a "Custom" badge.
 
 ## Settings and cost
 

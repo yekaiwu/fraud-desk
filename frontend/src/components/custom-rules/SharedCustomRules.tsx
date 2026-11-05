@@ -55,7 +55,7 @@ function Card({ r, admin, busy, onAdopt, onStop, onUnpublish }: { r: SharedRuleV
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-rule pt-3">
         {r.own ? (
-          <p className="text-sm text-muted">Your own rule. Manage it under My rules.</p>
+          <p className="text-sm text-muted">Your own rule. Manage it under My checks.</p>
         ) : r.adopted ? (
           <>
             {newer ? (

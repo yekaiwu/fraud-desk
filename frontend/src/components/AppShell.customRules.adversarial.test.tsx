@@ -1,4 +1,4 @@
-/** The Custom rules entry in the navigation appears only when /me says so, and never as a guess. */
+/** Custom checks have no navigation entry: they live on the Check catalogue page, whatever /me says. */
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,7 +11,9 @@ import { renderWithSWR } from "@/test/utils";
 import { AppShell } from "./AppShell";
 
 const links = () => Array.from(screen.getByRole("navigation", { name: "Main" }).querySelectorAll("a")).map((a) => a.textContent);
+const hrefs = () => Array.from(screen.getByRole("navigation", { name: "Main" }).querySelectorAll("a")).map((a) => a.getAttribute("href"));
 const settle = () => new Promise((r) => setTimeout(r, 40));
+const BASE = ["Worklist", "New case", "Control performance", "Check catalogue"];
 
 beforeEach(() => {
   pathname = "/";
@@ -19,61 +21,47 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("navigation entry for custom rules", () => {
+describe("navigation has no entry for custom checks", () => {
   it.each([
+    ["the server says custom_rules is true", { reviewer: "alice", admin: false, custom_rules: true }],
     ["the server says custom_rules is false", { reviewer: "alice", admin: false, custom_rules: false }],
     ["an older server does not report custom_rules at all", { reviewer: "alice", admin: false }],
     ["nobody is signed in by account", { reviewer: null, admin: false, custom_rules: false }],
-  ])("is hidden when %s", async (_why, me) => {
+  ])("when %s", async (_why, me) => {
     getMe.mockResolvedValue(me);
     renderWithSWR(<AppShell>x</AppShell>);
     await settle();
-    expect(links()).not.toContain("Custom rules");
+    expect(links()).toEqual(BASE);
+    expect(hrefs()).not.toContain("/rules/custom");
   });
 
-  it("is hidden while /me is still loading and when /me fails", async () => {
+  it("while /me is still loading and when /me fails", async () => {
     getMe.mockReturnValue(new Promise(() => {}));
     const pending = renderWithSWR(<AppShell>x</AppShell>);
     await settle();
-    expect(links()).toEqual(["Worklist", "New case", "Control performance", "Check catalogue"]);
+    expect(links()).toEqual(BASE);
     pending.unmount();
     getMe.mockRejectedValue(new Error("down"));
     renderWithSWR(<AppShell>x</AppShell>);
     await settle();
-    expect(links()).toEqual(["Worklist", "New case", "Control performance", "Check catalogue"]);
+    expect(links()).toEqual(BASE);
   });
 
-  it("is shown for a signed-in account that has the feature, and points at the page", async () => {
+  it("a page below /rules still lights only the Check catalogue tab", async () => {
     getMe.mockResolvedValue({ reviewer: "alice", admin: false, custom_rules: true });
+    pathname = "/rules/custom";
     renderWithSWR(<AppShell>x</AppShell>);
-    expect(await screen.findByRole("link", { name: "Custom rules" })).toHaveAttribute("href", "/rules/custom");
-  });
-
-  it("the tab stays lit on a page below /rules/custom, and the catalogue tab does not light with it", async () => {
-    getMe.mockResolvedValue({ reviewer: "alice", admin: false, custom_rules: true });
-    pathname = "/rules/custom/anything";
-    renderWithSWR(<AppShell>x</AppShell>);
-    expect(await screen.findByRole("link", { name: "Custom rules" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Check catalogue" })).not.toHaveAttribute("aria-current");
+    expect(await screen.findByRole("link", { name: "Check catalogue" })).toHaveAttribute("aria-current", "page");
     expect(document.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
   });
 
-  it("a path that only starts with the same letters does not light it", async () => {
-    getMe.mockResolvedValue({ reviewer: "alice", admin: false, custom_rules: true });
-    pathname = "/rules/customised";
-    renderWithSWR(<AppShell>x</AppShell>);
-    await screen.findByRole("link", { name: "Custom rules" });
-    expect(screen.getByRole("link", { name: "Custom rules" })).not.toHaveAttribute("aria-current");
-    expect(screen.getByRole("link", { name: "Check catalogue" })).toHaveAttribute("aria-current", "page");
-  });
-
-  it("is not asked for, or shown, on the sign-in and welcome pages", async () => {
+  it("is not asked for on the sign-in and welcome pages", async () => {
     getMe.mockResolvedValue({ reviewer: "alice", admin: false, custom_rules: true });
     for (const p of ["/login", "/welcome"]) {
       pathname = p;
       const v = renderWithSWR(<AppShell>content</AppShell>);
       await settle();
-      expect(screen.queryByRole("link", { name: "Custom rules" })).toBeNull();
+      expect(screen.queryByRole("link", { name: /custom/i })).toBeNull();
       v.unmount();
     }
     expect(getMe).not.toHaveBeenCalled();

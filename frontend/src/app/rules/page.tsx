@@ -1,12 +1,14 @@
 "use client";
 
-import { History, SearchX } from "lucide-react";
+import { History, Plus, SearchX } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import useSWR from "swr";
 import { ChangeLogSheet } from "@/components/catalogue/ChangeLog";
 import { CheckEditor, type SavedKind } from "@/components/catalogue/CheckEditor";
-import { CatalogueCustomSection } from "@/components/custom-rules/CatalogueSection";
+import { CreateCustomCheckDialog } from "@/components/custom-rules/CreateCustomCheckDialog";
+import { CustomChecksSection, type CustomChecksTab } from "@/components/custom-rules/CustomChecksSection";
+import type { EditTarget } from "@/components/custom-rules/RuleAssistant";
 import { CheckCards, CheckTable } from "@/components/rules/CheckEntries";
 import { ErrorState } from "@/components/StateViews";
 import { Button, EmptyState, Field, Notice, Panel, SectionHeading, Skeleton, Stagger, inputClasses } from "@/components/ui";
@@ -15,6 +17,7 @@ import { checkName, effectiveName, stageHint, stageLabel, STAGES } from "@/lib/c
 import { catalogueCounts, documentTypesOf, filterChecks, isFiltered, NO_FILTERS, orderChecks, type CheckFilters, type SettingsFilter } from "@/lib/checkFilters";
 import { plural, severityLabel } from "@/lib/labels";
 import type { FlagStage, RuleInfo, Severity, UseCase } from "@/lib/types";
+import { useMe } from "@/lib/useMe";
 
 const SEVERITIES: Severity[] = ["high", "medium", "low", "info"];
 
@@ -47,6 +50,12 @@ function RulesView() {
   const editing = chosen === undefined ? linked : chosen;
   const [logOpen, setLogOpen] = useState(false);
   const [saved, setSaved] = useState<{ kind: SavedKind; name: string } | null>(null);
+  // custom checks (docs/custom-rules.md): the button, the popup and the section exist only when /me says the feature is on
+  const me = useMe();
+  const customOn = me?.custom_rules === true;
+  const [create, setCreate] = useState<{ edit: EditTarget | null } | null>(null);
+  const [customTab, setCustomTab] = useState<CustomChecksTab>("mine");
+  const [revealKey, setRevealKey] = useState(0);
   const editRule = useMemo(() => all.find((r) => r.rule === editing) ?? null, [all, editing]);
 
   async function onSaved(updated: RuleInfo, kind: SavedKind) {
@@ -62,9 +71,16 @@ function RulesView() {
         size="page"
         description="Every check the system can run and the kind of tampering it is meant to catch. You can switch a check off, change how serious its findings are, and reword it."
         actions={
-          <Button variant="secondary" icon={<History aria-hidden className="h-4 w-4" />} onClick={() => setLogOpen(true)}>
-            Change log
-          </Button>
+          <>
+            {customOn ? (
+              <Button icon={<Plus aria-hidden className="h-4 w-4" />} onClick={() => setCreate({ edit: null })}>
+                Create custom check
+              </Button>
+            ) : null}
+            <Button variant="secondary" icon={<History aria-hidden className="h-4 w-4" />} onClick={() => setLogOpen(true)}>
+              Change log
+            </Button>
+          </>
         }
       >
         Check catalogue
@@ -160,7 +176,22 @@ function RulesView() {
         </section>
       ) : null}
 
-      <CatalogueCustomSection />
+      {customOn ? (
+        <>
+          <CustomChecksSection admin={me?.admin === true} tab={customTab} onTabChange={setCustomTab} revealKey={revealKey} onNew={() => setCreate({ edit: null })} onEdit={(edit) => setCreate({ edit })} />
+          <CreateCustomCheckDialog
+            open={create !== null}
+            edit={create?.edit ?? null}
+            onClose={() => setCreate(null)}
+            onCancelEdit={() => setCreate({ edit: null })}
+            onOpenChecks={() => {
+              setCreate(null);
+              setCustomTab("mine");
+              setRevealKey((k) => k + 1);
+            }}
+          />
+        </>
+      ) : null}
 
       <CheckEditor rule={editRule} rules={all} open={editing !== null} onClose={() => setEditing(null)} onSaved={(u, k) => void onSaved(u, k)} />
       <ChangeLogSheet open={logOpen} onClose={() => setLogOpen(false)} rules={all} />

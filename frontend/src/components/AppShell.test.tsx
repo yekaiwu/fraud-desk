@@ -27,42 +27,28 @@ describe("AppShell", () => {
     expect(screen.queryByRole("link", { name: "Spending" })).toBeNull();
   });
 
-  it("adds a Custom rules tab when the server says custom rules are on for this account, and not otherwise", async () => {
+  it("has no custom checks entry, whether or not the server has custom checks on for this account", async () => {
     me = { reviewer: "user1", admin: false, custom_rules: true };
     const on = renderWithSWR(<AppShell>x</AppShell>);
-    expect(await screen.findByRole("link", { name: "Custom rules" })).toHaveAttribute("href", "/rules/custom");
-    const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Control performance", "Check catalogue", "Custom rules"]);
-    on.unmount();
-    me = { reviewer: "user1", admin: false, custom_rules: false };
-    renderWithSWR(<AppShell>x</AppShell>);
     await screen.findByRole("link", { name: "Worklist" });
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole("link", { name: "Custom rules" })).toBeNull();
-  });
-
-  it("puts Custom rules before Spending for an administrator who has both", async () => {
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Control performance", "Check catalogue"]);
+    expect(nav.textContent).not.toMatch(/custom/i);
+    on.unmount();
     me = { reviewer: "boss", admin: true, custom_rules: true };
     renderWithSWR(<AppShell>x</AppShell>);
     await screen.findByRole("link", { name: "Spending" });
-    const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(Array.from(nav.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Control performance", "Check catalogue", "Custom rules", "Spending"]);
+    const admin = screen.getByRole("navigation", { name: "Main" });
+    expect(Array.from(admin.querySelectorAll("a")).map((a) => a.textContent)).toEqual(["Worklist", "New case", "Control performance", "Check catalogue", "Spending"]);
   });
 
-  it("lights only the longest matching tab: Custom rules, not Check catalogue, on /rules/custom", async () => {
-    me = { reviewer: "user1", admin: false, custom_rules: true };
-    pathname = "/rules/custom";
-    renderWithSWR(<AppShell>x</AppShell>);
-    expect(await screen.findByRole("link", { name: "Custom rules" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Check catalogue" })).not.toHaveAttribute("aria-current");
-  });
-
-  it("still lights Check catalogue on /rules", async () => {
+  it("lights Check catalogue on /rules", async () => {
     me = { reviewer: "user1", admin: false, custom_rules: true };
     pathname = "/rules";
     renderWithSWR(<AppShell>x</AppShell>);
     expect(await screen.findByRole("link", { name: "Check catalogue" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Custom rules" })).not.toHaveAttribute("aria-current");
+    expect(document.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
   });
 
   it("has landmarks, a skip link, the four nav items, the notifications bell and the disclaimer line", () => {

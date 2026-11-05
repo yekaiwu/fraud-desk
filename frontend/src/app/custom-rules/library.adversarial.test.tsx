@@ -1,17 +1,16 @@
 /**
  * Adversarial tests for the lists around the assistant: My rules, Public rules (adopt and unadopt), the requests to the
- * tech team, the Custom section of the catalogue page and the Custom rules page itself. Loading, empty and error states,
+ * tech team, and the Custom checks section of the check catalogue page (its button, popup and tabs). Loading, empty and error states,
  * double clicks, reasons, who may do what, and text that must never be read as markup.
  */
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "swr";
-import { CatalogueCustomSection } from "@/components/custom-rules/CatalogueSection";
 import { CustomTickets } from "@/components/custom-rules/CustomTickets";
 import { MyCustomRules } from "@/components/custom-rules/MyCustomRules";
 import { SharedCustomRules } from "@/components/custom-rules/SharedCustomRules";
-import CustomRulesPage from "@/app/rules/custom/page";
+import RulesPage from "@/app/rules/page";
 import { adopted, errorBody, json, routedFetch, ruleView, shared, ticket } from "@/test/customRulesFixtures";
 import { renderWithSWR } from "@/test/utils";
 
@@ -53,7 +52,7 @@ describe("My rules", () => {
     mine({ "GET /custom-rules": async () => (await gate, json({ mine: [ruleView()], adopted: [] })) });
     expect(await screen.findByRole("status")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByText("Loading your rules...")).toBeInTheDocument();
-    expect(screen.queryByText("You have not written a rule yet")).toBeNull();
+    expect(screen.queryByText("You have not written a custom check yet")).toBeNull();
     release();
     expect(await screen.findByRole("heading", { name: "Heavy borrowing" })).toBeInTheDocument();
   });
@@ -292,7 +291,7 @@ describe("Public rules", () => {
   it("the officer's own public rule can be neither adopted nor taken back from here, even by an administrator", async () => {
     pub({ "GET /custom-rules/shared": () => json({ rules: [shared({ own: true, author: "alice" })] }) }, true);
     const li = (await screen.findByRole("heading", { name: "Expired passport" })).closest("li") as HTMLElement;
-    expect(within(li).getByText("Your own rule. Manage it under My rules.")).toBeInTheDocument();
+    expect(within(li).getByText("Your own rule. Manage it under My checks.")).toBeInTheDocument();
     expect(within(li).queryByRole("button")).toBeNull();
     expect(within(li).getByText("(you)", { exact: false })).toBeInTheDocument();
   });
@@ -548,166 +547,134 @@ describe("Requests to the tech team", () => {
   });
 });
 
-// -------------------------------------------------------------------------------------- catalogue page: Custom rules
+// ---------------------------------------------------------------------------- catalogue page: Custom checks section
 
-describe("the Custom rules section of the rule catalogue", () => {
-  function section(me: Record<string, unknown> | "fail", routes: Routes = {}) {
-    const f = routedFetch({
-      "GET /me": () => (me === "fail" ? errorBody("unauthorized", "no", 401) : json(me)),
-      "GET /custom-rules": () => json({ mine: [], adopted: [] }),
-      ...routes,
-    });
-    vi.stubGlobal("fetch", f.fn);
-    const view = renderWithSWR(<CatalogueCustomSection />);
-    return { f, view };
-  }
-
-  it("is absent, and asks the server nothing about custom rules, when the feature is off, unknown or /me fails", async () => {
-    for (const me of [{ reviewer: "alice", admin: false, custom_rules: false }, { reviewer: "alice", admin: false }, "fail" as const]) {
-      const { f, view } = section(me);
-      await waitFor(() => expect(f.count("GET /me")).toBeGreaterThan(0));
-      await new Promise((r) => setTimeout(r, 30));
-      expect(screen.queryByText("Custom rules")).toBeNull();
-      expect(f.calls.some((c) => c.path.startsWith("/custom-rules"))).toBe(false);
-      view.unmount();
-    }
-  });
-
-  it("lists the viewer's own active rules and adopted public rules with a Custom badge each, and not a deleted rule", async () => {
-    section(
-      { reviewer: "alice", admin: false, custom_rules: true },
-      {
-        "GET /custom-rules": () =>
-          json({
-            mine: [
-              ruleView(),
-              ruleView({ rule_id: "cus_bbbbbbbbbb", name: "Off rule", enabled: false, visibility: "public", published_version: 1 }),
-              ruleView({ rule_id: "cus_cccccccccc", name: "Deleted rule", status: "retired" }),
-            ],
-            adopted: [adopted()],
-          }),
-      },
-    );
-    const list = await screen.findByRole("list", { name: "Your custom rules" });
-    const items = within(list).getAllByRole("listitem");
-    expect(items).toHaveLength(3);
-    for (const li of items) expect(within(li).getByText("Custom")).toBeInTheDocument();
-    expect(within(list).queryByText("Deleted rule")).toBeNull();
-    expect(within(list).getByText("Switched off")).toBeInTheDocument();
-    expect(within(list).getByText("Public")).toBeInTheDocument();
-    expect(within(list).getByText("Adopted from bob")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open custom rules" })).toHaveAttribute("href", "/rules/custom");
-    expect(screen.getByText("Written by officers, not reviewed by the development team")).toBeInTheDocument();
-  });
-
-  it("shows names as text", async () => {
-    section({ reviewer: "alice", admin: false, custom_rules: true }, { "GET /custom-rules": () => json({ mine: [ruleView({ name: `n ${IMG}`, readback: `r ${SCRIPT}` })], adopted: [adopted({ author: "<b>x</b>" })] }) });
-    expect(await screen.findByText(/n <img/)).toBeInTheDocument();
-    nothingInjected();
-    expect(document.querySelector("b")).toBeNull();
-  });
-
-  it("says there are none, with a link to write one, once the answer has come back empty", async () => {
-    section({ reviewer: "alice", admin: false, custom_rules: true });
-    expect(await screen.findByText(/You have no custom rules/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Custom rules" })).toHaveAttribute("href", "/rules/custom");
-  });
-
-  it("does not claim 'You have no custom rules' while the list is still loading", async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    section({ reviewer: "alice", admin: false, custom_rules: true }, { "GET /custom-rules": async () => (await gate, json({ mine: [ruleView()], adopted: [] })) });
-    await screen.findByRole("link", { name: "Open custom rules" });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(screen.queryByText(/You have no custom rules/)).toBeNull();
-    release();
-    expect(await screen.findByText("Heavy borrowing")).toBeInTheDocument();
-  });
-
-  it("does not claim 'You have no custom rules' when the list could not be loaded", async () => {
-    section({ reviewer: "alice", admin: false, custom_rules: true }, { "GET /custom-rules": () => errorBody("internal_error", "boom", 500) });
-    await screen.findByRole("link", { name: "Open custom rules" });
-    await new Promise((r) => setTimeout(r, 100));
-    expect(screen.queryByText(/You have no custom rules/)).toBeNull();
-  });
-});
-
-// ------------------------------------------------------------------------------------------------ the page itself
-
-describe("the Custom rules page", () => {
+describe("the Custom checks section of the check catalogue page", () => {
   const me = (over: Record<string, unknown> = {}) => () => json({ reviewer: "alice", admin: false, custom_rules: true, ...over });
   function page(routes: Routes = {}) {
     const f = routedFetch({
       "GET /me": me(),
+      "GET /rules": () => json({ rules: [] }),
       "GET /custom-rules": () => json({ mine: [], adopted: [] }),
       "GET /custom-rules/shared": () => json({ rules: [] }),
       "GET /custom-rules/tickets": () => json({ tickets: [] }),
       ...routes,
     });
     vi.stubGlobal("fetch", f.fn);
-    renderWithSWR(<CustomRulesPage />);
-    return { f, user: userEvent.setup() };
+    const view = renderWithSWR(<RulesPage />);
+    return { f, view, user: userEvent.setup() };
   }
+  const settled = async (f: ReturnType<typeof routedFetch>) => {
+    await waitFor(() => expect(f.count("GET /me")).toBeGreaterThan(0));
+    await screen.findByRole("button", { name: "Change log" });
+    await new Promise((r) => setTimeout(r, 30));
+  };
 
-  it("does not say 'not available' while it is still finding out who is signed in", async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    page({ "GET /me": async () => (await gate, me()()) });
-    await screen.findByRole("status");
-    expect(screen.queryByText("Custom rules are not available")).toBeNull();
-    expect(screen.queryByRole("tablist")).toBeNull();
-    release();
-    expect(await screen.findByRole("tablist", { name: "Custom rules" })).toBeInTheDocument();
+  it("is absent, with no button, and asks the server nothing about custom rules, when the feature is off, unknown or /me fails", async () => {
+    for (const routes of [{ "GET /me": me({ custom_rules: false }) }, { "GET /me": () => json({ reviewer: "alice", admin: false }) }, { "GET /me": () => errorBody("unauthorized", "no", 401) }]) {
+      const { f, view } = page(routes);
+      await settled(f);
+      expect(screen.queryByRole("region", { name: "Custom checks" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Create custom check" })).toBeNull();
+      expect(screen.queryByRole("tablist")).toBeNull();
+      expect(f.calls.some((c) => c.path.startsWith("/custom-rules"))).toBe(false);
+      view.unmount();
+    }
   });
 
-  it("says not available, and asks for nothing else, when /me cannot be read or says nothing about custom rules", async () => {
-    const a = page({ "GET /me": () => errorBody("internal_error", "boom", 500) });
-    expect(await screen.findByText("Custom rules are not available")).toBeInTheDocument();
-    expect(a.f.calls.every((c) => c.path === "/me")).toBe(true);
-    cleanup();
-    vi.unstubAllGlobals();
-    const b = page({ "GET /me": () => json({ reviewer: "alice", admin: false }) });
-    expect(await screen.findByText("Custom rules are not available")).toBeInTheDocument();
-    expect(b.f.calls.every((c) => c.path === "/me")).toBe(true);
+  it("does not show the button or the section while it is still finding out who is signed in", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { f } = page({ "GET /me": async () => (await gate, me()()) });
+    await screen.findByRole("button", { name: "Change log" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByRole("button", { name: "Create custom check" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Custom checks" })).toBeNull();
+    expect(f.calls.some((c) => c.path.startsWith("/custom-rules"))).toBe(false);
+    release();
+    expect(await screen.findByRole("button", { name: "Create custom check" })).toBeInTheDocument();
+    expect(await screen.findByRole("tablist", { name: "Custom checks" })).toBeInTheDocument();
   });
 
   it("an administrator who is not signed in with an account still does not see the feature", async () => {
-    page({ "GET /me": me({ reviewer: null, admin: true, custom_rules: false }) });
-    expect(await screen.findByText("Custom rules are not available")).toBeInTheDocument();
+    const { f } = page({ "GET /me": me({ reviewer: null, admin: true, custom_rules: false }) });
+    await settled(f);
+    expect(screen.queryByRole("button", { name: "Create custom check" })).toBeNull();
+  });
+
+  it("lists my own and adopted rules on the My checks tab with a Custom badge each", async () => {
+    page({
+      "GET /custom-rules": () =>
+        json({ mine: [ruleView()], adopted: [adopted()] }),
+    });
+    expect(await screen.findByRole("heading", { name: "Heavy borrowing" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Expired passport" })).toBeInTheDocument();
+    expect(screen.getAllByText("Custom").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows names as text", async () => {
+    page({ "GET /custom-rules": () => json({ mine: [ruleView({ name: `n ${IMG}`, readback: `r ${SCRIPT}` })], adopted: [adopted({ author: "<b>x</b>" })] }) });
+    expect((await screen.findAllByText(/n <img/)).length).toBeGreaterThan(0);
+    nothingInjected();
+    expect(document.querySelector("b")).toBeNull();
+  });
+
+  it("says there are none, with a button to write one, once the answer has come back empty", async () => {
+    page();
+    expect(await screen.findByText("You have not written a custom check yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create a custom check" })).toBeInTheDocument();
+  });
+
+  it("does not claim 'You have not written a custom check yet' while the list is still loading", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    page({ "GET /custom-rules": async () => (await gate, json({ mine: [ruleView()], adopted: [] })) });
+    await screen.findByRole("region", { name: "Custom checks" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByText("You have not written a custom check yet")).toBeNull();
+    release();
+    expect(await screen.findByRole("heading", { name: "Heavy borrowing" })).toBeInTheDocument();
+  });
+
+  it("does not claim 'You have not written a custom check yet' when the list could not be loaded", async () => {
+    page({ "GET /custom-rules": () => errorBody("internal_error", "boom", 500) });
+    await screen.findByRole("region", { name: "Custom checks" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(screen.queryByText("You have not written a custom check yet")).toBeNull();
   });
 
   it("the tabs follow the arrow keys, Home and End, and only the selected tab is in the tab order", async () => {
     const { user } = page();
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1"]);
+    expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"]);
     tabs[0].focus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "My rules" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "My rules" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Public checks" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Public checks" })).toHaveFocus();
     await user.keyboard("{End}");
     expect(screen.getByRole("tab", { name: "Requests to the tech team" })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "New rule" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "My checks" })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{ArrowLeft}");
     expect(screen.getByRole("tab", { name: "Requests to the tech team" })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{Home}");
-    expect(screen.getByRole("tab", { name: "New rule" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "My checks" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("the selected panel is the only one a screen reader is given, and it is named by its tab", async () => {
     const { user } = page();
     await screen.findAllByRole("tab");
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
-    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("New rule");
-    await user.click(screen.getByRole("tab", { name: "Public rules" }));
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("My checks");
+    await user.click(screen.getByRole("tab", { name: "Public checks" }));
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
-    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Public rules");
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Public checks");
   });
 
   it("never calls the model route (a paid call) just by opening the page or its tabs", async () => {
     const { f, user } = page();
     await screen.findAllByRole("tab");
-    for (const name of ["My rules", "Public rules", "Requests to the tech team", "New rule"]) await user.click(screen.getByRole("tab", { name }));
+    for (const name of ["Public checks", "Requests to the tech team", "My checks"]) await user.click(screen.getByRole("tab", { name }));
     await new Promise((r) => setTimeout(r, 30));
     expect(f.calls.filter((c) => c.method === "POST")).toEqual([]);
   });
@@ -715,17 +682,17 @@ describe("the Custom rules page", () => {
   it("an administrator sees the administrator's take-back on the Public tab, an ordinary officer does not", async () => {
     const routes = { "GET /custom-rules/shared": () => json({ rules: [shared()] }) };
     const admin = page({ ...routes, "GET /me": me({ admin: true }) });
-    await admin.user.click(await screen.findByRole("tab", { name: "Public rules" }));
+    await admin.user.click(await screen.findByRole("tab", { name: "Public checks" }));
     expect(await screen.findByRole("button", { name: /Take back \(administrator\)/ })).toBeInTheDocument();
     cleanup();
     vi.unstubAllGlobals();
     const plain = page(routes);
-    await plain.user.click(await screen.findByRole("tab", { name: "Public rules" }));
+    await plain.user.click(await screen.findByRole("tab", { name: "Public checks" }));
     await screen.findByRole("heading", { name: "Expired passport" });
     expect(screen.queryByRole("button", { name: /administrator/ })).toBeNull();
   });
 
-  it("a ticket sent from the assistant shows up under Requests without a reload", async () => {
+  it("a ticket sent from the assistant in the popup shows up under Requests without a reload", async () => {
     let sent = false;
     const { user } = page({
       "POST /custom-rules/drafts": () =>
@@ -737,10 +704,13 @@ describe("the Custom rules page", () => {
       "POST /custom-rules/tickets": () => ((sent = true), json({ ticket: ticket(), message: "This will be submitted to the tech team (ticket crt_9c0d1e2f3a4b).", existing: false }, 201)),
       "GET /custom-rules/tickets": () => json({ tickets: sent ? [ticket()] : [] }),
     });
+    await user.click(await screen.findByRole("button", { name: "Create custom check" }));
     await user.type(await screen.findByLabelText(/Describe the check in plain English/), "flag if the company posts on social media");
     await user.click(screen.getByRole("button", { name: /Ask the assistant/ }));
     await user.click(await screen.findByRole("button", { name: "Send the missing part to the tech team" }));
     await screen.findByText("This will be submitted to the tech team (ticket crt_9c0d1e2f3a4b).");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await user.click(screen.getByRole("tab", { name: "Requests to the tech team" }));
     expect(await screen.findByText("crt_9c0d1e2f3a4b")).toBeInTheDocument();
   });

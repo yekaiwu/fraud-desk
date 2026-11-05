@@ -171,7 +171,7 @@ describe("RuleAssistant: every status", () => {
       draft_id: "crd_5b2e9f0a1c3d", name: "Big invoices", reason: "abcde", accept_narrower: false, confirm_warnings: false, submit_ticket: false,
     });
     expect(onSaved).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Go to my rules" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go to my checks" })).toBeInTheDocument();
   });
 
   it("a dry run with a warning needs Save anyway before the rule can be saved, and sends confirm_warnings", async () => {

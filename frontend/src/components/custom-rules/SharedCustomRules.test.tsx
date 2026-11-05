@@ -77,7 +77,7 @@ describe("Public custom rules", () => {
   it("does not let an author adopt their own rule", async () => {
     setup({ "GET /custom-rules/shared": () => json({ rules: [shared({ own: true, author: "alice" })] }) });
     await screen.findByRole("heading", { name: "Expired passport" });
-    expect(screen.getByText("Your own rule. Manage it under My rules.")).toBeInTheDocument();
+    expect(screen.getByText("Your own rule. Manage it under My checks.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Adopt/ })).toBeNull();
     expect(screen.getByText("(you)", { exact: false })).toBeInTheDocument();
   });

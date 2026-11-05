@@ -144,11 +144,11 @@ function AdoptedList({ rules, onStop, error }: { rules: AdoptedRuleView[]; onSto
   return (
     <section aria-labelledby="adopted-title" className="space-y-2.5">
       <h2 id="adopted-title" className="text-[1.0625rem] font-semibold text-ink">
-        Public rules you use
+        Public checks you use
       </h2>
       {error ? <CustomError error={error} /> : null}
       {rules.length === 0 ? (
-        <p className="text-[0.9375rem] text-ink-2">You have not adopted any public rule. Find them under Public rules.</p>
+        <p className="text-[0.9375rem] text-ink-2">You have not adopted any public check. Find them under Public checks.</p>
       ) : (
         <ul className="space-y-2.5">
           {rules.map((a) => (
@@ -165,7 +165,7 @@ function AdoptedList({ rules, onStop, error }: { rules: AdoptedRuleView[]; onSto
               </div>
               {a.readback ? <p className="mt-1.5 break-words text-[0.9375rem] text-ink">{a.readback}</p> : null}
               <p className="mt-1 text-sm text-ink-2">
-                By {a.author}, version {a.version} adopted. {a.update_available ? `Version ${a.latest_version} is public: adopt it again under Public rules to use it.` : ""}
+                By {a.author}, version {a.version} adopted. {a.update_available ? `Version ${a.latest_version} is public: adopt it again under Public checks to use it.` : ""}
               </p>
               <div className="mt-3 border-t border-rule pt-3">
                 <Button size="sm" variant="secondary" onClick={() => onStop(a)}>
@@ -180,7 +180,7 @@ function AdoptedList({ rules, onStop, error }: { rules: AdoptedRuleView[]; onSto
   );
 }
 
-/** My rules: the rules this account wrote (switch on or off, make public, new version, delete) and the public ones it adopted. */
+/** My checks: the rules this account wrote (switch on or off, make public, new version, delete) and the public ones it adopted. */
 export function MyCustomRules({ onEdit, onNew }: { onEdit: (r: { id: string; name: string }) => void; onNew: () => void }) {
   const { data, error, isLoading, mutate } = useSWR(CUSTOM_RULES_KEY, listCustomRules);
   const { mutate: refresh } = useSWRConfig();
@@ -243,13 +243,13 @@ export function MyCustomRules({ onEdit, onNew }: { onEdit: (r: { id: string; nam
       ) : null}
       <section aria-labelledby="mine-title" className="space-y-2.5">
         <h2 id="mine-title" className="text-[1.0625rem] font-semibold text-ink">
-          Rules you wrote
+          Checks you wrote
         </h2>
         {mine.length === 0 ? (
           <EmptyState
-            title="You have not written a rule yet"
-            text="Describe a check in plain English and the assistant turns it into a rule that only you use until you make it public."
-            action={<Button onClick={onNew}>Write a rule</Button>}
+            title="You have not written a custom check yet"
+            text="Describe a check in plain English and the assistant turns it into a check that only you use until you make it public."
+            action={<Button onClick={onNew}>Create a custom check</Button>}
           />
         ) : (
           <ul className="space-y-3">

@@ -20,9 +20,9 @@ function lastTurn(d: DraftResponse): boolean {
 }
 
 /**
- * The "New rule" tab. The officer describes a check in plain English; every request is classified first and the
- * answer is shown by status. A conversation is one draft (at most six turns). Nothing is saved until the officer
- * saves: the test on stored cases and the confirmations come first.
+ * The inside of the "Create a custom check" popup. The officer describes a check in plain English; every request is
+ * classified first and the answer is shown by status. A conversation is one draft (at most six turns). Nothing is saved
+ * until the officer saves: the test on stored cases and the confirmations come first.
  */
 export function RuleAssistant({ edit, onSaved, onCancelEdit, onTicket, onOpenRules }: { edit: EditTarget | null; onSaved: (rule: CustomRuleView) => void; onCancelEdit: () => void; onTicket: () => void; onOpenRules: () => void }) {
   const [text, setText] = useState("");
@@ -166,12 +166,12 @@ export function RuleAssistant({ edit, onSaved, onCancelEdit, onTicket, onOpenRul
         <Notice variant="success" title={`Saved: ${saved.rule.name}`}>
           <p className="break-words">{saved.rule.readback}</p>
           <p className="mt-1">
-            It is private to you and runs on analyses you start from now on. Cases already analysed keep their results until they are run again. Make it public from My rules if others should be able to adopt it.
+            It is private to you and runs on analyses you start from now on. Cases already analysed keep their results until they are run again. Make it public from My checks if others should be able to adopt it.
           </p>
           {saved.ticket ? <p className="mt-1 break-words font-medium text-ink">{saved.ticket.message}</p> : null}
         </Notice>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onOpenRules}>Go to my rules</Button>
+          <Button onClick={onOpenRules}>Go to my checks</Button>
           <Button
             variant="secondary"
             onClick={() => {
@@ -179,7 +179,7 @@ export function RuleAssistant({ edit, onSaved, onCancelEdit, onTicket, onOpenRul
               reset();
             }}
           >
-            Write another rule
+            Write another check
           </Button>
         </div>
       </div>

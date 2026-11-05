@@ -1,5 +1,5 @@
 /**
- * Adversarial tests for the rule assistant ("New rule" tab), written from the feature requirements rather than from
+ * Adversarial tests for the rule assistant (the "Create a custom check" popup), written from the feature requirements rather than from
  * the implementation: every status, the proposed default never applied, the required ticks and reason, the warnings
  * that need an extra confirmation, authoring errors, stale answers and untrusted text.
  */
@@ -932,9 +932,9 @@ describe("after saving", () => {
     expect(within(note).getByText(/It is private to you/)).toBeInTheDocument();
     expect(within(note).getByText(/Cases already analysed keep their results/)).toBeInTheDocument();
     expect(within(note).getByText("This will be submitted to the tech team (ticket crt_1a2b3c4d5e6f).")).toBeInTheDocument();
-    await s.user.click(screen.getByRole("button", { name: "Go to my rules" }));
+    await s.user.click(screen.getByRole("button", { name: "Go to my checks" }));
     expect(s.onOpenRules).toHaveBeenCalled();
-    await s.user.click(screen.getByRole("button", { name: "Write another rule" }));
+    await s.user.click(screen.getByRole("button", { name: "Write another check" }));
     expect(screen.getByLabelText(/Describe the check in plain English/)).toHaveValue("");
     expect(screen.queryByText("Saved: Heavy borrowing")).toBeNull();
   });

@@ -9,9 +9,3 @@ export function useMe(enabled = true): Me | null {
   const { data } = useSWR<Me>(USE_MOCK || !enabled ? null : "me", getMe, { shouldRetryOnError: false, revalidateOnFocus: false });
   return data ?? null;
 }
-
-/** Same answer as useMe, plus whether it is still on its way (the custom rules page waits for it before saying "off"). */
-export function useMeStatus(): { me: Me | null; loading: boolean } {
-  const { data, isLoading } = useSWR<Me>(USE_MOCK ? null : "me", getMe, { shouldRetryOnError: false, revalidateOnFocus: false });
-  return { me: data ?? null, loading: isLoading && !data };
-}

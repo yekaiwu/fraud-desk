@@ -26,10 +26,10 @@ const card = (name: string) => screen.getByRole("heading", { name }).closest("li
 describe("My custom rules", () => {
   it("says so when there are none and offers to write one", async () => {
     const { user, onNew } = setup({});
-    expect(await screen.findByText("You have not written a rule yet")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Write a rule" }));
+    expect(await screen.findByText("You have not written a custom check yet")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create a custom check" }));
     expect(onNew).toHaveBeenCalled();
-    expect(screen.getByText(/You have not adopted any public rule/)).toBeInTheDocument();
+    expect(screen.getByText(/You have not adopted any public check/)).toBeInTheDocument();
   });
 
   it("lists my rules with the Custom badge, version, severity, state, visibility and the readback", async () => {
@@ -118,7 +118,7 @@ describe("My custom rules", () => {
     expect(await screen.findByText("Heavy borrowing was deleted.")).toBeInTheDocument();
     expect(f.calls.find((c) => c.path.endsWith("/retire"))?.body).toEqual({ reason: "No longer needed" });
     expect(await screen.findByText("Deleted rules (1)")).toBeInTheDocument();
-    expect(screen.getByText("You have not written a rule yet")).toBeInTheDocument();
+    expect(screen.getByText("You have not written a custom check yet")).toBeInTheDocument();
   });
 
   it("keeps the dialog open and explains a refusal from the server", async () => {
