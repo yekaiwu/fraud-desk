@@ -35,7 +35,7 @@ Fraud Desk reads a bundle of documents, runs the checks an analyst would do by h
 - **69 rule-based checks plus 5 model-based, across 13 document types.** The rule-based ones cover statement, invoice, receipt and financial-statement arithmetic, ID and ownership records, cross-document reconciliation, name matching, file forensics. The model-based ones read meaning and quote the text they rely on (name linking is opt-in). Optional outside sources: ACRA company lookup, sanctions lists, GLEIF ([docs/verification-sources.md](docs/verification-sources.md)).
 - **Review team and workflow.** Four specialist reviewers and a case officer summarise each flagged case. Verdicts need a reason, high-severity dismissals need a second approver, and everything lands in an append-only audit log ([docs/agents.md](docs/agents.md)).
 - **Your own checks, optional.** Describe a check in plain English and a fixed engine runs it, with a dry run first ([docs/custom-rules.md](docs/custom-rules.md)).
-- **Safe by design.** Encrypted at rest, red-teamed with 71 forgery attacks, per-case and per-day spend caps, and it can run fully in-house on a local model ([docs/red-team.md](docs/red-team.md), [docs/local-llm.md](docs/local-llm.md)).
+- **Safe by design.** Optional encryption at rest (off by default), 71 forgery attacks in the red-team set (the ones that still get through are documented), per-case and per-day spend caps, and it can run fully in-house on a local model ([docs/red-team.md](docs/red-team.md), [docs/local-llm.md](docs/local-llm.md)).
 
 ## See it
 
@@ -96,11 +96,15 @@ Measured on fictitious test documents ([method](docs/test-data-and-eval.md)).
 
 | What was measured | Result |
 |:--|:--|
-| Digital PDFs: tampered cases caught | 464 / 465 (development seed), 465 / 465 (held-out seed) |
+| Digital PDFs, core tampers: caught | 464 / 465 (development seed), 465 / 465 (held-out seed) |
+| Digital PDFs, all measured tamper rows: caught | 503 / 520 (development), 505 / 520 (held-out) |
 | Digital PDFs: clean bundles falsely flagged | 0 / 33 |
-| Scans: tampered bundles caught | 38 / 40 |
+| Scans, four edit types, one seed: caught | 38 / 40 (real Tesseract plus Haiku) |
+| Scans, simulated, all tamper types, held-out seed: caught | 66 / 89 |
 | Scans: clean bundles falsely flagged | 3 / 75 |
-| Cost per case with Haiku | about 1 cent digital, about 10 cents scanned |
+| Cost per case with Haiku, scanned, review team on | about $0.09 clean, about $0.14 tampered ([docs/agents.md](docs/agents.md)) |
+
+Runs from 27 October to 3 November 2026. The misses, and what these numbers do not prove, are in [docs/limitations.md](docs/limitations.md).
 
 ## For developers
 

@@ -26,7 +26,7 @@ browser --https--> your HTTPS front (reverse proxy, tunnel or tailnet) --> 127.0
 
 ## 2. Requirements
 
-`git`, [`uv`](https://docs.astral.sh/uv/), Node 20 or newer with `npm`, `openssl`, `lsof` and `curl`. Install into a folder that is **not** under `~/Desktop`, `~/Documents` or `~/Downloads` (macOS privacy protection stops background services reading them; `install.sh` refuses to run there). `~/.local/gldb-fraud` is a good choice.
+`git`, [`uv`](https://docs.astral.sh/uv/), Node 22.12 or newer with `npm`, `openssl`, `lsof` and `curl`. Install into a folder that is **not** under `~/Desktop`, `~/Documents` or `~/Downloads` (macOS privacy protection stops background services reading them; `install.sh` refuses to run there). `~/.local/gldb-fraud` is a good choice.
 
 ## 3. Install
 

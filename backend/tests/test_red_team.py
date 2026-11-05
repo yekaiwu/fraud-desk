@@ -11,6 +11,8 @@ Three groups:
   cannot pass for a strong pipeline.
 
 Everything runs offline with the fake LLM, semantic checks off, on fictitious documents.
+An attack whose forgery is checked by reading the page with Tesseract is skipped ("not run:
+tesseract missing") on a machine without Tesseract. A harness crash fails the test.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from __future__ import annotations
 import pytest
 
 from scripts.red_team import attacks  # noqa: F401  (registers the attacks)
-from scripts.red_team.core import REGISTRY, Runner
+from scripts.red_team.core import NOT_RUN_TESSERACT, REGISTRY, Runner
 
 ATTACKS = {a.id: a for a in REGISTRY}
 
@@ -62,6 +64,21 @@ KNOWN_FAST_LANE = {
 }
 
 
+def run_attack(runner, attack_id):
+    """Run one attack. Skip it (with the reason) if Tesseract is missing; fail hard on a crash.
+
+    A harness crash must never look like an expected failure: ``pytest.fail`` raises ``Failed``, not
+    ``AssertionError``, and the ``xfail`` marks only expect ``AssertionError``, so a crash is a red
+    test and only a real "the attack was not detected" assertion is reported as XFAIL.
+    """
+    res = runner.run(ATTACKS[attack_id])
+    if res.error and NOT_RUN_TESSERACT in res.error:
+        pytest.skip(f"{attack_id}: {NOT_RUN_TESSERACT}")
+    if res.error:
+        pytest.fail(f"{attack_id}: the harness crashed: {res.error}")
+    return res
+
+
 @pytest.fixture(scope="module")
 def runner(tmp_path_factory):
     r = Runner(tmp_path_factory.mktemp("red"))
@@ -76,22 +93,19 @@ def test_clean_digital_base_raises_nothing_at_medium_or_above(runner, scenario):
 
 @pytest.mark.parametrize("attack_id", CALIBRATION)
 def test_calibration_attacks_are_detected(runner, attack_id):
-    res = runner.run(ATTACKS[attack_id])
-    assert res.error is None, res.error
+    res = run_attack(runner, attack_id)
     assert res.verdict == "detected", res.attributable
 
 
 @pytest.mark.parametrize("attack_id", sorted(FIXED), ids=lambda i: f"{i}-{FIXED[i][:30]}")
 def test_fixed_attack_is_detected(runner, attack_id):
-    res = runner.run(ATTACKS[attack_id])
-    assert res.error is None, res.error
+    res = run_attack(runner, attack_id)
     assert res.verdict == "detected", res.attributable
 
 
 @pytest.mark.parametrize("attack_id", sorted(NOT_FAST))
 def test_unflagged_forgery_does_not_reach_the_fast_lane(runner, attack_id):
-    res = runner.run(ATTACKS[attack_id])
-    assert res.error is None, res.error
+    res = run_attack(runner, attack_id)
     assert res.control_lane == "fast"
     assert res.lane != "fast", f"{attack_id}: {NOT_FAST[attack_id]}"
 
@@ -99,25 +113,31 @@ def test_unflagged_forgery_does_not_reach_the_fast_lane(runner, attack_id):
 @pytest.mark.parametrize(
     "attack_id",
     [
-        pytest.param(i, marks=pytest.mark.xfail(strict=True, reason=f"known evasion: {why}"))
+        pytest.param(
+            i,
+            marks=pytest.mark.xfail(
+                strict=True, raises=AssertionError, reason=f"known evasion: {why}"
+            ),
+        )
         for i, why in sorted(KNOWN_EVASIONS.items())
     ],
 )
 def test_known_evasion(runner, attack_id):
-    res = runner.run(ATTACKS[attack_id])
-    assert res.error is None, res.error
+    res = run_attack(runner, attack_id)
     assert res.verdict == "detected"
 
 
 @pytest.mark.parametrize(
     "attack_id",
     [
-        pytest.param(i, marks=pytest.mark.xfail(strict=True, reason=f"known gap: {why}"))
+        pytest.param(
+            i,
+            marks=pytest.mark.xfail(strict=True, raises=AssertionError, reason=f"known gap: {why}"),
+        )
         for i, why in sorted(KNOWN_FAST_LANE.items())
     ],
 )
 def test_known_fast_lane_gap(runner, attack_id):
-    res = runner.run(ATTACKS[attack_id])
-    assert res.error is None, res.error
+    res = run_attack(runner, attack_id)
     assert res.verdict == "detected"
     assert res.lane != "fast"

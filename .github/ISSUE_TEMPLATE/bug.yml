@@ -1,5 +1,5 @@
 name: Bug report
-description: Something is wrong (not a security issue: for those see SECURITY.md).
+description: "Something is wrong (not a security issue: for those see SECURITY.md)."
 labels: ["bug"]
 body:
   - type: textarea

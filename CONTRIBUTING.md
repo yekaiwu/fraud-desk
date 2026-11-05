@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. The most valuable contributions right now are **honest measurements and new test cases** (see "Try it and try to break it" in the [README](README.md)); code and doc fixes are just as welcome.
+Thanks for helping. The most valuable contributions right now are **honest measurements and new test cases** (see "Try it" in the [README](README.md)); code and doc fixes are just as welcome.
 
 ## Data rules (please read first)
 

@@ -17,7 +17,10 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: true
-      # the optional `local` extra (torch, transformers) is not installed in CI
+      # the red-team tests read forged pages back with the Tesseract program
+      - name: Install Tesseract
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      # the optional `ocr` extra (ocrmac, rapidocr) is not installed in CI
       - run: uv sync --dev
       - run: uv lock --check
       - run: uv run ruff check .

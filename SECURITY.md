@@ -12,7 +12,7 @@ The backend (`backend/app`), the frontend gate and proxy (`frontend/src/proxy.ts
 
 ## Known limits (not vulnerabilities)
 
-One shared login with self-declared reviewer names; in-memory rate limits; storage under `data/` that is unencrypted unless `GLDB_ENCRYPT_AT_REST=on` (see `docs/encryption-at-rest.md`); no roles. These are documented and by design for a demo.
+A single shared login has self-declared reviewer names; personal accounts (`GLDB_SITE_USERS`) and administrator accounts (`GLDB_ADMIN_USERS`) exist, but there are no other roles. Rule overrides, case deletion and threshold approval are open to any signed-in account, by design for the demo. The bulk purge route for closed cases is administrator-only (403 unless the account is in `GLDB_ADMIN_USERS`) whenever the caller is signed in with a personal account or `GLDB_PERSONAL_ACCOUNTS=true`; with only the single shared login and typed names it is open to anyone who can sign in, and its audit actor is `system`. Rate limits are in memory. Storage under `data/` is unencrypted unless `GLDB_ENCRYPT_AT_REST=on` (see `docs/encryption-at-rest.md`). These are documented and by design for a demo.
 
 ## Secrets
 

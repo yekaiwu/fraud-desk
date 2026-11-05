@@ -36,6 +36,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | 422 | `no_change` | `PUT /rules/{rule}/override` would leave the check exactly as it is (the values already in effect) |
 | 422 | `verdict_not_allowed` | verdict not allowed for the use case (section 6) |
 | 422 | `too_many_files` / `no_files` | more than `GLDB_MAX_FILES_PER_CASE`, or zero |
+| 422 | `too_many_fields` | an upload form with more text fields than the few it takes (`details.max`); not a file count |
 | 500 | `internal_error` | unexpected; generic message, details logged with a correlation id (`X-Request-Id` header) |
 | 501 | `not_implemented` | foundation stubs only |
 
@@ -69,7 +70,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/rules/changes` | permanent change log of the check catalogue, newest first | 7.2 |
 | GET | `/explain/method` | scoring and routing method, read from the engine's constants | explainability |
 | DELETE | `/cases/{id}` | delete a case and its data | 7.2 |
-| POST | `/admin/retention/purge` | purge cases older than retention | 7.2 |
+| POST | `/admin/retention/purge` | purge cases older than retention; administrator accounts only when accounts are signed in or configured (403 `forbidden` otherwise) | 7.2 |
 | GET | `/me` | the signed-in account the proxy vouched for, or null, whether it is an administrator (`GLDB_ADMIN_USERS`), and whether custom rules are available to it (`custom_rules`) | 5.9 |
 | GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption, application encryption at rest | 5.23 |
 | GET | `/monitoring/incidents` | the AI incident log, newest first | 5.23 |
@@ -82,7 +83,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/monitoring/notifications` | the in-app notification feed (alerts raised and resolved, medium and high incidents, test alerts, the monitor's silence), newest first, paged, with the unread count | 5.23(c) |
 | GET | `/monitoring/notifications/summary` | counts for the navigation badge: unread notifications, open alerts, and the badge number | 5.23(c) |
 | POST | `/monitoring/notifications/read` | mark notifications read (ids, or all) under the signed-in account or a typed name; audited | 5.23(c) |
-| POST | `/monitoring/thresholds/approve` | record, in the audit log, that the bank approved the current threshold values (approver, role, note) | 5.23(b) |
+| POST | `/monitoring/thresholds/approve` | record, in the audit log, that the bank approved the current threshold values (approver, role, note); a signed-in account is recorded as the approver and the typed name is kept as `approver_name` | 5.23(b) |
 | GET | `/custom-rules/capabilities` | what a custom rule can and cannot do: templates, operators, every field per document, the financial statement lines, what is impossible, limits | custom rules |
 | POST | `/custom-rules/drafts` | start the rule assistant with a plain-English request: classify, draft, ideate or refuse (the one route that calls the model, with the turns below) | custom rules |
 | GET | `/custom-rules/drafts/{id}` | the draft as of its last turn (own drafts only) | custom rules |
@@ -307,7 +308,7 @@ Design and operator guide: [ai-incidents.md](ai-incidents.md). These routes are 
 
 `POST /monitoring/alerts/test` sends a test alert and returns `{"sent_at", "sinks_configured", "results": [{"sink", "ok", "attempts", "error", "at"}], "delivered", "message"}`. At most one every 30 seconds (`429 rate_limited`).
 
-`GET /monitoring/readiness` returns `{"as_of", "ready", "statement", "items": [{"id": "5.23(a)"|"5.23(b)"|"5.23(c)", "name", "status": "met"|"not_met", "detail", "missing": [...]}]}`; `ready` is true only when all three are met. `POST /monitoring/thresholds/approve` body `{"approver", "role", "note"}` (2-80, 2-80, 5-500 characters) returns `201` with the stored hash; the approval counts only while the thresholds hash to the same value.
+`GET /monitoring/readiness` returns `{"as_of", "ready", "statement", "items": [{"id": "5.23(a)"|"5.23(b)"|"5.23(c)", "name", "status": "met"|"not_met", "detail", "missing": [...]}]}`; `ready` is true only when all three are met. `POST /monitoring/thresholds/approve` body `{"approver", "role", "note"}` (2-80, 2-80, 5-500 characters) returns `201` with the stored hash; the approval counts only while the thresholds hash to the same value. When an account is signed in, that account is recorded as `approver` (and as the audit actor) whatever was typed; the typed name is kept beside it as `approver_name` (cleaned text, at most 80 characters, left out when it equals the account). With `GLDB_PERSONAL_ACCOUNTS=true` a request without an account is `403 account_required`. With nobody signed in the typed name is the `approver` and there is no `approver_name`.
 
 `POST /monitoring/incidents/{id}/acknowledge` body `{"note", "assigned_to"?, "reviewer"?}` returns `201`; `404` unless the incident is an open report. `GET /monitoring/incidents` then shows `acknowledged_by`, `acknowledged_at`, `ack_note` and `assigned_to`; `status` stays `open` until a report names it in `resolves`.
 
@@ -393,13 +394,13 @@ interface DraftResponse { draft_id: string; turn: number; turns_left: number; st
 ```
 The full set of types (`CustomRuleSpec`, `Question`, `DuplicateNote`, `Idea`, `DryRunResult`, `CustomRuleView`, `AdoptedRuleView`, `SharedRuleView`, `CustomTicket`) is in `frontend/src/lib/types.ts`.
 
-**Error codes** (besides the common ones in section 1): 404 `feature_off`; 403 `account_required`; 404 `not_found` (rule, draft or ticket not visible); 403 `forbidden` (a visible rule of another account: publish, retire, enable); 422 `bad_answer`; 409 `draft_closed`, `draft_turn_limit`, `draft_busy`, `no_spec`, `dry_run_required`, `duplicate_builtin`, `duplicate_custom`, `rule_limit`, `rule_retired`, `already_public`, `not_public`, `own_rule`, `already_adopted`, `not_adopted`, `draft_refused`; 422 `draft_not_ready`, `narrower_not_accepted`, `warnings_not_confirmed`, `no_change`, `name_required`, `reason_required`; 429 `user_budget_used` (this account's daily model budget is used; authoring only), `site_budget_used`, `rate_limited`; 503 `authoring_unavailable` (no usable model: the message says the idea can still go to the tech team).
+**Error codes** (besides the common ones in section 1): 404 `feature_off`; 403 `account_required`; 404 `not_found` (rule, draft or ticket not visible); 403 `forbidden` (a visible rule of another account: publish, retire, enable); 422 `bad_answer`; 409 `draft_closed`, `draft_turn_limit`, `draft_busy`, `no_spec`, `dry_run_required`, `duplicate_builtin`, `duplicate_custom`, `rule_limit`, `adoption_limit` (50 adopted rules), `withdrawn_by_admin` (publishing a check an administrator took back, even as a new rule), `rule_retired`, `already_public`, `not_public`, `own_rule`, `already_adopted`, `not_adopted`, `draft_refused`; 422 `draft_not_ready`, `narrower_not_accepted`, `warnings_not_confirmed`, `no_change`, `name_required`, `reason_required`; 429 `user_budget_used` (this account's daily model budget is used; authoring only), `site_budget_used`, `rate_limited`; 503 `authoring_unavailable` (no usable model: the message says the idea can still go to the tech team).
 
 ## 10. Delete and retention
 
 `DELETE /cases/{id}?reviewer=<name>&reason=<text>` (both required, same validation as review; 422 `reviewer_required` / `reason_required`). `409 case_processing` while a job runs. Removes the case, versions, review entries, fingerprints, unreferenced stored files and renders (`Database.delete_case`); writes one audit row `case.deleted` whose `case_ref` is a hash of the id and whose `detail` has the reason (no applicant data). `204 No Content`; `404` if unknown. Idempotent re-delete is `404`.
 
-`POST /admin/retention/purge` body `{"older_than_days": 1825, "dry_run": true}` (defaults: `GLDB_RETENTION_DAYS`, `dry_run=true`) returns `{"dry_run": true, "case_ids": ["c_..."], "count": 3}`; with `dry_run=false` it deletes them like above with `reviewer="system"`, `reason="retention"`.
+`POST /admin/retention/purge` body `{"older_than_days": 1825, "dry_run": true}` (defaults: `GLDB_RETENTION_DAYS`, `dry_run=true`) returns `{"dry_run": true, "case_ids": ["c_..."], "count": 3}`; with `dry_run=false` it deletes them like above with `reason="retention"`. Whenever accounts are signed in or configured (`GLDB_PERSONAL_ACCOUNTS=true`, or the caller has an account) only an account listed in `GLDB_ADMIN_USERS` may call it: anyone else gets `403 forbidden`, and the audit actor of every `case.deleted` row and of the `retention.purge` row is that administrator account. In typed-name mode with no accounts the route stays open and the actor is `system`.
 
 ## 11. `GET /health`
 

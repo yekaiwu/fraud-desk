@@ -2,7 +2,7 @@
 
 An attacker who did not write the checks tried to get forged documents through the pipeline. This page records the method, every attack and its outcome, the evasions with the reasoning, the fixes that went in, and what is left. The earlier evaluation (`test-data-and-eval.md`, tamper catalogue T01 to T60) was designed by the people who wrote the generator, the rules and the tampers; this is the first measurement where the attacker was a separate party. It is still one attacker, working on our own pipeline, on fictitious documents (see "Honest limits").
 
-Everything ran offline: the real pipeline (`run_case.analyse_files`), the fake LLM client, semantic checks off, no network and no paid model. Digital PDFs and images need no model for the rule and forensic checks. The code is in `backend/scripts/red_team/`; the same attacks run as tests in `backend/tests/test_red_team.py`.
+Everything ran offline: the real pipeline (`run_case.analyse_files`), the fake LLM client, semantic checks off, no network and no paid model. Digital PDFs and images need no model for the rule and forensic checks. The code is in `backend/scripts/red_team/`; the fixed attacks, the calibration attacks and the documented misses (as expected failures) also run as tests in `backend/tests/test_red_team.py`; the other attacks run in the harness only. A few tests read the forged page with Tesseract and are skipped on a machine without it.
 
 ## 1. Method
 

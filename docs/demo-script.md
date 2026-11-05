@@ -8,7 +8,7 @@ Ruleset `rs-02de835ec068`, today 2026-10-27 (injected, never the wall clock), se
 
 1. Terminal 1: `uv sync`, then `uv run python backend/scripts/make_bundle.py --scenario all --variant all --out samples` (the nine bundles) and `uv run python backend/scripts/make_bundle.py --scenario all --variant clean --clean-pool 10 --out samples` for the queue demo.
 2. Terminal 1: `GLDB_LLM_BACKEND=fake uv run uvicorn --app-dir backend app.main:app` (no API key is needed for digital bundles; the fake client never leaves the machine).
-3. Terminal 2: `cd frontend && npm install && npm run dev`, open `http://localhost:3000`. If the backend is down use mock mode (section 6).
+3. Terminal 2: `cd frontend && npm ci && npm run dev`, open `http://localhost:3000`. If the backend is down use mock mode (section 6).
 4. Say once, at the start: nothing here approves, rejects or escalates anything. A person decides, and every click below is the person.
 
 ## 1. KYC bundle

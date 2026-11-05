@@ -40,3 +40,12 @@ coverage/
 # per-agent dev builds and browser captures
 .next-*/
 .playwright-mcp/
+
+# backups, merge leftovers, keys and local databases
+*.bak
+*.orig
+*.pem
+*.key
+*.keys
+*.sqlite3
+deploy/encryption.keys

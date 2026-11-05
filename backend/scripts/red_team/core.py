@@ -37,6 +37,13 @@ SCENARIOS = ("loan", "kyc", "aml")
 USE_CASE = {"loan": "loan", "kyc": "kyc", "aml": "aml"}
 
 
+NOT_RUN_TESSERACT = "not run: tesseract missing"
+
+
+class TesseractMissing(RuntimeError):
+    """The Tesseract program is not installed, so the check that the forgery shows cannot run."""
+
+
 @dataclass
 class Bundle:
     """A mutable copy of a clean bundle: ordered files, registry path, manifest."""
@@ -360,7 +367,12 @@ def check_visible(b: Bundle, out: Outcome) -> list[str]:
 
     import fitz
 
+    from app.ingest.ocr_backends import find_tesseract
+
     missing = []
+    tesseract = find_tesseract() if out.must_see else None
+    if out.must_see and tesseract is None:
+        raise TesseractMissing(NOT_RUN_TESSERACT)
     for fname, text in out.must_see:
         doc = fitz.open(stream=b.files[fname], filetype="pdf")
         ok = False
@@ -370,7 +382,7 @@ def check_visible(b: Bundle, out: Outcome) -> list[str]:
                 png = Path(td) / "p.png"
                 pix.save(png)
                 r = subprocess.run(
-                    ["tesseract", str(png), "stdout", "--psm", "6"], capture_output=True, text=True
+                    [tesseract, str(png), "stdout", "--psm", "6"], capture_output=True, text=True
                 )
             if text.replace(",", "") in r.stdout.replace(",", ""):
                 ok = True
