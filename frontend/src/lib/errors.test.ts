@@ -4,6 +4,13 @@ import { ApiErrorException, explainError, networkError } from "./errors";
 const ex = (code: string, message = "server message", details?: Record<string, unknown>) => explainError({ code, message, details });
 
 describe("explainError", () => {
+  it("explains a 413 for a whole upload as well as for one file", () => {
+    const e = ex("file_too_large", "The upload is too large.");
+    expect(e.detail).toMatch(/upload is too large/i);
+    expect(e.detail).toMatch(/25 MB/);
+    expect(e.detail).toMatch(/40 files/);
+  });
+
   const table: [string, string][] = [
     ["network_error", "Cannot reach the API"],
     ["user_budget_used", "Your budget for today is used up"],
@@ -18,6 +25,7 @@ describe("explainError", () => {
     ["flag_decision_pending", "Decision pending"],
     ["stale_version", "Case changed"],
     ["file_too_large", "File too large"],
+    ["too_many_fields", "Too many form fields"],
     ["unsupported_media_type", "Unsupported file"],
     ["too_many_files", "Wrong number of files"],
     ["no_files", "Wrong number of files"],
@@ -27,7 +35,7 @@ describe("explainError", () => {
     ["internal_error", "Something went wrong"],
     ["alert_not_open", "Already handled"],
     ["account_required", "Sign in with your own account"],
-    ["feature_off", "Custom rules are switched off"],
+    ["feature_off", "Custom checks are switched off"],
     ["bad_answer", "That answer cannot be used"],
     ["draft_closed", "This request is finished"],
     ["draft_turn_limit", "Too many turns on one request"],
@@ -38,7 +46,7 @@ describe("explainError", () => {
     ["dry_run_required", "Test the rule on stored cases first"],
     ["warnings_not_confirmed", "Confirm the test warnings"],
     ["duplicate_builtin", "A built-in check already does this"],
-    ["duplicate_custom", "A custom rule already does this"],
+    ["duplicate_custom", "A custom check already does this"],
     ["no_change", "Nothing changed"],
     ["name_required", "Name required"],
     ["rule_limit", "Too many active rules"],
@@ -75,7 +83,7 @@ describe("explainError", () => {
     expect(ex("duplicate_builtin", "x").detail).toMatch(/check catalogue/);
   });
 
-  it("names the existing custom rule on a duplicate", () => {
+  it("names the existing custom check on a duplicate", () => {
     expect(ex("duplicate_custom", "x", { rule_id: "cus_0123456789", name: "Big invoices" }).detail).toContain('"Big invoices"');
     expect(ex("duplicate_custom", "x").detail).not.toContain('""');
   });

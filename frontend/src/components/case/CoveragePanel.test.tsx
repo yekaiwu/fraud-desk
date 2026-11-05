@@ -106,3 +106,13 @@ describe("CoveragePanel", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("CoveragePanel with no pages", () => {
+  it("does not claim that all 0 pages were reviewed", () => {
+    const base = fraud();
+    const c = { ...base, files: [], documents: [], coverage: { ...base.coverage!, pages_total: 0, pages_unchecked: 0 } };
+    render(<CoveragePanel c={c} />);
+    expect(screen.queryByText(/All 0 pages/)).toBeNull();
+    expect(screen.getByText("No pages were read, so nothing was reviewed.")).toBeInTheDocument();
+  });
+});

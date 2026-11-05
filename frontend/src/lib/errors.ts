@@ -103,12 +103,18 @@ export function explainError(e: ApiErrorBody): ExplainedError {
       };
     }
     case "file_too_large":
-      return { title: "File too large", detail: "Each file may be at most 25 MB.", retryable: false };
+      return {
+        title: "File too large",
+        detail: "This upload is too large. A file may be at most 25 MB and a case at most 40 files.",
+        retryable: false,
+      };
     case "unsupported_media_type":
       return { title: "Unsupported file", detail: "Only PDF, JPEG and PNG.", retryable: false };
     case "too_many_files":
     case "no_files":
       return { title: "Wrong number of files", detail: "Upload 1 to 40 files.", retryable: false };
+    case "too_many_fields":
+      return { title: "Too many form fields", detail: "The form has more fields than allowed. Reload the page and try again.", retryable: false };
     case "reason_required":
       return { title: "Reason required", detail: "Enter at least 5 characters.", retryable: false };
     case "reviewer_required":
@@ -135,9 +141,9 @@ export function explainError(e: ApiErrorBody): ExplainedError {
       return { title: "Not available to this account", detail: e.message, retryable: false };
     case "user_budget_used":
       return { title: "Your budget for today is used up", detail: `${e.message} Open an existing case instead, or try again tomorrow.`, retryable: false };
-    // ---- custom rules (api.md 9c)
+    // ---- custom checks (api.md 9c)
     case "feature_off":
-      return { title: "Custom rules are switched off", detail: "This deployment has not turned custom rules on. Ask the administrator.", retryable: false };
+      return { title: "Custom checks are switched off", detail: "This deployment has not turned custom checks on. Ask the administrator.", retryable: false };
     case "bad_answer":
       return { title: "That answer cannot be used", detail: e.message, retryable: false };
     case "draft_closed":
@@ -168,7 +174,7 @@ export function explainError(e: ApiErrorBody): ExplainedError {
     }
     case "duplicate_custom": {
       const name = typeof d?.name === "string" && d.name ? ` "${d.name}"` : "";
-      return { title: "A custom rule already does this", detail: `The same rule already exists${name}. Use that one, or change what this one checks.`, retryable: false };
+      return { title: "A custom check already does this", detail: `The same check already exists${name}. Use that one, or change what this one checks.`, retryable: false };
     }
     case "no_change":
       return { title: "Nothing changed", detail: "The new version checks exactly the same thing as the current one.", retryable: false };
@@ -181,7 +187,9 @@ export function explainError(e: ApiErrorBody): ExplainedError {
     case "already_public":
       return { title: "Already public", detail: "This version is already public.", retryable: false };
     case "withdrawn_by_admin":
-      return { title: "Taken back by an administrator", detail: "This rule cannot be made public again. It still runs for you; save the idea as a new rule if it should be shared.", retryable: false };
+      return { title: "Taken back by an administrator", detail: "An administrator took this rule back, and the same check cannot be made public again, even as a new rule. It still runs for you.", retryable: false };
+    case "adoption_limit":
+      return { title: "Too many public rules in use", detail: "You already use the most public rules allowed. Stop using one before adopting another.", retryable: false };
     case "not_public":
       return { title: "Not public", detail: "Only a public rule can be adopted or taken back.", retryable: false };
     case "own_rule":
@@ -191,7 +199,7 @@ export function explainError(e: ApiErrorBody): ExplainedError {
     case "not_adopted":
       return { title: "Not adopted", detail: "You have not adopted this rule.", retryable: false };
     case "draft_refused":
-      return { title: "A refused request is not sent on", detail: "Requests that break the rules for custom rules are not passed to the tech team.", retryable: false };
+      return { title: "A refused request is not sent on", detail: "Requests that break the rules for custom checks are not passed to the tech team.", retryable: false };
     case "site_budget_used":
       return { title: "The model budget for the whole site is used up for today", detail: "The rule assistant is unavailable until tomorrow. You can still send the idea to the tech team.", retryable: false };
     case "authoring_unavailable":

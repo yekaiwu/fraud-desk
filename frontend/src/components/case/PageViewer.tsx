@@ -37,7 +37,7 @@ export function PageViewer({
   flags,
   selectedFlagId,
   onSelectFlag,
-  current,
+  current: wanted,
   onNavigate,
   documents = EMPTY_DOCS,
 }: {
@@ -53,7 +53,9 @@ export function PageViewer({
 }) {
   const reduced = usePrefersReducedMotion();
   const names = useMemo(() => makeDocNamer(documents, files), [documents, files]);
-  const file = files.find((f) => f.id === current.fileId) ?? files[0];
+  // A file that has no pages (its reading failed, or the case has no documents) cannot be shown: use the first one that can.
+  const file = files.find((f) => f.id === wanted.fileId && f.pages.length > 0) ?? files.find((f) => f.pages.length > 0);
+  const current = file && file.id === wanted.fileId ? wanted : { fileId: file?.id ?? "", page: file?.pages[0]?.page ?? 1 };
   const pageInfo = file?.pages.find((p) => p.page === current.page);
   const [zoom, setZoom] = useState<Zoom>("fit");
   const [showChips, setShowChips] = useState(true);

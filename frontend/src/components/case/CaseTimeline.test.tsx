@@ -78,3 +78,21 @@ describe("CaseTimeline", () => {
     expect(screen.getByRole("button", { name: /Download as JSON/ })).toBeInTheDocument();
   });
 });
+
+describe("CaseTimeline with long unbroken text", () => {
+  it("lets step cards, headlines, facts and flag text shrink and wrap (no sideways scroll at 375 px)", async () => {
+    const user = userEvent.setup();
+    const c = fraud();
+    const long = "x".repeat(120);
+    c.flags = c.flags.map((f, i) => (i === 0 ? { ...f, explanation: long } : f));
+    renderWithSWR(<CaseTimeline c={c} onShowFlag={() => {}} />);
+    const list = screen.getByRole("list", { name: "Steps of this case, in order" });
+    for (const li of Array.from(list.children)) expect(li.className).toContain("min-w-0");
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    const wrapped = Array.from(list.querySelectorAll("span, dd, li")).filter((e) => e.textContent === long || e.textContent?.includes(long));
+    expect(wrapped.some((e) => e.className.includes("wrap-anywhere"))).toBe(true);
+    const headlines = Array.from(list.querySelectorAll("li > div > button > span > span.block")).filter((e) => e.className.includes("text-ink-2"));
+    expect(headlines.length).toBeGreaterThan(0);
+    for (const h of headlines) expect(h.className).toContain("wrap-anywhere");
+  });
+});

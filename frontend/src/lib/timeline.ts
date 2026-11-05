@@ -86,7 +86,7 @@ function stageHeadline(stage: StageName, d: StageRecord["detail"], c: CaseDetail
     case "forensics":
     case "rules":
     case "crossdoc":
-      return `${num(d.ran)} of ${num(d.checks)} checks ran, ${num(d.skipped)} skipped${num(d.errors) > 0 ? `, ${num(d.errors)} failed` : ""}; ${num(d.flags)} ${plural(num(d.flags), "flag")} raised.${num(d.custom_checks) > 0 ? ` Custom rules: ${num(d.custom_checks)} ${plural(num(d.custom_checks), "rule")} looked at the case, ${num(d.custom_flags)} ${plural(num(d.custom_flags), "flag")}.` : ""}`;
+      return `${num(d.ran)} of ${num(d.checks)} checks ran, ${num(d.skipped)} skipped${num(d.errors) > 0 ? `, ${num(d.errors)} failed` : ""}; ${num(d.flags)} ${plural(num(d.flags), "flag")} raised.${num(d.custom_checks) > 0 ? ` Custom checks: ${num(d.custom_checks)} ${plural(num(d.custom_checks), "check")} looked at the case, ${num(d.custom_flags)} ${plural(num(d.custom_flags), "flag")}.` : ""}`;
     case "score":
       return `Score ${c.score?.value ?? num(d.score)}${c.score ? ` (${c.score.band})` : ""}${c.lane ? `, lane ${c.lane}` : ""}, from ${num(d.flags)} ${plural(num(d.flags), "flag")} in ${num(d.findings)} ${plural(num(d.findings), "finding")}; ${num(d.ran)} of ${num(d.applicable)} checks ran.`;
   }

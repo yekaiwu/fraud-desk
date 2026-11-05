@@ -268,3 +268,15 @@ describe("keyboard shortcuts", () => {
     expect(screen.queryByRole("heading", { name: "Keyboard shortcuts" })).toBeNull();
   });
 });
+
+describe("a page beyond the end of the list", () => {
+  it("never says nothing needs attention while cases exist: it goes back to the first page", async () => {
+    nav.params = new URLSearchParams("page=9");
+    renderWithSWR(<QueuePage />);
+    expect(await screen.findByText("That page is past the end of the list")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing needs attention right now")).toBeNull();
+    await waitFor(() => expect(nav.router.replace).toHaveBeenCalledWith("/"));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Go to the first page" }));
+    expect(nav.router.replace).toHaveBeenLastCalledWith("/");
+  });
+});

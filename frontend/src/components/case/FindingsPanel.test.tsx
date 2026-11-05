@@ -277,3 +277,43 @@ describe("empty and partial states", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading findings");
   });
 });
+
+describe("FindingsPanel without a result", () => {
+  const empty = () => {
+    const c = { ...fraud(), findings: [], flags: [], documents: [] } as CaseDetail;
+    return { c, numbered: numberFlags([], []) };
+  };
+  const show = (extra: { status?: CaseDetail["status"]; noDocuments?: boolean; partial?: boolean }) => {
+    const { c, numbered } = empty();
+    render(
+      <FindingsPanel findings={[]} numbered={numbered} selectedFlagId={null} onSelectFlag={vi.fn()} onShowDocument={vi.fn()} onDecide={vi.fn()} canDecide={false} partial={extra.partial ?? false} partialReasons={[]} coverage={null} caseId="x" {...extra} />,
+    );
+    return c;
+  };
+
+  it("a failed analysis says Not analysed, not that no concerns were found", () => {
+    show({ status: "error" });
+    expect(screen.getByText("Not analysed")).toBeInTheDocument();
+    expect(screen.getByText(/nothing can be said about this case/)).toBeInTheDocument();
+    expect(screen.getByText(/Re-run analysis/)).toBeInTheDocument();
+    expect(screen.queryByText(/No concerns were found/)).toBeNull();
+  });
+
+  it("a case still being analysed says so", () => {
+    show({ status: "processing" });
+    expect(screen.getByText("Still being analysed")).toBeInTheDocument();
+    expect(screen.queryByText(/No concerns were found/)).toBeNull();
+  });
+
+  it("a case with no documents is Not analysed, even when marked partial", () => {
+    show({ status: "open", noDocuments: true, partial: true });
+    expect(screen.getByText("Not analysed")).toBeInTheDocument();
+    expect(screen.getByText(/no documents to check/)).toBeInTheDocument();
+    expect(screen.queryByText(/No concerns/)).toBeNull();
+  });
+
+  it("an analysed case with nothing found still says so", () => {
+    show({ status: "open" });
+    expect(screen.getByText("No concerns were found.")).toBeInTheDocument();
+  });
+});

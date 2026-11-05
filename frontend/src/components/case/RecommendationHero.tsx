@@ -75,6 +75,11 @@ export function RecommendationHero({ c, isCurrent, why, onRecord, onShowFindings
     eyebrow = "Status";
     heading = "Waiting for documents";
     blurb = caseStatusDescription("awaiting_documents");
+  } else if (c.documents.length === 0) {
+    isSuggestion = false;
+    eyebrow = "Status";
+    heading = "Nothing was analysed";
+    blurb = "This case has no documents, so nothing can be said about it. Add documents to start an analysis.";
   } else if (calm && c.lane) {
     heading = laneLabel(c.lane);
     blurb = "Low risk, high coverage. A person still confirms.";

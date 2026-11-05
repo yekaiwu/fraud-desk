@@ -89,10 +89,10 @@ describe("a custom rule that found nothing is visible on the case", () => {
 
   it("keeps the same step headline numbers a built-in stage has, and adds the custom tally only when custom rules ran", () => {
     expect(buildTimeline(plain()).find((s) => s.key === "rules")!.headline).not.toMatch(/Custom rules/);
-    expect(buildTimeline(custom()).find((s) => s.key === "rules")!.headline).toMatch(/Custom rules: 3 rules looked at the case, 1 flag\./);
+    expect(buildTimeline(custom()).find((s) => s.key === "rules")!.headline).toMatch(/Custom checks: 3 checks looked at the case, 1 flag\./);
     const one = custom();
     one.stages = one.stages.map((s) => (s.stage === "rules" ? { ...s, detail: { ...s.detail, custom_checks: 1, custom_flags: 0 } } : s));
-    expect(buildTimeline(one).find((s) => s.key === "rules")!.headline).toMatch(/Custom rules: 1 rule looked at the case, 0 flags\./);
+    expect(buildTimeline(one).find((s) => s.key === "rules")!.headline).toMatch(/Custom checks: 1 check looked at the case, 0 flags\./);
   });
 });
 
@@ -164,7 +164,7 @@ describe("custom rules and coverage", () => {
     const c = withRuns(skipped);
     expect(coverageText(c)).toBe(coverageText(plain()));
     renderWithSWR(<CoveragePanel c={c} />);
-    expect(screen.getByTestId("custom-coverage")).toHaveTextContent("Custom rules: 0 ran, 12 skipped. Not counted in coverage.");
+    expect(screen.getByTestId("custom-coverage")).toHaveTextContent("Custom checks: 0 ran, 12 skipped. Not counted in coverage.");
   });
 
   it("the coverage explainer counts only built-in checks as ran / skipped / failed", () => {

@@ -99,3 +99,52 @@ describe("worklist card", () => {
     expect(screen.getByRole("listitem").className).toMatch(/(^|\s)relative(\s|$)/);
   });
 });
+
+describe("a case whose analysis failed", () => {
+  const failed = () => item({ status: "error", score: null, band: null, lane: "fast", coverage: null, top_finding: null, applicant_name: "Maple Works Pte. Ltd." });
+  // an older score on a failed re-run must not stand in for a result either
+  const staleScore = () => item({ status: "error", score: 3, band: "low", lane: "fast" });
+
+  it.each([["null score", failed], ["old low score", staleScore]])("reads Not analysed, never Score pending or low risk (%s)", (_n, make) => {
+    render(
+      <ul>
+        <QueueCard item={make()} rank={null} ageNow={0} />
+      </ul>,
+    );
+    const card = screen.getByRole("listitem");
+    expect(card).toHaveTextContent("Not analysed");
+    expect(card).toHaveTextContent("The analysis could not finish");
+    expect(card).not.toHaveTextContent(/Score pending|Low risk|Fast lane/);
+    expect(card.className).not.toMatch(/brass/);
+  });
+
+  it("does the same in the table row", () => {
+    render(
+      <table>
+        <tbody>
+          <QueueTableRow item={failed()} rank={null} ageNow={0} />
+        </tbody>
+      </table>,
+    );
+    const row = screen.getByRole("row");
+    expect(row).toHaveTextContent("Not analysed");
+    expect(row).not.toHaveTextContent(/Score pending|Low risk|Fast lane/);
+  });
+});
+
+describe("long unbroken text on a narrow screen", () => {
+  const long = "A".repeat(80);
+  it("lets the name and the reference wrap and shrink inside the card", () => {
+    render(
+      <ul>
+        <QueueCard item={item({ applicant_name: long, reference: "R".repeat(80) })} rank={null} ageNow={0} />
+      </ul>,
+    );
+    const link = screen.getByRole("link");
+    expect(link.className).toMatch(/(^|\s)min-w-0(\s|$)/);
+    expect(screen.getByText(long).className).toContain("wrap-anywhere");
+    expect(screen.getByText("R".repeat(80)).className).toContain("wrap-anywhere");
+    // the grid's text column may shrink below its content
+    expect(link.closest(".grid")?.className).toContain("minmax(0,1fr)");
+  });
+});

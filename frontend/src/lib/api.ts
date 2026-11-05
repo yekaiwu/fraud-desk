@@ -214,16 +214,37 @@ export const POLL_FAST_MS = 1000;
 export const POLL_SLOW_MS = 3000;
 export const POLL_BACKOFF_AFTER_MS = 30_000;
 
+export const POLL_MAX_FAILURES = 5;
+export const POLL_RETRY_MS = [1000, 2000, 4000, 8000];
+
+function isPermanent(e: unknown): boolean {
+  return e instanceof ApiErrorException && (e.status === 401 || e.status === 403 || e.status === 404);
+}
+
 /**
  * Poll a job every 1 s, then every 3 s once 30 s have passed (api.md section 7), until it
- * succeeds or fails. Calls onUpdate with every snapshot. Rejects with AbortError when aborted
- * and with ApiErrorException when a poll fails.
+ * succeeds or fails. Calls onUpdate with every snapshot. A failed poll (a 502, a dropped
+ * connection) is retried after 1, 2, 4, then 8 s; it only rejects, with the last error, after
+ * 5 failures in a row (a success resets the count) or at once for 401, 403 and 404. Rejects with
+ * AbortError when aborted.
  */
 export async function pollJob(id: string, onUpdate: (j: Job) => void, signal: AbortSignal): Promise<Job> {
   const started = Date.now();
+  let failures = 0;
   for (;;) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-    const job = await getJob(id);
+    let job: Job;
+    try {
+      job = await getJob(id);
+    } catch (e) {
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+      if (isPermanent(e)) throw e;
+      failures += 1;
+      if (failures >= POLL_MAX_FAILURES) throw e;
+      await sleep(POLL_RETRY_MS[Math.min(failures, POLL_RETRY_MS.length) - 1], signal);
+      continue;
+    }
+    failures = 0;
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     onUpdate(job);
     if (job.state === "succeeded" || job.state === "failed") return job;

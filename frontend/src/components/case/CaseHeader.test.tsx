@@ -76,3 +76,17 @@ describe("neighbours", () => {
     expect(neighbours([q("only")], "only")).toBeNull();
   });
 });
+
+describe("CaseHeader with long unbroken text", () => {
+  it("lets the name and the reference wrap anywhere so a 375 px screen does not scroll sideways", () => {
+    const name = "N".repeat(90);
+    const ref = "REF-".repeat(30);
+    render(<CaseHeader c={{ ...c, reference: ref, applicant: { name, uen: "U".repeat(60), source: "upload" } }} versions={[]} onVersion={() => {}} />);
+    expect(screen.getByRole("heading", { level: 1 }).className).toContain("wrap-anywhere");
+    const refEl = screen.getByText(ref);
+    expect(refEl.className).toContain("wrap-anywhere");
+    expect(refEl.className).toContain("min-w-0");
+    expect(refEl.parentElement?.className).toContain("min-w-0");
+    expect(screen.getByText("U".repeat(60)).className).toContain("wrap-anywhere");
+  });
+});

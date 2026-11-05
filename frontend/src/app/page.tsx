@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import { QueueFilters, SORT_LABELS, activeFilterCount, lanePanelId, laneTabId } from "@/components/queue/QueueFilters";
-import { NoMatches, NothingWaiting, QueueError, QueueSkeleton } from "@/components/queue/QueueStates";
+import { NoMatches, NothingWaiting, PastTheEnd, QueueError, QueueSkeleton } from "@/components/queue/QueueStates";
 import { BatchDeleteDialog, type BatchResult } from "@/components/queue/BatchDeleteDialog";
 import { QueueCards, QueueTable, type Selection } from "@/components/queue/QueueTable";
 import { SelectionBar } from "@/components/queue/SelectionBar";
@@ -128,9 +128,17 @@ function QueueView() {
   const page = query.page ?? 1;
   const closedHidden = !(query.status ?? []).includes("closed");
 
+  // a page beyond the end (a stale link, cases deleted since): the list is not empty, so go back to its first page
+  const pastEnd = Boolean(data && data.items.length === 0 && data.total > 0 && page > 1);
+  useEffect(() => {
+    if (pastEnd) change({ ...query, page: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when the page turns out to be past the end, not on every new query object
+  }, [pastEnd]);
+
   let body: React.ReactNode;
   if (isLoading && !data) body = <QueueSkeleton />;
   else if (error && !data) body = <QueueError error={error} onRetry={refresh} />;
+  else if (data && pastEnd) body = <PastTheEnd total={data.total} onFirst={() => change({ ...query, page: undefined })} />;
   else if (data && data.items.length === 0) {
     body = filtered ? <NoMatches onClear={() => change({})} closedHidden={closedHidden} /> : <NothingWaiting />;
   } else if (data) {

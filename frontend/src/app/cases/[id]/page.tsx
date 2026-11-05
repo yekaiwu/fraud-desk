@@ -12,7 +12,7 @@ import { CaseBanners } from "@/components/case/CaseBanners";
 import { DeleteDialog, RerunDialog } from "@/components/case/CaseDialogs";
 import { CaseHeader } from "@/components/case/CaseHeader";
 import { useCaseNeighbours } from "@/components/case/CaseNeighbours";
-import { CaseErrorNotice, CaseLoadError, CaseSkeleton } from "@/components/case/CaseStates";
+import { CaseErrorNotice, CaseLoadError, CaseSkeleton, VersionNotFound } from "@/components/case/CaseStates";
 import { DecisionSheet } from "@/components/case/DecisionSheet";
 import { AnalysisTrailSheet } from "@/components/explain/AnalysisTrail";
 import { CoveragePanel } from "@/components/case/CoveragePanel";
@@ -287,6 +287,8 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
         partialReasons={c.partial_reasons}
         coverage={c.coverage ?? null}
         explainCase={c}
+        status={c.status}
+        noDocuments={c.documents.length === 0}
       />
       <CoveragePanel c={c} defaultOpen={c.partial || !!c.score?.partial || (c.coverage?.ratio ?? 1) < 0.7} />
       {uncheckedPageList(c).length > 0 ? (
@@ -486,7 +488,12 @@ function CaseView() {
   const nav = useCaseNeighbours(id);
 
   if (isLoading && !data) return <CaseSkeleton />;
-  if (error instanceof ApiErrorException && error.error.code === "not_found") notFound();
+  if (error instanceof ApiErrorException && error.error.code === "not_found") {
+    // A missing version of a case that exists says so; a missing case (the version list is missing too) is a 404.
+    if (version !== undefined && !versionsSwr.data && versionsSwr.isLoading) return <CaseSkeleton />;
+    if (version !== undefined && versionsSwr.data) return <VersionNotFound caseId={id} version={version} />;
+    notFound();
+  }
   if (error && !data) return <CaseLoadError error={error} onRetry={() => void mutate()} />;
   if (!data) return null;
   const versions = versionsSwr.data ?? [];

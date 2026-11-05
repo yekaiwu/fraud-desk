@@ -191,4 +191,80 @@ describe("pollJob", () => {
     ac.abort();
     await assertion;
   });
+
+  const bad = () => json({ error: { code: "internal", message: "bad gateway" } }, { status: 502 });
+
+  it("survives a failed poll: retries after 1 s and carries on", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    fetchMock.mockImplementation(async () => {
+      calls += 1;
+      if (calls === 1) return bad();
+      return json(job(calls >= 3 ? "succeeded" : "running"));
+    });
+    const p = pollJob("j_1", () => undefined, new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await p).state).toBe("succeeded");
+  });
+
+  it("backs off 1, 2, 4, 8 s and gives up after five failures in a row", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => bad());
+    const p = pollJob("j_1", () => undefined, new AbortController().signal);
+    const assertion = expect(p).rejects.toMatchObject({ status: 502 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    await assertion;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("resets the failure count on a success", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    // 4 failures, 1 success, 4 failures, then the job ends: never five in a row
+    fetchMock.mockImplementation(async () => {
+      calls += 1;
+      if (calls === 5) return json(job("running"));
+      if (calls === 10) return json(job("succeeded"));
+      return bad();
+    });
+    const p = pollJob("j_1", () => undefined, new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect((await p).state).toBe("succeeded");
+    expect(calls).toBe(10);
+  });
+
+  it("fails at once for a missing job (404) and leaves no timers when aborted mid-backoff", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => json({ error: { code: "not_found", message: "no such job" } }, { status: 404 }));
+    await expect(pollJob("j_1", () => undefined, new AbortController().signal)).rejects.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async () => bad());
+    const ac = new AbortController();
+    const p = pollJob("j_1", () => undefined, ac.signal);
+    const assertion = expect(p).rejects.toMatchObject({ name: "AbortError" });
+    await vi.advanceTimersByTimeAsync(10);
+    ac.abort();
+    await assertion;
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

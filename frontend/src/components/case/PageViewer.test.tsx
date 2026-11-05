@@ -246,3 +246,28 @@ describe("PageViewer: a flag with several places", () => {
     expect(onNavigate).toHaveBeenCalledWith({ fileId: c.files[c.files.length - 1].id, page: 1 });
   });
 });
+
+describe("PageViewer with nothing to show", () => {
+  const props = { caseId: "c", documents: [], flags: [], selectedFlagId: null, onSelectFlag: vi.fn(), onNavigate: vi.fn() };
+
+  it("a file with no pages shows 'No pages to show', not an empty picker and 'Page 1 of 0'", () => {
+    const c = fraud();
+    const files = c.files.map((f) => ({ ...f, pages: [] }));
+    render(<PageViewer {...props} files={files} current={{ fileId: files[0].id, page: 1 }} />);
+    expect(screen.getByText("No pages to show")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByText(/Page 1 of 0/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+  });
+
+  it("no files shows the same, and a page-less file is skipped when another has pages", () => {
+    render(<PageViewer {...props} files={[]} current={{ fileId: "", page: 1 }} />);
+    expect(screen.getByText("No pages to show")).toBeInTheDocument();
+    cleanup();
+    const c = fraud();
+    const files = [{ ...c.files[0], pages: [] }, ...c.files.slice(1)];
+    render(<PageViewer {...props} files={files} current={{ fileId: files[0].id, page: 1 }} />);
+    expect(screen.getByText(/^Page 1 of \d+$/)).toBeInTheDocument();
+    expect(screen.queryByText(/of 0$/)).toBeNull();
+  });
+});

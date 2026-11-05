@@ -315,6 +315,8 @@ export interface Idea { kind: "weaker_rule" | "related_builtin" | "template"; te
 export interface DryRunWarning { code: "fires_on_none" | "fires_too_often" | "no_cases"; message: string }
 export interface DryRunResult {
   spec_hash: string; cases_considered: number; evaluated: number; fired: number; skipped_missing: number;
+  /** evaluated minus skipped_missing: the cases the rule could read, and the denominator of fire_rate (absent in an older result). */
+  readable?: number;
   scanned_evaluated: number; scanned_fired: number; fire_rate: number; warnings: DryRunWarning[]; examples: string[]; needs_confirmation: boolean;
 }
 export interface DraftResponse {

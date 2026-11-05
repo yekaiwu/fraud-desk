@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Clock, FileWarning, Loader2 } from "lucide-react";
+import { AlertTriangle, Clock, FileWarning, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { LOW_COVERAGE_RATIO, VERDICT_LABELS } from "@/lib/constants";
 import { caseStatusLabel, plural, scoreSummary, useCaseLabel } from "@/lib/labels";
@@ -16,8 +16,13 @@ export { ROW_LINK_ATTR };
 const NUMERAL: Record<Band, string> = { high: "text-sev-high", medium: "text-sev-medium", low: "text-ink-2" };
 const BAR: Record<Band, string> = { high: "bg-sev-high", medium: "bg-sev-medium", low: "bg-sev-low" };
 
+/** The analysis failed: there is no result, and an old score or lane must not stand in for one. */
+function isFailed(i: QueueItem): boolean {
+  return i.status === "error";
+}
+
 function isAnalysing(i: QueueItem): boolean {
-  return i.status === "processing" || i.score === null;
+  return !isFailed(i) && (i.status === "processing" || i.score === null);
 }
 
 export function applicantOf(i: QueueItem): string {
@@ -37,15 +42,15 @@ export function ApplicantLink({ item, className, stretch = true }: { item: Queue
       href={`/cases/${item.case_id}`}
       {...{ [ROW_LINK_ATTR]: "" }}
       className={clsx(
-        "group block rounded-sm",
+        "group block min-w-0 rounded-sm",
         stretch
           ? "focus-visible:outline-none! after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-[inherit] focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-brand-2"
           : "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-2",
         className,
       )}
     >
-      <span className={clsx("block text-[1.0625rem] font-semibold leading-snug text-ink group-hover:underline", item.applicant_name === null && "font-normal text-ink-2")}>{applicantOf(item)}</span>
-      {item.reference ? <span className="num mt-0.5 block text-xs text-muted">{item.reference}</span> : null}
+      <span className={clsx("block wrap-anywhere text-[1.0625rem] font-semibold leading-snug text-ink group-hover:underline", item.applicant_name === null && "font-normal text-ink-2")}>{applicantOf(item)}</span>
+      {item.reference ? <span className="num mt-0.5 block wrap-anywhere text-xs text-muted">{item.reference}</span> : null}
     </Link>
   );
 }
@@ -65,6 +70,14 @@ export function CaseMeta({ item }: { item: QueueItem }) {
 }
 
 export function RiskCell({ item, compact = false }: { item: QueueItem; compact?: boolean }) {
+  if (isFailed(item)) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-2" title="The analysis did not finish, so nothing can be said about the risk of this case.">
+        <AlertTriangle aria-hidden className="h-4 w-4 shrink-0" />
+        Not analysed
+      </span>
+    );
+  }
   if (isAnalysing(item)) {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-sev-info">
@@ -256,7 +269,7 @@ export function QueueTableRow({ item, rank, ageNow, selection }: { item: QueueIt
 export function QueueCard({ item, rank, ageNow, selection }: { item: QueueItem; rank: number | null; ageNow: number; selection?: RowSelection }) {
   const laneBadge = laneBadgeFor(item);
   const edge = needsAttention(item);
-  const analysing = isAnalysing(item);
+  const analysing = isAnalysing(item) || isFailed(item);
   return (
     <li className={clsx("relative rounded-lg border border-rule bg-surface p-4 shadow-paper transition-colors hover:bg-brand-tint/40 focus-within:bg-brand-tint/60", edge && "border-l-[3px] border-l-brass", selection?.checked && "bg-brand-tint/50")}>
       {selection ? (
@@ -265,7 +278,7 @@ export function QueueCard({ item, rank, ageNow, selection }: { item: QueueItem; 
           <SelectBox item={item} selection={selection} />
         </div>
       ) : null}
-      <div className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3">
         <div className="min-w-0">
           <ApplicantLink item={item} />
           <span className="mt-1.5 block">
@@ -289,7 +302,7 @@ export function QueueCard({ item, rank, ageNow, selection }: { item: QueueItem; 
           <ReasonCell item={item} />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-2 border-t border-rule pt-3">
+      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 border-t border-rule pt-3">
         <ChecksCell item={item} withLabel />
         <WaitingCell item={item} ageNow={ageNow} />
         {item.status !== "open" || item.pending_second_approvals > 0 ? (

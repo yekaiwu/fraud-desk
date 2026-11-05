@@ -481,3 +481,37 @@ describe("timeline tab", () => {
     expect(within(list).getByRole("tab", { name: "Timeline" })).toBeInTheDocument();
   });
 });
+
+describe("a failed analysis never reads as clean", () => {
+  it("says 'Not analysed' instead of 'No concerns were found', and has no empty page picker", async () => {
+    const c = getCaseState("c_loan_error");
+    c.files = c.files.map((f) => ({ ...f, pages: [] }));
+    await openCase("c_loan_error");
+    expect((await screen.findAllByText("Not analysed")).length).toBeGreaterThan(0);
+    expect(screen.getByText(/nothing can be said about this case/)).toBeInTheDocument();
+    expect(screen.queryByText(/No concerns were found/)).toBeNull();
+    expect(screen.queryByText(/Page 1 of 0/)).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Document and page" })).toBeNull();
+    expect(screen.getAllByText("No pages to show").length).toBeGreaterThan(0);
+  });
+
+  it("an open case with no documents is 'Not analysed' too, not clean", async () => {
+    const c = getCaseState("c_loan_error");
+    c.status = "open";
+    c.files = [];
+    await openCase("c_loan_error");
+    expect((await screen.findAllByText(/Not analysed|Nothing was analysed/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/No concerns were found/)).toBeNull();
+    expect(screen.queryByText("Nothing stands out yet")).toBeNull();
+  });
+});
+
+describe("a version that does not exist", () => {
+  it("says that version is missing and links to the current one, not the generic 404", async () => {
+    nav.route = { id: "c_loan_clean" };
+    nav.params = new URLSearchParams("v=999");
+    renderWithSWR(<CasePage />);
+    expect(await screen.findByRole("heading", { name: "Version 999 of this case does not exist" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to the current version" })).toHaveAttribute("href", "/cases/c_loan_clean");
+  });
+});

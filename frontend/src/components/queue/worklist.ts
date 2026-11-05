@@ -142,8 +142,10 @@ export function splitTopFinding(text: string | null): { text: string; more: numb
  * its case type: calling it "AML investigation" would read as an escalation. Low-risk cases without a high concern
  * therefore show "Routine review" (the fast lane keeps its own badge).
  */
-export function laneBadgeFor(item: Pick<QueueItem, "lane" | "band" | "high_count">): { label: string; title: string; variant: "lane" | "fast" | "neutral" } | null {
+export function laneBadgeFor(item: Pick<QueueItem, "lane" | "band" | "high_count"> & { status?: QueueItem["status"] }): { label: string; title: string; variant: "lane" | "fast" | "neutral" } | null {
   if (!item.lane) return null;
+  // a failed or running analysis has no lane yet: an old one (or a "fast" one) would read as cleared
+  if (item.status === "error" || item.status === "processing") return null;
   if (item.lane === "fast") return { label: laneLabel("fast"), title: laneDescription("fast"), variant: "fast" };
   if (item.band === "low" && !item.high_count) {
     return { label: "Routine review", title: `Low risk, nothing to escalate. It sits in the ${laneLabel(item.lane)} queue; a person still reviews it.`, variant: "neutral" };

@@ -134,5 +134,8 @@ describe("plain wording for clean cases", () => {
     expect(laneBadgeFor({ lane: "aml", band: "low", high_count: 1 })?.label).toBe("AML investigation");
     expect(laneBadgeFor({ lane: "fast", band: "low", high_count: 0 })).toMatchObject({ label: "Fast lane", variant: "fast" });
     expect(laneBadgeFor({ lane: null, band: "low", high_count: 0 })).toBeNull();
+    // a failed or running analysis has no lane to show: "Fast lane" there would read as cleared
+    expect(laneBadgeFor({ lane: "fast", band: "low", high_count: 0, status: "error" })).toBeNull();
+    expect(laneBadgeFor({ lane: "fast", band: "low", high_count: 0, status: "processing" })).toBeNull();
   });
 });

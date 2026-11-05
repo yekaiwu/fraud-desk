@@ -43,6 +43,11 @@ export function CoveragePanel({ c, defaultOpen = true, id = "coverage" }: { c: C
                 {unreviewedPagesText(unchecked)} (of {total})
               </span>
             </p>
+          ) : total === 0 ? (
+            <p className="flex items-start gap-2 text-[0.9375rem] font-medium text-ink-2">
+              <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>No pages were read, so nothing was reviewed.</span>
+            </p>
           ) : (
             <p className="flex items-start gap-2 text-[0.9375rem] text-ink-2">
               <CheckCircle2 aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-sev-low" />

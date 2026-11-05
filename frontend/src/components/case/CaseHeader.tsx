@@ -126,12 +126,12 @@ export function CaseHeader({ c, versions, onVersion, nav }: {
 
       <div className="rule-statement flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-3">
         <div className="min-w-0">
-          <h1 className="break-words text-[1.75rem] leading-tight sm:text-[2.25rem]">{c.applicant.name ?? <span className="text-muted">Unnamed applicant</span>}</h1>
+          <h1 className="wrap-anywhere text-[1.75rem] leading-tight sm:text-[2.25rem]">{c.applicant.name ?? <span className="text-muted">Unnamed applicant</span>}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
             {c.applicant.uen ? (
-              <span className="text-sm text-ink-2">
+              <span className="min-w-0 text-sm text-ink-2">
                 <span className="label-caps mr-1.5">UEN</span>
-                <span className="num text-[0.9375rem] text-ink">{c.applicant.uen}</span>
+                <span className="num wrap-anywhere text-[0.9375rem] text-ink">{c.applicant.uen}</span>
               </span>
             ) : null}
             <Badge variant="neutral" icon={null}>
@@ -148,9 +148,9 @@ export function CaseHeader({ c, versions, onVersion, nav }: {
         <VersionSelect versions={versions} value={c.version} onChange={onVersion} />
       </div>
 
-      <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted">
+      <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm text-muted">
         <span className="label-caps">Reference</span>
-        <span className="num text-[0.8125rem] text-ink-2">{reference}</span>
+        <span className="num min-w-0 wrap-anywhere text-[0.8125rem] text-ink-2">{reference}</span>
         <CopyButton text={reference} label={`Copy reference ${reference}`} />
         <span aria-hidden className="hidden sm:inline">·</span>
         <span>{since}</span>

@@ -23,7 +23,7 @@ describe("custom rules in the case timeline", () => {
     const user = userEvent.setup();
     renderWithSWR(<CaseTimeline c={custom()} onShowFlag={() => {}} />);
     await user.click(screen.getByRole("button", { name: "Expand all" }));
-    const step = screen.getByRole("button", { name: /^\d?.*Checking the rules|Rules/i }).closest("li") as HTMLElement;
+    const step = screen.getByRole("button", { name: /Running checks/i }).closest("li") as HTMLElement;
     const table = within(step).getByRole("table", { name: "Checks of this step" });
 
     const fired = within(table).getByText("Heavy borrowing").closest("tr") as HTMLElement;
@@ -75,7 +75,7 @@ describe("custom rules in the case timeline", () => {
   it("says in the step headline that custom rules looked at the case, and shows the facts the step recorded", () => {
     const steps = buildTimeline(custom());
     const rules = steps.find((s) => s.key === "rules")!;
-    expect(rules.headline).toContain("Custom rules: 3 rules looked at the case, 1 flag.");
+    expect(rules.headline).toContain("Custom checks: 3 checks looked at the case, 1 flag.");
     expect(rules.facts).toEqual(expect.arrayContaining([["custom checks", "3"], ["custom flags", "1"]]));
     expect(rules.checks.filter((r) => r.custom)).toHaveLength(3);
     expect(rules.flags.some((f) => f.rule === "cus_3f9a1c2b7d")).toBe(true);
@@ -152,7 +152,7 @@ describe("custom rules and coverage", () => {
   it("says custom rules are not counted in coverage, and keeps them out of the 'looked up outside' list", () => {
     const c = custom();
     renderWithSWR(<CoveragePanel c={c} />);
-    expect(screen.getByTestId("custom-coverage")).toHaveTextContent("Custom rules: 2 ran, 1 skipped. Not counted in coverage.");
+    expect(screen.getByTestId("custom-coverage")).toHaveTextContent("Custom checks: 2 ran, 1 skipped. Not counted in coverage.");
     expect(screen.queryByRole("region", { name: "Looked up outside the documents" })).toBeNull();
     // the figures are the case's own, untouched by the custom runs
     expect(screen.getByText(new RegExp(`${c.coverage!.ran}`))).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe("custom rules and coverage", () => {
     renderWithSWR(<AnalysisTrailBody c={custom()} onGoCoverage={() => {}} />);
     const note = screen.getByTestId("custom-runs-note");
     expect(note).toHaveTextContent("3 custom rules were used, 1 flag raised.");
-    expect(note).toHaveTextContent("Custom rules: 2 ran, 1 skipped. Not counted in coverage.");
+    expect(note).toHaveTextContent("Custom checks: 2 ran, 1 skipped. Not counted in coverage.");
   });
 
   it("lists which custom rules ran, by whom, with their wording", () => {

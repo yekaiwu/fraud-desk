@@ -72,7 +72,7 @@ function FlagRows({ c, flags, onShowFlag, names }: { c: CaseDetail; flags: Flag[
         return (
           <li key={f.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-md border border-rule bg-surface px-3 py-2">
             <ConcernBadge severity={f.severity} />
-            <span className="min-w-0 flex-1 break-words text-[0.9375rem] text-ink">
+            <span className="min-w-0 flex-1 wrap-anywhere text-[0.9375rem] text-ink">
               {custom ? <CustomBadge info={custom} className="mr-2 align-middle" /> : null}
               {names.text(f.explanation || f.rule)}
               {custom ? <span className="ml-2 text-xs text-muted">{custom.name}, by {custom.author}</span> : null}
@@ -97,12 +97,12 @@ function StepBody({ c, step, onShowFlag }: { c: CaseDetail; step: TimelineStep; 
 
   return (
     <div className="space-y-4 text-[0.9375rem]">
-      {step.error ? <p className="font-medium text-sev-high">Error: {step.error}</p> : null}
+      {step.error ? <p className="wrap-anywhere font-medium text-sev-high">Error: {step.error}</p> : null}
       {step.warnings.length > 0 ? (
         <Section title="Warnings">
           <ul className="list-disc space-y-0.5 pl-5 text-sm text-ink-2">
             {step.warnings.map((w, i) => (
-              <li key={i} className="break-words">
+              <li key={i} className="wrap-anywhere">
                 {w}
               </li>
             ))}
@@ -112,11 +112,11 @@ function StepBody({ c, step, onShowFlag }: { c: CaseDetail; step: TimelineStep; 
 
       {step.facts.length > 0 ? (
         <Section title="What the step recorded">
-          <dl className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-x-6 gap-y-1.5 text-sm">
+          <dl className="grid grid-cols-[repeat(auto-fill,minmax(min(11rem,100%),1fr))] gap-x-6 gap-y-1.5 text-sm">
             {step.facts.map(([k, v]) => (
               <div key={k}>
                 <dt className="text-muted">{k}</dt>
-                <dd className="num break-words text-ink">{v}</dd>
+                <dd className="num wrap-anywhere text-ink">{v}</dd>
               </div>
             ))}
           </dl>
@@ -243,10 +243,10 @@ function StepBody({ c, step, onShowFlag }: { c: CaseDetail; step: TimelineStep; 
         <Section title="Decisions, oldest first">
           <ul className="space-y-1.5">
             {step.entries.map((e) => (
-              <li key={e.id} className="rounded-md border border-rule bg-surface px-3 py-2 text-sm">
+              <li key={e.id} className="min-w-0 wrap-anywhere rounded-md border border-rule bg-surface px-3 py-2 text-sm">
                 <span className="font-semibold text-ink">{e.reviewer}</span> <span className="text-ink-2">({e.kind.replace(/_/g, " ")})</span>: {e.decision.replace(/_/g, " ")}
                 {e.status !== "effective" ? <Badge variant="attention" className="ml-2">{e.status.replace(/_/g, " ")}</Badge> : null}
-                <span className="block text-ink-2">{e.reason}</span>
+                <span className="block wrap-anywhere text-ink-2">{e.reason}</span>
                 <span className="text-xs text-muted">{formatUtc(e.created_at)}</span>
               </li>
             ))}
@@ -286,7 +286,7 @@ function StepCard({ c, step, n, open, onToggle, onShowFlag }: { c: CaseDetail; s
   const id = useId();
   const raisedHere = step.flags.length;
   return (
-    <li className="relative pl-11">
+    <li className="relative min-w-0 pl-11">
       <span aria-hidden className="absolute left-0 top-3 grid h-8 w-8 place-items-center rounded-full bg-brand text-sm font-semibold text-on-brand">
         {n}
       </span>
@@ -302,14 +302,14 @@ function StepCard({ c, step, n, open, onToggle, onShowFlag }: { c: CaseDetail; s
           {open ? <ChevronDown aria-hidden className="mt-1 h-4 w-4 shrink-0 text-muted" /> : <ChevronRight aria-hidden className="mt-1 h-4 w-4 shrink-0 text-muted" />}
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <span className="text-[1.0625rem] font-semibold text-ink">{step.title}</span>
+              <span className="wrap-anywhere text-[1.0625rem] font-semibold text-ink">{step.title}</span>
               <span className="tabular text-xs text-muted">
                 {[offsetText(step), step.seconds !== null && step.seconds > 0 ? formatSeconds(step.seconds) : "", usd(step.costUsd)].filter(Boolean).join(" · ")}
               </span>
               {step.status === "failed" ? <Badge variant="high">Failed</Badge> : null}
               {step.status === "skipped" ? <Badge variant="neutral" icon={null}>Skipped</Badge> : null}
             </span>
-            <span className="mt-0.5 block text-[0.9375rem] text-ink-2">{step.headline}</span>
+            <span className="mt-0.5 block wrap-anywhere text-[0.9375rem] text-ink-2">{step.headline}</span>
             {raisedHere > 0 || step.kind === "forensics" || step.kind === "rules" || step.kind === "crossdoc" ? (
               <span className="mt-1 block text-xs text-muted">
                 Raised here: {raisedHere}. Flags so far: {tallyText(step.cumulative)}.

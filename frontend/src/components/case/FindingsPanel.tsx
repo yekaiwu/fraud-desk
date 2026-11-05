@@ -20,7 +20,7 @@ import {
 } from "@/lib/flags";
 import { CONFIRM_LABEL, DISMISS_LABEL, HARD_STOP_LABEL, coverageText, plural, severityLabel } from "@/lib/labels";
 import { NO_FLAGS_NOTE } from "@/lib/wording";
-import type { CaseDetail, Coverage, Document, FileRef, Finding, Region, Severity } from "@/lib/types";
+import type { CaseDetail, CaseStatus, Coverage, Document, FileRef, Finding, Region, Severity } from "@/lib/types";
 import { ExplainBlocksFastLane } from "../explain/NextStepExplainer";
 import { ExplainFinding } from "../explain/FindingExplainer";
 import { Badge, Button, ConcernBadge, Notice, Skeleton, Stagger } from "../ui";
@@ -355,6 +355,8 @@ export function FindingsPanel({
   caseId,
   explainCase,
   loading = false,
+  status,
+  noDocuments = false,
 }: {
   findings: Finding[];
   numbered: NumberedFlags;
@@ -374,6 +376,10 @@ export function FindingsPanel({
   /** The whole case, so each finding can carry a "Why was this flagged?" explainer. */
   explainCase?: CaseDetail;
   loading?: boolean;
+  /** The case's status. A case whose analysis failed or is still running has no result: it must never read as "no concerns". */
+  status?: CaseStatus;
+  /** The case has no documents, so there was nothing to check. */
+  noDocuments?: boolean;
 }) {
   const names = useMemo(() => makeDocNamer(documents, files), [documents, files]);
   const groups = useMemo(() => groupBySeverity(findings), [findings]);
@@ -433,6 +439,27 @@ export function FindingsPanel({
 
   const didNotRun = coverage ? Math.max(0, coverage.applicable - coverage.ran) : 0;
   if (findings.length === 0 && numbered.other.length === 0) {
+    if (status === "error") {
+      return (
+        <Notice variant="warning" title="Not analysed">
+          <p>The analysis did not finish, so nothing can be said about this case. Not finding any concerns here is not a clearance. Use Re-run analysis to try again.</p>
+        </Notice>
+      );
+    }
+    if (status === "processing") {
+      return (
+        <Notice variant="info" title="Still being analysed">
+          <p>The findings appear here when the analysis finishes. Until then nothing can be said about this case.</p>
+        </Notice>
+      );
+    }
+    if (noDocuments) {
+      return (
+        <Notice variant="warning" title="Not analysed">
+          <p>This case has no documents to check, so nothing can be said about it. Add documents to start an analysis.</p>
+        </Notice>
+      );
+    }
     return partial ? (
       <Notice variant="warning" title="No concerns so far, but the analysis is incomplete.">
         <p>Some checks or pages did not run, so this is not a clearance.</p>

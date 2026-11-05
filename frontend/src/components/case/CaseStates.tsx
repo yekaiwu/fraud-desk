@@ -44,6 +44,22 @@ export function CaseLoadError({ error, onRetry }: { error: unknown; onRetry: () 
   );
 }
 
+/** The case exists but has no such version (a mistyped or stale ?v=): say that, and link to the current one. */
+export function VersionNotFound({ caseId, version }: { caseId: string; version: number }) {
+  return (
+    <div className="mx-auto max-w-2xl space-y-4 py-6">
+      <h1 className="font-display text-2xl font-semibold text-ink">Version {version} of this case does not exist</h1>
+      <p className="text-[0.9375rem] text-ink-2">The case is there, but it was never re-run that many times. Open the current version instead.</p>
+      <div className="flex flex-wrap gap-2">
+        <Button href={`/cases/${encodeURIComponent(caseId)}`}>Go to the current version</Button>
+        <Button href="/" variant="secondary" icon={<ArrowLeft aria-hidden className="h-4 w-4" />}>
+          Back to worklist
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Shaped like the page: header, hero (gauge, text, actions), then the two work columns. */
 export function CaseSkeleton() {
   const box = (w: string, h: string, extra = "") => (

@@ -48,6 +48,18 @@ export function NothingWaiting() {
   );
 }
 
+/** The page asked for is past the last one (a stale link, or cases deleted since). The list is not empty, so this never says so. */
+export function PastTheEnd({ total, onFirst }: { total: number; onFirst: () => void }) {
+  return (
+    <EmptyState
+      icon={<Inbox aria-hidden className="h-6 w-6" />}
+      title="That page is past the end of the list"
+      text={`There ${total === 1 ? "is 1 case" : `are ${total} cases`} in this view, all on earlier pages.`}
+      action={<Button variant="secondary" onClick={onFirst}>Go to the first page</Button>}
+    />
+  );
+}
+
 export function NoMatches({ onClear, closedHidden }: { onClear: () => void; closedHidden: boolean }) {
   return (
     <EmptyState
