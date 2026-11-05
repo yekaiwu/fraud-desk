@@ -395,3 +395,33 @@ def test_validate_json_schema(data, schema, ok) -> None:  # noqa: ANN001
     assert (error is None) is ok
     if not ok:
         assert error and error.startswith("$")  # "path: message"
+
+
+def test_repair_json_strings_only_repairs_what_the_schema_asks_for() -> None:
+    from app.core.llm import repair_json_strings
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "a": {
+                "type": "array",
+                "items": {"type": "object", "properties": {"b": {"type": "array"}}},
+            },
+            "o": {"type": "object"},
+            "s": {"type": "string"},
+            "n": {"type": ["array", "null"]},
+        },
+    }
+    value = {"a": '[{"b": "[1, 2]"}]', "o": '{"x": 1}', "s": "[1]", "n": "[3]", "extra": "[9]"}
+    assert repair_json_strings(value, schema) == {
+        "a": [{"b": [1, 2]}],
+        "o": {"x": 1},
+        "s": "[1]",  # a string property stays a string
+        "n": [3],
+        "extra": "[9]",
+    }
+    # the wrong structure, malformed JSON and non-strings are returned untouched
+    assert repair_json_strings({"a": '{"x": 1}'}, schema) == {"a": '{"x": 1}'}
+    assert repair_json_strings({"a": "[oops"}, schema) == {"a": "[oops"}
+    assert repair_json_strings(None, schema) is None
+    assert repair_json_strings([1], schema) == [1]

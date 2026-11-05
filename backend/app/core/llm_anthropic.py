@@ -49,6 +49,7 @@ from app.core.llm import (
     concurrency_gate,
     estimate_tokens,
     file_sha_from_extra,
+    repair_json_strings,
     validate_json_schema,
 )
 
@@ -170,7 +171,7 @@ class AnthropicLLMClient:
             "tools": [
                 {"name": name, "description": TOOL_DESCRIPTION, "input_schema": req.json_schema}
             ],
-            "tool_choice": {"type": "auto"},
+            "tool_choice": {"type": "tool", "name": name},
             "thinking": {"type": "disabled"},
             "output_config": {"effort": "low"},
         }
@@ -353,6 +354,7 @@ class AnthropicLLMClient:
 
             data, error = self._parse(response, req.json_schema, req.schema_name)
             if data is not None:
+                data = repair_json_strings(data, req.json_schema)
                 error = validate_json_schema(data, req.json_schema)
             if data is not None and error is None:
                 if self.cache is not None:

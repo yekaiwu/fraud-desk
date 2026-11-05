@@ -6,6 +6,7 @@ generated. Step citations name the rules of flags that exist on the case; an unk
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.agents.call import AgentFailed, ask
@@ -15,6 +16,22 @@ from app.core.models import AgentReport, Flag, clean_text
 
 NAME = "case_officer"
 MAX_STEPS = 3
+_FLAG_ID = re.compile(r"\bF\d+\b")
+# The model is told to end a step with the flag ids in brackets ("[F1, F3]"). Those are removed (the
+# rules are named in parentheses instead), but other bracketed text ("[March 2024]") is part of the
+# sentence and stays. Anywhere in the text only a bracket of real aliases is removed; at the end
+# also one with a token the model invented ("[F1, zz]", "[A2]"): up to two letters plus digits.
+_ALIAS = r"F\d+"
+_INVENTED = r"(?:F\d+|[A-Za-z]{1,2}\d*|[Ff]lag[ _]?\d+)"
+_ALIAS_BRACKET = re.compile(rf"\s*\[\s*{_ALIAS}(?:\s*[,;]\s*{_ALIAS})*\s*\]")
+_TRAILING_BRACKETS = re.compile(
+    rf"(?:\s*\[\s*{_INVENTED}(?:\s*[,;]\s*{_INVENTED})*\s*\])+(?=\s*[.!?]?\s*$)"
+)
+
+
+def _strip_flag_brackets(text: str) -> str:
+    return _TRAILING_BRACKETS.sub("", _ALIAS_BRACKET.sub("", text))
+
 
 TASK = """You are the case officer leading a fraud-review team at a bank. Specialist reviewers and a \
 challenger have examined a customer's documents. You receive what they found. Write for the human \
@@ -23,26 +40,17 @@ reviewer who will decide the case.
 summary: two or three plain sentences. Say what stands out and what the reviewer should look at \
 first. Use only the flags and notes you are given; do not add facts. Never say a document is forged; \
 say what does not match.
-next_steps: up to three concrete actions for the reviewer (for example: ask the applicant for the \
-original March statement), each with the flag ids it relates to. If nothing needs action, return an \
-empty list. Always include both summary and next_steps."""
+next_steps: up to three concrete actions for the reviewer, each one plain sentence of text that ends \
+with the ids of the flags it relates to in square brackets, for example: "Ask the applicant for the \
+original March statement [F1, F3]". If nothing needs action, return an empty list. Always include both \
+summary and next_steps."""
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "summary": {"type": "string"},
-        "next_steps": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "step": {"type": "string"},
-                    "flag_ids": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["step", "flag_ids"],
-                "additionalProperties": False,
-            },
-        },
+        # plain strings: Haiku too often sent a list of objects here as a malformed JSON string
+        "next_steps": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["summary"],
     "additionalProperties": False,
@@ -94,8 +102,12 @@ def brief(ctx: CaseContext, team: list[AgentReport]) -> tuple[str, list[str]]:
     rule_of = {a: f.rule for f in flags for a in [alias[f.id]]}
     steps: list[str] = []
     for item in reply.get("next_steps", [])[:MAX_STEPS]:
-        step = clean_text(str(item.get("step", "")), 240)
-        rules = sorted({rule_of[i] for i in item.get("flag_ids", []) if i in rule_of})
+        text = str(item.get("step", "")) if isinstance(item, dict) else str(item)
+        ids = [a for a in _FLAG_ID.findall(text)] + (
+            [str(i) for i in item.get("flag_ids", [])] if isinstance(item, dict) else []
+        )
+        step = clean_text(_strip_flag_brackets(text), 240)
+        rules = sorted({rule_of[i] for i in ids if i in rule_of})
         if step:
             steps.append(f"{step} ({', '.join(rules)})" if rules else step)
     return summary, steps

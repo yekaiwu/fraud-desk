@@ -227,6 +227,45 @@ def _validate(value: Any, schema: dict, root: dict, path: str) -> str | None:
     return None
 
 
+def _wants(schema: dict, kind: str) -> bool:
+    t = schema.get("type")
+    return t == kind or (isinstance(t, list) and kind in t)
+
+
+def repair_json_strings(value: Any, schema: dict, root: dict | None = None) -> Any:
+    """A model sometimes sends a list or object property as a JSON string ("[{...}]") although the
+    schema asks for the structure itself. Where the schema wants an array or an object and the value is
+    a string that parses to one, the parsed value is used (recursively). Anything else is returned as it
+    came, so validation still rejects it. Never raises."""
+    root = root if root is not None else schema
+    try:
+        if "$ref" in schema:
+            target = _resolve_ref(schema["$ref"], root)
+            if target is not None:
+                return repair_json_strings(value, target, root)
+        if isinstance(value, str) and (_wants(schema, "array") or _wants(schema, "object")):
+            try:
+                parsed = json.loads(value)
+            except ValueError:
+                return value
+            if (isinstance(parsed, list) and _wants(schema, "array")) or (
+                isinstance(parsed, dict) and _wants(schema, "object")
+            ):
+                value = parsed
+        if isinstance(value, dict) and isinstance(schema.get("properties"), dict):
+            return {
+                k: repair_json_strings(v, schema["properties"][k], root)
+                if k in schema["properties"]
+                else v
+                for k, v in value.items()
+            }
+        if isinstance(value, list) and isinstance(schema.get("items"), dict):
+            return [repair_json_strings(v, schema["items"], root) for v in value]
+    except Exception:  # noqa: BLE001 - a repair that fails leaves the value for validation to reject
+        return value
+    return value
+
+
 def validate_json_schema(data: object, schema: dict) -> str | None:
     """``None`` if valid, else the first error as ``"path: message"``. Supports ``type`` (and type
     lists), ``properties``, ``required``, ``additionalProperties: false``, ``items``, ``enum``,
@@ -725,6 +764,7 @@ class OpenAICompatClient:
 
             data, error = self._parse(response, req.json_schema, req.schema_name)
             if data is not None:
+                data = repair_json_strings(data, req.json_schema)
                 error = validate_json_schema(data, req.json_schema)
             if data is not None and error is None:
                 if self.cache is not None:

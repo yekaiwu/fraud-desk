@@ -35,7 +35,7 @@ reading of a scan did not reproduce does.
 ## The case officer
 
 It reads the specialists' summaries, the flags still standing and the challenger's reasons, and writes a
-summary and next steps. Step citations are checked against real flag ids. The text never changes a flag,
+summary and next steps. Step citations are checked against real flag ids. A step ends with the flag ids in square brackets; those trailing brackets are removed and replaced by the rule names, while other bracketed text in the sentence (for example a period such as "[March 2024]") is kept. The text never changes a flag,
 the score or the lane, and the screen labels it as generated.
 
 ## Cost and switches

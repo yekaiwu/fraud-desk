@@ -312,7 +312,10 @@ def test_request_body_shape_for_haiku_5_5() -> None:
     assert body["model"] == "claude-haiku-5-5" and body["max_tokens"] == 8000
     assert body["thinking"] == {"type": "disabled"}
     assert body["output_config"] == {"effort": "low"}
-    assert body["tool_choice"] == {"type": "auto"}  # never forced
+    assert body["tool_choice"] == {
+        "type": "tool",
+        "name": body["tools"][0]["name"],
+    }  # forced: left to choose, Haiku answered in text about 1 call in 5
     assert not {"temperature", "top_p", "top_k", "stream", "metadata"} & set(body)
     (tool,) = body["tools"]
     assert tool == {
@@ -459,6 +462,43 @@ def test_invalid_output_is_retried_once_with_feedback_and_no_prefill() -> None:
     feedback = second[0]["content"][-1]["text"]
     assert "not valid" in feedback and "total" in feedback
     assert len(meter.costs()) == 2 and meter.calls_used == 2  # both calls counted and billed
+
+
+STEPS = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "next_steps": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"step": {"type": "string"}, "flag_ids": {"type": "array"}},
+                "required": ["step", "flag_ids"],
+            },
+        },
+    },
+    "required": ["summary"],
+    "additionalProperties": False,
+}
+
+
+def test_a_list_sent_as_a_json_string_is_accepted_without_a_retry() -> None:
+    """Haiku sometimes sends next_steps as the text '[{...}]' (seen on the case officer, about half of the
+    forced calls). The value is the right content, so it is used instead of rejected and re-asked."""
+    steps = '[{"step": "Ask for the original statement", "flag_ids": ["F1"]}]'
+    server = Server(message([tool_use({"summary": "Look at F1 first.", "next_steps": steps})]))
+    result = run(make_client(server), request(json_schema=STEPS, schema_name="Briefing"))
+    assert server.calls == 1
+    assert result.data["next_steps"] == [
+        {"step": "Ask for the original statement", "flag_ids": ["F1"]}
+    ]
+
+
+def test_a_string_that_is_not_the_wanted_structure_is_still_rejected() -> None:
+    server = Server(message([tool_use({"summary": "x", "next_steps": "just words"})]))
+    with pytest.raises(LLMSchemaError, match="next_steps"):
+        run(make_client(server), request(json_schema=STEPS, schema_name="Briefing"))
+    assert server.calls == 2
 
 
 def test_invalid_twice_raises_schema_error_after_exactly_two_calls() -> None:

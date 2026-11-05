@@ -75,7 +75,7 @@ GOOD_QUOTE = {
 }
 BRIEFING = {
     "summary": "One thing stands out.",
-    "next_steps": [{"step": "Ask for the ID", "flag_ids": ["F1", "zz"]}],
+    "next_steps": ["Ask for the ID [F1, zz]"],
 }
 
 
@@ -173,6 +173,33 @@ def test_officer_citations_are_checked_against_real_flag_ids() -> None:
     assert co.next_steps == ["Ask for the ID (bs_totals)"]
     assert co.flag_ids == ["b"]  # a was lowered, b stands
     assert officer.open_flags(ctx)[0].id == "b"
+
+
+@pytest.mark.parametrize(
+    ("step", "expected"),
+    [
+        (
+            "Ask for the statement [March 2024] [F1]",
+            "Ask for the statement [March 2024] (bs_totals)",
+        ),
+        ("Ask for the ID [F1, zz]", "Ask for the ID (bs_totals)"),
+        ("Ask for the ID [F1, F2]", "Ask for the ID (bs_totals, x_directors)"),
+        ("Ask for the ID [F2, zz].", "Ask for the ID. (x_directors)"),
+        ("Ask for the [Q1 2024] statement", "Ask for the [Q1 2024] statement"),
+        ("Check the [March 2024] statement [F1]", "Check the [March 2024] statement (bs_totals)"),
+        ("Compare [F1] with the invoice", "Compare with the invoice (bs_totals)"),
+        ("Ask for [the original] statement", "Ask for [the original] statement"),
+        ("Ask for the ID [F1] [F2]", "Ask for the ID (bs_totals, x_directors)"),
+    ],
+)
+def test_only_flag_alias_brackets_are_removed_from_a_next_step(step: str, expected: str) -> None:
+    flags = [flag("a", "bs_totals", ["d1"], stage="rules"), flag("b", "x_directors", ["d1"])]
+    llm = StubLLM(
+        {"agent:case_officer": {"summary": "One thing stands out.", "next_steps": [step]}}
+    )
+    ctx = ctx_with(flags, llm)
+    _, steps = officer.brief(ctx, [])
+    assert steps == [expected]
 
 
 def test_off_means_nothing_runs_and_the_json_is_unchanged() -> None:
