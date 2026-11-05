@@ -80,10 +80,62 @@ export function isHttps(headers: Headers, url: string): boolean {
   return proto ? proto === "https" : url.startsWith("https:");
 }
 
-/** Only same-site relative paths (never //host, never /api/...) are valid post-login targets. */
+/**
+ * Only same-site relative paths (never //host, never /api/...) are valid post-login targets. Browsers
+ * drop tab, CR and LF inside a URL, so "/\t/evil.example" would become "//evil.example": any control or
+ * whitespace character is refused, and the result is re-read as a URL against a dummy origin so only a
+ * path on that origin survives.
+ */
 export function safeNext(next: unknown): string {
-  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//") || next.includes("\\") || next.startsWith("/api") || next.startsWith("/login")) return "/";
-  return next;
+  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//") || next.includes("\\") || /[\x00-\x20\x7f]/.test(next)) return "/";
+  let url: URL;
+  try {
+    url = new URL(next, "http://x");
+  } catch {
+    return "/";
+  }
+  if (url.origin !== "http://x") return "/";
+  const out = url.pathname + url.search + url.hash;
+  if (!out.startsWith("/") || out.startsWith("//") || out.startsWith("/api") || out.startsWith("/login")) return "/";
+  return out;
+}
+
+/**
+ * Whether a state-changing request was sent by a page on another site (login / logout CSRF). A browser
+ * always sends Sec-Fetch-Site and, on a POST, Origin; a command-line client or a test sends neither,
+ * and is let through (it has no cookie of a victim to ride on). "same-origin" is the browser's own
+ * word, so it wins; otherwise the Origin host must be the host the request was addressed to (the
+ * forwarded one first: behind the tunnel that is the public name). Host and port are compared with the
+ * scheme's default port dropped, so a proxy that rewrites ``Host`` to ``box.ts.net:443`` still matches
+ * ``Origin: https://box.ts.net``.
+ */
+export function isCrossSite(headers: Headers, requestUrl: string): boolean {
+  const fetchSite = headers.get("sec-fetch-site")?.trim().toLowerCase();
+  if (fetchSite === "same-origin") return false;
+  if (fetchSite === "cross-site") return true;
+  const origin = headers.get("origin");
+  if (origin === null) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return true; // "null" and anything unparseable
+  }
+  const want = hostKey(parsed.host, parsed.protocol);
+  const hosts = [headers.get("x-forwarded-host")?.split(",")[0], headers.get("host"), new URL(requestUrl).host];
+  return !hosts.some((h) => h && hostKey(h, parsed.protocol) === want);
+}
+
+/** ``host[:port]`` lower-cased, with the default port of the scheme ("http:" 80, "https:" 443) dropped. */
+function hostKey(host: string, protocol: string): string {
+  let h = host.trim().toLowerCase();
+  const dflt = protocol === "https:" ? ":443" : protocol === "http:" ? ":80" : "";
+  if (dflt && h.endsWith(dflt)) h = h.slice(0, -dflt.length);
+  return h;
+}
+
+export function crossSiteJson(): Response {
+  return Response.json({ error: { code: "forbidden", message: "This request came from another site.", details: {} } }, { status: 403, headers: { "Cache-Control": "no-store" } });
 }
 
 export function sessionCookie(token: string, secure: boolean, maxAgeS: number): string {

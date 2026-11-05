@@ -245,12 +245,17 @@ def approve(
 ) -> dict[str, Any]:
     who = acting_account(request, settings, body.approver)
     clean_reason(body.note)
+    # a signed-in account is the approver: nobody records an approval in someone else's name. The name
+    # typed in the form is kept beside it as ``approver_name`` (on a shared login it says who approved).
+    signed_in = signed_in_reviewer(request) is not None
+    approver = who if signed_in else body.approver
     return approve_thresholds(
         db,
         audit_for(request),
         settings,
         actor=who,
-        approver=body.approver,
+        approver=approver,
+        approver_name=body.approver if signed_in else None,
         role=body.role,
         note=body.note,
     )

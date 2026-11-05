@@ -3,12 +3,15 @@
  *
  * - Gated here (not in src/proxy.ts, see the note there): no valid session cookie -> 401 JSON.
  * - Streams request and response bodies, so a multi-file 25 MB upload is never buffered or truncated.
+ * - Refuses a body bigger than the backend would accept (413): by Content-Length up front, and by
+ *   counting the bytes of a body that did not declare one. Limits are the backend's own
+ *   GLDB_MAX_FILES_PER_CASE (40) times GLDB_MAX_UPLOAD_MB (25), plus 1 MB for the form around the files.
  * - Adds X-Gldb-Proxy-Secret (GLDB_PROXY_SECRET) and a single X-Forwarded-For (the first hop that
  *   reached us); drops the session cookie and any client-supplied forwarding/secret headers.
  * Routes next to this file (/api/auth/login, /api/auth/logout) win over the catch-all.
  */
 import type { NextRequest } from "next/server";
-import { backendUrl, readAuthConfig } from "@/lib/auth/config";
+import { backendUrl, maxBodyBytes, readAuthConfig } from "@/lib/auth/config";
 import { clientIp, decide, SESSION_COOKIE, sessionUser, setupErrorResponse, unauthorizedJson } from "@/lib/auth/gate";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +21,30 @@ const HOP_BY_HOP = ["connection", "keep-alive", "proxy-authenticate", "proxy-aut
 const DROP_REQUEST = [...HOP_BY_HOP, "host", "cookie", "expect", "accept-encoding", "x-gldb-proxy-secret", "x-gldb-reviewer", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "forwarded", "x-real-ip"];
 const DROP_RESPONSE = [...HOP_BY_HOP, "content-encoding", "set-cookie"];
 
+const tooLarge = (limit: number) =>
+  Response.json(
+    { error: { code: "file_too_large", message: "The upload is too large.", details: { max_request_bytes: limit } } },
+    { status: 413, headers: { "Cache-Control": "no-store" } },
+  );
+
+/** The body, erroring once more than ``limit`` bytes have passed (a chunked upload has no Content-Length to check). */
+function capped(body: ReadableStream<Uint8Array>, limit: number, onExceed: () => void): ReadableStream<Uint8Array> {
+  let seen = 0;
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength;
+        if (seen > limit) {
+          onExceed();
+          controller.error(new Error("request body too large"));
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+}
+
 async function handle(request: NextRequest, ctx: { params: Promise<{ path: string[] }> }): Promise<Response> {
   const cfg = readAuthConfig();
   const { path } = await ctx.params;
@@ -25,6 +52,10 @@ async function handle(request: NextRequest, ctx: { params: Promise<{ path: strin
   const decision = await decide(cfg, pathname, request.cookies.get(SESSION_COOKIE)?.value);
   if (decision.kind === "setup-error") return setupErrorResponse(decision.problems, true);
   if (decision.kind === "login") return unauthorizedJson();
+
+  const limit = maxBodyBytes();
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit) return tooLarge(limit);
 
   const target = `${backendUrl()}/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
   const headers = new Headers(request.headers);
@@ -38,17 +69,19 @@ async function handle(request: NextRequest, ctx: { params: Promise<{ path: strin
   if (who && proxySecret) headers.set("x-gldb-reviewer", who);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD" && request.body !== null;
+  let exceeded = false;
   let upstream: Response;
   try {
     upstream = await fetch(target, {
       method: request.method,
       headers,
-      body: hasBody ? request.body : undefined,
+      body: hasBody ? capped(request.body!, limit, () => (exceeded = true)) : undefined,
       redirect: "manual",
       cache: "no-store",
       ...(hasBody ? { duplex: "half" } : {}),
     } as RequestInit);
   } catch (e) {
+    if (exceeded) return tooLarge(limit);
     const cause = (e as { cause?: { code?: string; message?: string } }).cause;
     console.error(`api proxy: ${request.method} ${pathname} failed:`, cause?.code ?? cause?.message ?? (e as Error).message);
     return Response.json({ error: { code: "network_error", message: "The analysis service is not reachable.", details: {} } }, { status: 502, headers: { "Cache-Control": "no-store" } });

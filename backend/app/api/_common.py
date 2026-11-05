@@ -9,10 +9,11 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
-from fastapi import Depends, Request, Response, UploadFile
+from fastapi import Depends, Request, Response, UploadFile, params
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from starlette.exceptions import HTTPException
 
 from app.audit import AuditLog
 from app.core.cases import sanitise_filename, sniff_mime
@@ -33,6 +34,10 @@ MUTATION_LOCK = threading.RLock()
 
 ANONYMOUS = "anonymous"
 
+FORM_TEXT_FIELDS = (
+    8  # the text fields next to the files (use_case, reference, applicant_*) with room
+)
+
 
 class ApiRoute(APIRoute):
     """A body that is not parseable JSON is ``400 bad_request`` (api.md section 1), not a 422;
@@ -40,8 +45,15 @@ class ApiRoute(APIRoute):
 
     def get_route_handler(self) -> Callable[[Request], Any]:
         original = super().get_route_handler()
+        # Only the upload routes (form and file parameters) pre-read the multipart body; a multipart
+        # body sent to a JSON route is left alone, so FastAPI answers it with its usual 422.
+        takes_form = self.body_field is not None and isinstance(
+            self.body_field.field_info, params.Form
+        )
 
         async def handler(request: Request) -> Response:
+            if takes_form:
+                await _read_form_with_limits(request)
             try:
                 return await original(request)
             except RequestValidationError as exc:
@@ -52,6 +64,39 @@ class ApiRoute(APIRoute):
                 raise
 
         return handler
+
+
+async def _read_form_with_limits(request: Request) -> None:
+    """Read a multipart body with a cap on the number of parts. FastAPI would read it with Starlette's
+    default (1000 files), so strangers could make the server spool a thousand temp files per request.
+    The form is cached on the request, so FastAPI's own read then reuses this one. One file more than
+    allowed still gets through, so ``read_uploads`` can answer with its own 422 ``too_many_files``."""
+    ctype = request.headers.get("content-type", "")
+    if not ctype.lower().startswith("multipart/form-data"):
+        return
+    settings = getattr(request.app.state, "settings", None)
+    max_files = getattr(settings, "max_files_per_case", None)
+    if not isinstance(max_files, int):
+        return
+    try:
+        await request.form(max_files=max_files + 1, max_fields=max_files + 1 + FORM_TEXT_FIELDS)
+    except HTTPException as exc:  # Starlette: "Too many files/fields. Maximum number ... exceeded."
+        detail = str(exc.detail)
+        if exc.status_code != 400 or not detail.startswith("Too many"):
+            raise  # a malformed body keeps its own answer
+        if detail.startswith("Too many fields"):
+            raise ApiError(
+                422,
+                "too_many_fields",
+                "The form has too many fields.",
+                {"max": max_files + 1 + FORM_TEXT_FIELDS},
+            ) from exc
+        raise ApiError(
+            422,
+            "too_many_files",
+            f"At most {max_files} files per upload.",
+            {"max": max_files},
+        ) from exc
 
 
 def get_clock(request: Request) -> Callable[[], datetime]:

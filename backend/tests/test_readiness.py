@@ -248,7 +248,12 @@ def test_with_personal_accounts_a_typed_approver_alone_cannot_approve(
     )
     assert ok.status_code == 201 and ok.json()["recorded_by"] == "mlim"
     row = [x for x in e.audit_rows() if x["action"] == "monitoring.thresholds_approved"][0]
-    assert row["actor"] == "mlim" and json.loads(row["detail"])["approver"] == "M. Lim"
+    # the signed-in account is the approver; the name typed in the form is kept as approver_name
+    assert row["actor"] == "mlim" and json.loads(row["detail"])["approver"] == "mlim"
+    assert ok.json()["approver"] == "mlim"
+    # ... and is kept beside it as approver_name
+    assert json.loads(row["detail"])["approver_name"] == "M. Lim"
+    assert ok.json()["approver_name"] == "M. Lim"
 
 
 def test_the_audit_approval_row_cannot_be_edited(env: Env) -> None:

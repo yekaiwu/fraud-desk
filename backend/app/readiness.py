@@ -79,9 +79,15 @@ def approve_thresholds(
     approver: str,
     role: str,
     note: str,
+    approver_name: str | None = None,
 ) -> dict[str, Any]:
-    """Record that ``approver`` approved the thresholds as they are now. The audit row is append-only."""
+    """Record that ``approver`` approved the thresholds as they are now. The audit row is append-only.
+    ``approver_name`` is the name typed into the form when ``approver`` is a signed-in account (a shared
+    login, where the account says little about who approved); it is kept next to the account, never in
+    its place."""
     digest = thresholds_hash(settings)
+    typed = scrub(approver_name, max_len=80) if approver_name else ""
+    name = {"approver_name": typed} if typed and typed != scrub(approver, max_len=80) else {}
     row_id = audit.write(
         actor=actor,
         action=APPROVAL_ACTION,
@@ -90,6 +96,7 @@ def approve_thresholds(
             "thresholds_sha256": digest,
             "thresholds": threshold_values(settings),
             "approver": scrub(approver, max_len=80),
+            **name,
             "role": scrub(role, max_len=80),
             "note": scrub(note, max_len=300),
         },
@@ -98,6 +105,7 @@ def approve_thresholds(
         "id": row_id,
         "recorded_by": actor,
         "approver": scrub(approver, max_len=80),
+        **name,
         "role": scrub(role, max_len=80),
         "thresholds_sha256": digest,
         "thresholds": threshold_values(settings),

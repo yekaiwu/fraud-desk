@@ -98,7 +98,7 @@ export function LoginForm() {
       <Button type="submit" size="lg" fullWidth loading={busy} disabled={!username.trim() || !password} className="mt-6">
         Sign in
       </Button>
-      <p className="mt-6 border-t border-rule pt-4 text-xs leading-relaxed text-muted">Demo with fictitious data only; reviewer names are self-declared.</p>
+      <p className="mt-6 border-t border-rule pt-4 text-xs leading-relaxed text-muted">Demo with fictitious data only. Your decisions are recorded under the account you sign in with.</p>
       <p className="mt-2 text-sm text-ink-2">
         New to Fraud Desk?{" "}
         <Link href="/welcome" className="inline-flex min-h-11 items-center font-semibold text-brand-2 underline">

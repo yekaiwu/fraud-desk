@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
-from app.api._common import ANONYMOUS, DbDep, audit_for, get_clock
+from app.api._common import ANONYMOUS, DbDep, audit_for, get_clock, signed_in_reviewer
 from app.pack import build_pack, build_page_images, render_pack_html
 
 router = APIRouter(tags=["pack"])
@@ -25,7 +25,7 @@ def get_pack(
 ) -> Response:
     pack = build_pack(db, case_id, version=version, clock=get_clock(request))
     audit_for(request).write(
-        actor=ANONYMOUS,
+        actor=signed_in_reviewer(request) or ANONYMOUS,
         action="pack.exported",
         case_id=case_id,
         detail={"format": format, "version": pack["case"]["version"]},

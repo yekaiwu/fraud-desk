@@ -9,7 +9,14 @@ from urllib.parse import quote
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
 
-from app.api._common import ANONYMOUS, DbDep, audit_for, load_case_or_404, not_found
+from app.api._common import (
+    ANONYMOUS,
+    DbDep,
+    audit_for,
+    load_case_or_404,
+    not_found,
+    signed_in_reviewer,
+)
 from app.core.errors import ApiError
 from app.core.models import Case, FileRef
 from app.pack import render_page_png
@@ -94,7 +101,7 @@ def download_file(case_id: str, file_id: str, request: Request, db: DbDep) -> Re
     if not db.files.exists(ref.sha256):
         raise not_found("file", id=file_id)
     audit_for(request).write(
-        actor=ANONYMOUS,
+        actor=signed_in_reviewer(request) or ANONYMOUS,
         action="file.downloaded",
         case_id=case_id,
         detail={"file_sha256": ref.sha256},

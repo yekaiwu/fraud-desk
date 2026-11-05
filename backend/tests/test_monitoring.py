@@ -122,6 +122,28 @@ def test_scheduled_purge_deletes_expired_closed_cases_and_never_the_open_ones(
     assert stop is not None
 
 
+def test_scheduled_purge_waits_for_the_mutation_lock(settings: Settings, db: Database) -> None:
+    import time
+
+    from app.api._common import MUTATION_LOCK
+
+    settings = with_settings(settings, retention_days=30, retention_interval_hours=1)
+    old = seed_case(db, settings, flags=[])
+    old.status = "closed"
+    old.updated_at = utcnow() - timedelta(days=90)
+    db.save_case(old, touch=False)
+    runs = iter([False, True])
+    with MUTATION_LOCK:  # a rerun is changing cases: the purge must not run in the middle of it
+        start_auto_purge(db, settings, now=utcnow, wait=lambda _s: next(runs))
+        time.sleep(0.3)
+        assert db.case_exists(old.id)
+    for _ in range(100):
+        if not db.case_exists(old.id):
+            break
+        time.sleep(0.02)
+    assert not db.case_exists(old.id)
+
+
 def test_an_incident_is_resolved_by_a_later_report_that_names_it(env: Env) -> None:
     first = env.client.post(
         "/monitoring/incidents",

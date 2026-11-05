@@ -16,8 +16,12 @@ address in ``X-Forwarded-For``). This module is the second line of defence, inst
   ``GLDB_RATE_CASES_PER_HOUR`` per hour, review ``POST /cases/{id}/review`` at most
   ``GLDB_RATE_REVIEWS_PER_MIN`` per minute. The check catalogue writes (``PUT`` and ``DELETE``
   on ``/rules/{rule}/override``) share the review limiter, and so do the two custom-rule routes that
-  call the model (``POST /custom-rules/drafts`` and ``/custom-rules/drafts/{id}/turns``). Over the
+  call the model (``POST /custom-rules/drafts`` and ``/custom-rules/drafts/{id}/turns``), and the
+  incident report (``POST /monitoring/incidents``, which notifies the alert channels). Over the
   limit: 429 ``rate_limited`` with ``Retry-After``.
+* **Upload size.** ``POST /cases`` and ``/cases/{id}/files`` whose ``Content-Length`` exceeds
+  ``GLDB_MAX_FILES_PER_CASE`` times ``GLDB_MAX_UPLOAD_MB`` plus 1 MB get 413 ``file_too_large`` before
+  the body is read. The form itself is read with a cap on the number of parts (``api/_common.py``).
   The limit is counted per signed-in account when the proxy sent one (so a room of people on one
   Wi-Fi each get their own allowance), otherwise per client address: the ``X-Forwarded-For`` value
   sent by the proxy, but only when the proxy secret matched (otherwise the header is
@@ -63,6 +67,9 @@ _REVIEW_PATH = re.compile(r"^/cases/[^/]+/review/?$")
 _OVERRIDE_PATH = re.compile(r"^/rules/[^/]+/override/?$")
 _JOB_PATH = re.compile(r"^/cases/[^/]+/(files|rerun)/?$")
 _CUSTOM_DRAFT_PATH = re.compile(r"^/custom-rules/drafts(/[^/]+/turns)?/?$")
+_INCIDENT_PATH = re.compile(r"^/monitoring/incidents/?$")
+_UPLOAD_PATH = re.compile(r"^/cases(/[^/]+/files)?/?$")
+REQUEST_OVERHEAD_BYTES = 1024 * 1024  # form fields and multipart framing around the files
 
 
 class AccessSettings(BaseSettings):
@@ -183,6 +190,30 @@ class AccessMiddleware:
             ).fetchone()
         return int(row[0])
 
+    def _check_body_size(self, scope: Scope, headers: Headers) -> JSONResponse | None:
+        """413 before the body is read when the declared size cannot fit the upload limits (the most
+        files times the biggest file, plus a little for the form). A missing or malformed length is left
+        to the parser."""
+        cfg = getattr(getattr(scope.get("app"), "state", None), "settings", None)
+        max_files = getattr(cfg, "max_files_per_case", None)
+        max_mb = getattr(cfg, "max_upload_mb", None)
+        if not isinstance(max_files, int) or not isinstance(max_mb, int):
+            return None
+        cap = max_files * max_mb * 1024 * 1024 + REQUEST_OVERHEAD_BYTES
+        try:
+            declared = int(headers.get("content-length", ""))
+        except ValueError:
+            return None
+        if declared <= cap:
+            return None
+        return self._reject(
+            headers,
+            413,
+            "file_too_large",
+            f"The upload is too large: at most {max_files} files of {max_mb} MB each.",
+            {"max_mb": max_mb, "max_files": max_files, "max_request_bytes": cap},
+        )
+
     # ------------------------------------------------------------------ ASGI
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -235,10 +266,17 @@ class AccessMiddleware:
         is_create = path in ("/cases", "/cases/")
         is_job = is_create or bool(_JOB_PATH.match(path))
         is_review = bool(
-            _REVIEW_PATH.match(path) or _OVERRIDE_PATH.match(path) or _CUSTOM_DRAFT_PATH.match(path)
+            _REVIEW_PATH.match(path)
+            or _OVERRIDE_PATH.match(path)
+            or _CUSTOM_DRAFT_PATH.match(path)
+            or _INCIDENT_PATH.match(path)
         )
         if not (is_job or is_review):
             return None
+        if scope.get("method") == "POST" and _UPLOAD_PATH.match(path):
+            too_big = self._check_body_size(scope, headers)
+            if too_big is not None:
+                return too_big
         reviewer = (scope.get("state") or {}).get("reviewer") if trusted else None
         client = (
             f"user:{reviewer}" if reviewer else _client_key(scope, headers, trust_forwarded=trusted)

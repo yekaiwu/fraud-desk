@@ -1,5 +1,5 @@
 import { readAuthConfig, SESSION_MAX_AGE_S } from "@/lib/auth/config";
-import { clientIp, isHttps, safeNext, sessionCookie, setupErrorResponse } from "@/lib/auth/gate";
+import { clientIp, crossSiteJson, isCrossSite, isHttps, safeNext, sessionCookie, setupErrorResponse } from "@/lib/auth/gate";
 import { loginLimiter } from "@/lib/auth/ratelimit";
 import { safeEqual, signSession } from "@/lib/auth/session";
 
@@ -14,6 +14,7 @@ export async function POST(request: Request) {
   const cfg = readAuthConfig();
   if (cfg.mode === "error") return setupErrorResponse(cfg.problems, true);
   if (cfg.mode === "open") return err(404, "not_found", "Sign-in is not enabled on this server.");
+  if (isCrossSite(request.headers, request.url)) return crossSiteJson();
 
   let username = "";
   let password = "";
@@ -38,9 +39,10 @@ export async function POST(request: Request) {
   const given = username.trim().toLowerCase();
   // Address plus account: a typo by one person in a room does not lock the others out.
   const client = `${clientIp(request.headers)}|${given.slice(0, 64)}`;
-  const limiter = loginLimiter();
-  const wait = limiter.retryAfterS(client);
-  if (wait > 0) return err(429, "rate_limited", `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute(s).`, { "Retry-After": String(wait) });
+  // Check and reserve a place before the first await: a parallel burst of guesses cannot all pass the check.
+  const slot = loginLimiter().reserve(client, Object.hasOwn(cfg.users, given));
+  const tooMany = (wait: number) => err(429, "rate_limited", `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute(s).`, { "Retry-After": String(wait) });
+  if (slot.wait > 0 && !slot.reserved) return tooMany(slot.wait);
 
   // Every account is compared on every attempt, so the response time does not reveal which part was wrong.
   let matched: string | null = null;
@@ -49,9 +51,10 @@ export async function POST(request: Request) {
     if (userOk && passOk) matched = name;
   }
   if (matched === null) {
-    limiter.recordFailure(client);
-    return err(401, "invalid_credentials", "Wrong username or password.");
+    // The reserved place stays used. While the site-wide budget is used up a wrong guess is refused whatever the name.
+    return slot.wait > 0 ? tooMany(slot.wait) : err(401, "invalid_credentials", "Wrong username or password.");
   }
+  slot.refund();
   const token = await signSession(cfg.secret, `${matched}\u0000${cfg.users[matched]}`, Date.now(), SESSION_MAX_AGE_S, matched);
   return Response.json({ ok: true, next: safeNext(next) }, { headers: { ...NO_STORE, "Set-Cookie": sessionCookie(token, isHttps(request.headers, request.url), SESSION_MAX_AGE_S) } });
 }

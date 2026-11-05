@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { readAuthConfig } from "./config";
-import { clientIp, decide, isHttps, isPublicPath, isSignedIn, safeNext, sessionCookie, sessionUser, setupErrorResponse, signInRedirect } from "./gate";
+import { maxBodyBytes, readAuthConfig } from "./config";
+import { clientIp, decide, isCrossSite, isHttps, isPublicPath, isSignedIn, safeNext, sessionCookie, sessionUser, setupErrorResponse, signInRedirect } from "./gate";
 import { LoginLimiter } from "./ratelimit";
 import { safeEqual, signSession, verifySession } from "./session";
 
@@ -86,6 +86,76 @@ describe("login limiter", () => {
     expect(l.retryAfterS("10.9.9.9")).toBeGreaterThan(0);
     now += 601 * 1000;
     expect(l.retryAfterS("10.9.9.9")).toBe(0);
+  });
+
+  it("reserve takes the place at once, so a burst cannot pass the check together", () => {
+    const l = new LoginLimiter(() => T0);
+    const slots = Array.from({ length: 50 }, () => l.reserve("1.1.1.1|boss", true));
+    expect(slots.filter((s) => s.wait === 0)).toHaveLength(5);
+    expect(slots.filter((s) => s.wait > 0 && !s.reserved)).toHaveLength(45);
+  });
+
+  it("refunds the place of an attempt that turned out to be right", () => {
+    const l = new LoginLimiter(() => T0);
+    for (let i = 0; i < 20; i++) l.reserve("1.1.1.1|boss", true).refund();
+    expect(l.retryAfterS("1.1.1.1|boss")).toBe(0);
+    for (let i = 0; i < 5; i++) l.reserve("1.1.1.1|boss", true);
+    expect(l.reserve("1.1.1.1|boss", true).wait).toBeGreaterThan(0);
+  });
+
+  it("refunds the right place even when the clock moves on every read", () => {
+    let t = T0;
+    const l = new LoginLimiter(() => t++);
+    for (let i = 0; i < 40; i++) {
+      const slot = l.reserve("1.1.1.1|boss", true);
+      expect(slot.reserved, `login ${i}`).toBe(true);
+      expect(slot.wait, `login ${i}`).toBe(0);
+      slot.refund();
+    }
+    expect(l.retryAfterS("1.1.1.1|boss")).toBe(0);
+    // and the budget is still the same afterwards: 5 real failures, the 6th is refused
+    for (let i = 0; i < 5; i++) expect(l.reserve("1.1.1.1|boss", true).reserved).toBe(true);
+    expect(l.reserve("1.1.1.1|boss", true).reserved).toBe(false);
+  });
+
+  it("refunds exactly what it reserved under a random mix of clients, jumpy clocks and outcomes", () => {
+    let seed = 12345;
+    const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    let t = T0;
+    const l = new LoginLimiter(() => (t += Math.floor(rnd() * 3)), 5, 60);
+    const failures = new Map<string, number>();
+    for (let i = 0; i < 20000; i++) {
+      const c = `c${Math.floor(rnd() * 8)}|boss`;
+      const slot = l.reserve(c, true);
+      expect(slot.reserved, `attempt ${i}`).toBe((failures.get(c) ?? 0) < 5);
+      if (!slot.reserved) continue;
+      if (rnd() < 0.7) slot.refund();
+      else failures.set(c, (failures.get(c) ?? 0) + 1);
+      if (rnd() < 0.01) {
+        t += 11 * 60 * 1000; // the window passes: every budget starts over
+        failures.clear();
+      }
+    }
+  });
+
+  it("counts only failures for accounts that exist toward the global budget", () => {
+    const l = new LoginLimiter(() => T0, 5, 10);
+    for (let i = 0; i < 100; i++) l.reserve(`10.0.0.${i}|ghost${i}`, false);
+    expect(l.reserve("10.9.9.9|boss", true).wait).toBe(0);
+    for (let i = 0; i < 10; i++) l.reserve(`10.0.1.${i}|boss`, true);
+    const blocked = l.reserve("10.9.9.9|boss", true);
+    expect(blocked.wait).toBeGreaterThan(0);
+    expect(blocked.reserved).toBe(true); // the caller may still let a correct password in
+    blocked.refund();
+    expect(l.reserve("10.9.9.9|boss", true).wait).toBeGreaterThan(0);
+  });
+
+  it("still applies the client budget to an attempt while the global budget is used up", () => {
+    const l = new LoginLimiter(() => T0, 2, 3);
+    for (let i = 0; i < 3; i++) l.reserve(`10.0.1.${i}|boss`, true);
+    l.reserve("9.9.9.9|boss", true);
+    l.reserve("9.9.9.9|boss", true);
+    expect(l.reserve("9.9.9.9|boss", true).reserved).toBe(false);
   });
 });
 
@@ -222,9 +292,74 @@ describe("helpers", () => {
 
   it("only accepts same-site relative redirect targets", () => {
     expect(safeNext("/cases/c_1?x=1")).toBe("/cases/c_1?x=1");
+    expect(safeNext("/cases/c_1?a=b&c=d#top")).toBe("/cases/c_1?a=b&c=d#top");
+    expect(safeNext("/")).toBe("/");
     for (const bad of ["//evil.example", "https://evil.example", "/\\evil", "javascript:alert(1)", "/api/cases", "/login", undefined, 5]) {
       expect(safeNext(bad)).toBe("/");
     }
+  });
+
+  it("refuses tab, CR, LF and other control or whitespace characters that a browser would strip", () => {
+    for (const bad of ["/\t/evil.example", "/\r/evil.example", "/\n/evil.example", "/\t\t/evil.example", "/ /evil.example", "/\u0000/evil", "/a\x7fb", "/\\/evil.example", "/\\evil.example", "//evil.example", "/a/..//evil.example", "/./login", "/a/../api/cases"]) {
+      expect(safeNext(bad), JSON.stringify(bad)).toBe("/");
+    }
+  });
+
+  it("keeps an encoded variant harmless: never protocol-relative, never another origin", () => {
+    for (const odd of ["/%09/evil.example", "/%0d%0a/evil.example", "/%2F%2Fevil.example", "/%5Cevil.example", "/%2e%2e//evil.example"]) {
+      const out = safeNext(odd);
+      expect(out.startsWith("//"), odd).toBe(false);
+      expect(new URL(out, "http://x").origin, odd).toBe("http://x");
+    }
+  });
+
+  it("recognises a request sent from another site, and lets non-browser clients through", () => {
+    const url = "http://127.0.0.1:3000/api/auth/login";
+    expect(isCrossSite(new Headers(), url)).toBe(false);
+    expect(isCrossSite(new Headers({ "sec-fetch-site": "same-origin" }), url)).toBe(false);
+    expect(isCrossSite(new Headers({ "sec-fetch-site": "cross-site", origin: "https://evil.example" }), url)).toBe(true);
+    expect(isCrossSite(new Headers({ origin: "https://evil.example", host: "desk.example" }), url)).toBe(true);
+    expect(isCrossSite(new Headers({ origin: "null" }), url)).toBe(true);
+    expect(isCrossSite(new Headers({ origin: "https://desk.example", host: "desk.example" }), url)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "https://desk.example", host: "127.0.0.1:3000", "x-forwarded-host": "desk.example" }), url)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "https://desk.example.evil.example", host: "desk.example" }), url)).toBe(true);
+    expect(isCrossSite(new Headers({ "sec-fetch-site": "same-site", origin: "https://other.desk.example", host: "desk.example" }), url)).toBe(true);
+  });
+
+  it("compares host and port with the scheme's default port dropped", () => {
+    const url = "http://127.0.0.1:3000/api/auth/login";
+    // Funnel / a proxy that rewrites Host to name:443 without X-Forwarded-Host, browser sent no Sec-Fetch-Site
+    expect(isCrossSite(new Headers({ origin: "https://box.ts.net", host: "box.ts.net:443" }), url)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "https://Box.TS.net", host: "box.ts.net" }), url)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "https://box.ts.net", host: "127.0.0.1:3000", "x-forwarded-host": "box.ts.net:443" }), url)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "https://box.ts.net:443", host: "box.ts.net" }), url)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "http://box.example", host: "box.example:80" }), url)).toBe(false);
+    // a default port of the other scheme is a different origin
+    expect(isCrossSite(new Headers({ origin: "https://box.ts.net", host: "box.ts.net:80" }), url)).toBe(true);
+    expect(isCrossSite(new Headers({ origin: "http://box.example", host: "box.example:443" }), url)).toBe(true);
+    expect(isCrossSite(new Headers({ origin: "https://box.ts.net", host: "box.ts.net:8443" }), url)).toBe(true);
+    // localhost development, plain http with a real port
+    const dev = "http://localhost:3000/api/auth/login";
+    expect(isCrossSite(new Headers({ origin: "http://localhost:3000", host: "localhost:3000" }), dev)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "http://localhost:3000" }), dev)).toBe(false); // host header missing: the request URL
+    expect(isCrossSite(new Headers({ origin: "http://localhost:4000", host: "localhost:3000" }), dev)).toBe(true);
+    expect(isCrossSite(new Headers({ origin: "http://localhost", host: "localhost:3000" }), dev)).toBe(true);
+    // IPv6 literals
+    const v6 = "http://[::1]:3000/api/auth/login";
+    expect(isCrossSite(new Headers({ origin: "http://[::1]:3000", host: "[::1]:3000" }), v6)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "https://[2001:db8::1]", host: "[2001:db8::1]:443" }), v6)).toBe(false);
+    expect(isCrossSite(new Headers({ origin: "http://[::1]:3000", host: "[::2]:3000" }), "http://[::2]:3000/x")).toBe(true);
+    // no Host and no forwarded host at all: only the request URL is left to compare with
+    expect(isCrossSite(new Headers({ origin: "https://evil.example" }), url)).toBe(true);
+    expect(isCrossSite(new Headers({ origin: "https://box.ts.net" }), "https://box.ts.net/api/auth/login")).toBe(false);
+    // the first X-Forwarded-Host entry is the public name
+    expect(isCrossSite(new Headers({ origin: "https://box.ts.net", "x-forwarded-host": "box.ts.net, 10.0.0.2" }), url)).toBe(false);
+  });
+
+  it("caps a request body at the backend's upload limits plus 1 MB", () => {
+    expect(maxBodyBytes({})).toBe(40 * 25 * 1024 * 1024 + 1024 * 1024);
+    expect(maxBodyBytes({ GLDB_MAX_FILES_PER_CASE: "2", GLDB_MAX_UPLOAD_MB: "3" })).toBe(7 * 1024 * 1024);
+    expect(maxBodyBytes({ GLDB_MAX_FILES_PER_CASE: "x", GLDB_MAX_UPLOAD_MB: "-1" })).toBe(40 * 25 * 1024 * 1024 + 1024 * 1024);
   });
 });
 

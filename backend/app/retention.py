@@ -102,8 +102,10 @@ def purge(
     older_than_days: int,
     dry_run: bool,
     now: datetime,
+    actor: str = SYSTEM_ACTOR,
 ) -> dict[str, Any]:
-    """List (dry run, the default at the API) or delete expired cases."""
+    """List (dry run, the default at the API) or delete expired cases. ``actor`` is who asked for it
+    (the signed-in account at the API); the scheduled run keeps ``system``."""
     ids = expired_case_ids(db, older_than_days=older_than_days, now=now)
     if dry_run:
         return {"dry_run": True, "case_ids": ids, "count": len(ids)}
@@ -114,7 +116,7 @@ def purge(
                 db,
                 audit,
                 case_id,
-                reviewer=SYSTEM_ACTOR,
+                reviewer=actor,
                 reason="retention",
                 trigger="retention",
             )
@@ -122,7 +124,7 @@ def purge(
         except ApiError as exc:
             log.warning("retention skipped %s: %s", case_id, exc.code)
     audit.write(
-        actor=SYSTEM_ACTOR,
+        actor=actor,
         action="retention.purge",
         case_id=None,
         detail={
@@ -153,13 +155,18 @@ def start_auto_purge(
     def loop() -> None:
         while not waiter(interval):
             try:
-                result = purge(
-                    db,
-                    AuditLog(db, settings),
-                    older_than_days=settings.retention_days,
-                    dry_run=False,
-                    now=now(),
-                )
+                # a rerun or an upload holds this lock while it changes a case; purging between its
+                # load and its delete could remove a case that has just been put back to work
+                from app.api._common import MUTATION_LOCK
+
+                with MUTATION_LOCK:
+                    result = purge(
+                        db,
+                        AuditLog(db, settings),
+                        older_than_days=settings.retention_days,
+                        dry_run=False,
+                        now=now(),
+                    )
                 log.info("scheduled retention purge removed %d case(s)", result["count"])
             except Exception:  # noqa: BLE001 - the schedule must outlive one bad run
                 log.exception("scheduled retention purge failed")

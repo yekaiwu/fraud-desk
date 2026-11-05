@@ -39,7 +39,7 @@ from app.core.errors import ApiError
 from app.core.models import Strict, UseCase, utcnow
 from app.pack import not_checked_documents
 from app.pipeline import prepare_rerun
-from app.retention import delete_case_with_audit, purge
+from app.retention import SYSTEM_ACTOR, delete_case_with_audit, purge
 from app.review import (
     allowed_verdicts,
     load_entries,
@@ -145,7 +145,7 @@ def create_case(
     with MUTATION_LOCK:
         job = runner.submit(case.id, "analyse", account=account)
         audit_for(request).write(
-            actor=ANONYMOUS,
+            actor=signed_in_reviewer(request) or ANONYMOUS,
             action="case.created",
             case_id=case.id,
             detail={
@@ -253,7 +253,7 @@ def add_files(
         db.save_case(case)
         job = runner.submit(case_id, "rerun", account=account)
         audit_for(request).write(
-            actor=ANONYMOUS,
+            actor=signed_in_reviewer(request) or ANONYMOUS,
             action="case.documents_added",
             case_id=case_id,
             detail={
@@ -291,7 +291,7 @@ def rerun_case(
         case = prepare_rerun(db, case_id)
         job = runner.submit(case_id, "rerun", account=account)
         audit_for(request).write(
-            actor=ANONYMOUS,
+            actor=signed_in_reviewer(request) or ANONYMOUS,
             action="case.rerun",
             case_id=case_id,
             detail={"version_from": before, "version_to": case.version, "job_id": job.id},
@@ -345,6 +345,12 @@ def retention_purge(
     db: DbDep,
     settings: SettingsDep,
 ) -> dict[str, Any]:
+    """Administrator accounts only whenever accounts are in play (``GLDB_PERSONAL_ACCOUNTS`` on, or the
+    caller is signed in); the audit actor is that account. With typed names and no accounts the route
+    stays open and the actor is ``system``."""
+    who = signed_in_reviewer(request)
+    if (settings.personal_accounts or who) and (who is None or who not in settings.admin_user_set):
+        raise ApiError(403, "forbidden", "Only an administrator account can purge closed cases.")
     body = body or PurgeRequest()
     days = settings.retention_days if body.older_than_days is None else body.older_than_days
     with MUTATION_LOCK:
@@ -354,4 +360,5 @@ def retention_purge(
             older_than_days=days,
             dry_run=body.dry_run,
             now=get_clock(request)(),
+            actor=who or SYSTEM_ACTOR,
         )

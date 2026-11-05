@@ -81,3 +81,16 @@ export function sessionBinding(cfg: { username: string; password: string }): str
 export function backendUrl(env: Env = process.env): string {
   return (env.GLDB_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 }
+
+function positiveInt(env: Env, name: string, fallback: number): number {
+  const n = Number(env[name]);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * Most bytes an /api request body may have: every allowed file at its largest, plus 1 MB for the form
+ * around them. The backend's own limits (GLDB_MAX_FILES_PER_CASE 40, GLDB_MAX_UPLOAD_MB 25) are the defaults.
+ */
+export function maxBodyBytes(env: Env = process.env): number {
+  return positiveInt(env, "GLDB_MAX_FILES_PER_CASE", 40) * positiveInt(env, "GLDB_MAX_UPLOAD_MB", 25) * 1024 * 1024 + 1024 * 1024;
+}
