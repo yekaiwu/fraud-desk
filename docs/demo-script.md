@@ -95,6 +95,16 @@ Say: the live lookup and the sanctions screen are opt-in outside sources, off un
 
 `backend/scripts/make_showcase_bundles.py --out DIR --variant 1 --extras` writes the showcase documents that join three existing bundles, with the bundle's own company as the invoice buyer so the cross-document checks stay quiet. The demo folder is then three uploads: (1) the Photoshop/PDF-forensics bundle plus the bad receipt (AML: file and arithmetic tampering with no AI), (2) the model-based bundle plus the AI-looking invoice and the invoice with instruction text (AML: meaning, AI provenance, prompt injection), (3) the Green Link Digital Bank KYC bundle with the wrong incorporation date plus the invoice from the sanctioned shipping company (KYC: live register and sanctions). Clear the worklist first (Select and delete): demos 1 and 2 use the same files as the standard demo cases and would otherwise raise duplicate-document flags. The live registry file (`GLDB_REGISTRY_PATH`) holds the generator's 37 companies so these uploads never wait on the rate-limited ACRA service; only Green Link Digital Bank is looked up live.
 
+### 3c. The challenger demo (demo 4)
+
+`backend/scripts/make_showcase_bundles.py --challenger --out DIR` writes two folders for Yishun Anchor Pte. Ltd., an AML case: `1-upload-first` (22 files) and `2-add-after` (one supply agreement). The company declares S$1,000,000 of sales proceeds from one buyer, Orchid Bay Holdings, but invoice INV-2026-0117 was paid by three other companies and the money was forwarded within days.
+
+1. Upload `1-upload-first` as AML. Expect score about 90, High: `x_remitter_vs_buyer` and `x_sof_support` (high), `bs_pass_through`, `inv_gst`. On the Timeline tab the challenger rules on both judgement flags and keeps both.
+2. **More actions, Add documents**, choose `supply_agreement_C-2026-002.pdf`, **Add and re-run**. Its payment terms say the buyer may pay through three named affiliates, the three payers.
+3. Version 2, expect score about 60. The challenger lowers `x_remitter_vs_buyer` to info and quotes "payable by Orchid Bay or its affiliates VANTAGE CREST, SILVERLINE IMPORTS and PACIFIC ANCHOR"; it keeps `x_sof_support`, because no credit backs the declared amount. Version 1 stays readable.
+
+Say: the challenger lowers a flag only when it can quote the case's own documents, and the tool cannot tell whether a customer's document is true. In the measured runs it lowered nothing; this agreement was written to explain the flag, so the demo shows the mechanism, not a hit rate. The walkthrough with a screenshot of every step is in the demo folder (`expected-results/`).
+
 ## 4. The ranked queue
 
 **Clicks.** Upload six cases of the same kind in any order (for example the clean and fraud bundles of the three use cases from `samples/bundles/`). Open `/`: the default sort is **priority** (status, then score high to low, then coverage low to high). Point at rank 1 to 6 and at the **Fast lane** chip on the clean cases (a person still confirms them). Use the use-case segmented control and the lane filter to show the queue narrowing.
