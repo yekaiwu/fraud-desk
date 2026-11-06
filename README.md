@@ -163,3 +163,5 @@ Start at [docs/README.md](docs/README.md) (architecture, data model, API, evalua
 <!-- AI assistance: this comment and the commit that added it were drafted by
      Gemini running inside Antigravity, at the repository owner's request.
      Comment-only: no content, code or behaviour changes. -->
+
+<!-- Contributor record: Gemini (gemini-code-assist) contribution via Antigravity. Comment-only: no content, code or behaviour changes. -->
