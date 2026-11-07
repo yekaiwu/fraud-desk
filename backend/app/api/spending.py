@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from app.api._common import DbDep, SettingsDep, get_clock, listed_accounts, signed_in_reviewer
+from app.core.context import natural_key
 from app.core.costs import usd6
 from app.core.errors import ApiError
 
@@ -72,7 +73,11 @@ def spending(request: Request, db: DbDep, settings: SettingsDep) -> dict[str, An
                 }
                 for a in accounts
             ),
-            key=lambda x: (-Decimal(x["today_usd"]), -Decimal(x["week_usd"]), x["account"]),
+            key=lambda x: (
+                -Decimal(x["today_usd"]),
+                -Decimal(x["week_usd"]),
+                natural_key(x["account"]),
+            ),
         ),
         "history": [
             {"day": d, "site_usd": _usd(site.get(d, 0))}
