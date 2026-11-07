@@ -338,6 +338,7 @@ def test_spending_lists_every_account_the_proxy_names_even_with_no_spend(
 ) -> None:
     from decimal import Decimal
 
+    from app.core.context import natural_key
     from app.core.costs import DailySpend
 
     monkeypatch.setenv("GLDB_PROXY_SECRET", SECRET)
@@ -360,8 +361,10 @@ def test_spending_lists_every_account_the_proxy_names_even_with_no_spend(
     )  # the invalid name is dropped, "Boss" is the same account
     today = {a["account"]: a["today_usd"] for a in body["accounts"]}
     assert today["user2"] == "0.250000" and today["user7"] == "0.000000"
-    assert shown[:2] == ["user2", "gone"]  # spenders first, then everyone else by name
-    assert shown[2:] == sorted(shown[2:])
+    assert shown[:2] == ["user2", "gone"]  # spenders first, highest today then highest week
+    zeros = shown[2:]
+    assert zeros == sorted(zeros, key=natural_key)  # user1, user3, user10, not user1, user10, user3
+    assert zeros.index("boss") < zeros.index("user1") < zeros.index("user3") < zeros.index("user10")
     # without the list the page shows only who has spent, as before
     plain = c.get("/spending", headers={**H, "X-Gldb-Reviewer": "boss"}).json()
     assert [a["account"] for a in plain["accounts"]] == ["user2", "gone"]
