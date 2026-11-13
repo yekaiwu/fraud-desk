@@ -119,7 +119,7 @@ export function AskPanel({
     <section aria-labelledby={titleId} className="space-y-4">
       <div>
         <h2 id={titleId} className="text-xl">Ask this case</h2>
-        <p className="mt-1 text-sm text-ink-2">Questions are answered from the documents and the flags already on this case. A sentence without a citation is not shown.</p>
+        <p className="mt-1 text-sm text-ink-2">Questions are answered from the flags on this case and the documents in view. A sentence without a citation is not shown.</p>
       </div>
 
       <fieldset className="space-y-2">

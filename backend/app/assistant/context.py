@@ -112,19 +112,13 @@ def select_documents(
 
 
 def select_flags(case: Case, *, scope: str, file_id: str | None) -> list[Flag]:
-    """Flags the model may quote. A document-scoped question sees the flags on that file."""
-    flags = list(case.flags)
-    if scope != "document":
-        return flags
-    on_file = {d.id for d in case.documents if d.file_id == file_id}
-    picked: list[Flag] = []
-    for flag in flags:
-        if flag.region is not None and flag.region.file_id == file_id:
-            picked.append(flag)
-            continue
-        if on_file.intersection(flag.document_ids):
-            picked.append(flag)
-    return picked
+    """Every flag on the case. Scope limits which documents are shown, not the flags.
+
+    An officer asks about a finding while the page on screen is a different file. The finding is
+    still part of the question.
+    """
+    del scope, file_id
+    return list(case.flags)
 
 
 def flag_anchor(flag: Flag, case: Case) -> tuple[str, int, str]:

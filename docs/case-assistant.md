@@ -12,7 +12,7 @@ It is off unless `GLDB_CASE_ASSISTANT=on`. It needs a personal sign-in. A shared
 
 ## What the model sees
 
-Cells already stored on the case, and the flags already on it. Nothing is re-extracted and no flag is rewritten. Scope `document` is every document in that file and the flags on it. Scope `case` is every flag, plus documents cut to about 24,000 characters: pages with an open flag first, then the page on screen and its neighbours. Each block is wrapped with `wrap_untrusted`, and so is the question. Instructions live only in the system prompt (`assistant:ask`), which is registered for provenance. The model has no tools. The reply is schema-forced JSON.
+Cells already stored on the case, and every flag already on it. Nothing is re-extracted and no flag is rewritten. Scope `document` limits the documents to the file on screen. The flags are included either way, because an officer asks about a finding while looking at another file. Scope `case` adds the other documents, cut to about 24,000 characters: pages with an open flag first, then the page on screen and its neighbours. Each block is wrapped with `wrap_untrusted`, and so is the question. Instructions live only in the system prompt (`assistant:ask`), which is registered for provenance. The model has no tools. The reply is schema-forced JSON.
 
 The last four turns of this officer on this case version are sent with the next question. A new version starts with an empty memory. The question text is sealed when encryption at rest is on. Deleting the case deletes those turns. They are not kept in the audit log.
 

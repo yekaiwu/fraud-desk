@@ -250,6 +250,63 @@ def test_a_question_about_a_flag_cites_that_flag(
     assert r.json()["message"] == NOT_FOUND
 
 
+def test_a_flag_on_another_file_is_still_shown_for_this_document(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page on screen was the company profile. The finding the officer pasted sits on the statement."""
+    other = make_doc(
+        "company_profile",
+        id="d9",
+        file_id="f9",
+        fields={"company_name": "ORCHID BAY HOLDINGS PTE LTD"},
+    )
+    explanation = (
+        "The Orchid Bay contract expressly allows payment by named affiliates, so a third-party "
+        "remitter such as VANTAGE CREST is documented as an agreed payment route."
+    )
+    flag = Flag(
+        id="x_remitter_vs_buyer.d1.0",
+        rule="x_remitter_vs_buyer",
+        stage="crossdoc",
+        severity="info",
+        document_ids=["d1"],
+        evidence="Invoice INV-2026-0117 was paid by VANTAGE CREST TRADING PTE LTD.",
+        explanation=explanation,
+        region=_box(),
+    )
+    case = _case(db, [_invoice(), other], flags=[flag])
+    from app.assistant.context import select_flags
+
+    assert [f.id for f in select_flags(case, scope="document", file_id="f9")] == [flag.id]
+    llm = FakeLLMClient(
+        {
+            PURPOSE: {
+                "status": "answered",
+                "sentences": [
+                    {
+                        "text": "The check says the contract allows an affiliate to pay the invoice.",
+                        "citations": [
+                            {"file_id": "f1", "page": 1, "flag_id": flag.id, "quote": explanation}
+                        ],
+                    }
+                ],
+            }
+        }
+    )
+    client = _app(settings, db, llm, monkeypatch)
+    r = _ask(
+        client,
+        question=f"{explanation} what does this mean",
+        scope="document",
+        file_id="f9",
+        page=1,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "answered"
+    assert r.json()["sentences"][0]["citations"][0]["rule"] == "x_remitter_vs_buyer"
+    assert explanation in llm.calls[0].user
+
+
 def test_a_quote_that_is_not_in_the_cell_is_dropped(
     settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:
