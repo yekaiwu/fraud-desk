@@ -381,3 +381,35 @@ export interface CustomTicket {
 }
 export interface CustomTicketRequest { draft_id?: string; text?: string; severity?: CustomSeverity }
 export interface CustomTicketResponse { ticket: CustomTicket; message: string; existing: boolean }
+
+/** Ask this case (docs/case-assistant.md). Every sentence cites a cell, or the reply abstains. */
+export type AskScope = "document" | "case";
+export type AskStatus = "answered" | "not_found" | "decision_request";
+export interface AskCitation {
+  file_id: string;
+  page: number;
+  document_id: string;
+  doc_type: string;
+  field?: string | null;
+  table?: string | null;
+  row?: number | null;
+  quote: string;
+  region?: Region | null;
+}
+export interface AskSentence { text: string; citations: AskCitation[] }
+export interface AskFlagLink { id: string; rule: string; severity: Severity; explanation: string }
+export interface AskResponse {
+  status: AskStatus;
+  preamble: string | null;
+  message: string | null;
+  sentences: AskSentence[];
+  flags: AskFlagLink[];
+  dropped?: { citations_kept: number; citations_dropped: number; why: Record<string, number> };
+}
+export interface AskRequest {
+  question: string;
+  scope: AskScope;
+  file_id?: string | null;
+  page?: number | null;
+  case_version: number;
+}

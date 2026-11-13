@@ -194,16 +194,19 @@ def test_me_reports_whether_custom_rules_are_available(
         "reviewer": "alice",
         "admin": False,
         "custom_rules": True,
+        "case_assistant": False,
     }
     assert api.as_("root").get("/me").json() == {
         "reviewer": "root",
         "admin": True,
         "custom_rules": True,
+        "case_assistant": False,
     }
     assert api.as_(None).get("/me").json() == {
         "reviewer": None,
         "admin": False,
         "custom_rules": False,
+        "case_assistant": False,
     }
     off = make_api(settings, db, custom_rules="off")
     assert off.as_("alice").get("/me").json()["custom_rules"] is False

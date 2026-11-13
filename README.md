@@ -35,6 +35,7 @@ Fraud Desk reads a bundle of documents, runs the checks an analyst would do by h
 - **69 rule-based checks plus 5 model-based, across 13 document types.** The rule-based ones cover statement, invoice, receipt and financial-statement arithmetic, ID and ownership records, cross-document reconciliation, name matching, file forensics. The model-based ones read meaning and quote the text they rely on (name linking is opt-in). Optional outside sources: ACRA company lookup, sanctions lists, GLEIF ([docs/verification-sources.md](docs/verification-sources.md)).
 - **Review team and workflow.** Four specialist reviewers and a case officer summarise each flagged case. Verdicts need a reason, high-severity dismissals need a second approver, and everything lands in an append-only audit log ([docs/agents.md](docs/agents.md)).
 - **Your own checks, optional.** Describe a check in plain English and a fixed engine runs it, with a dry run first ([docs/custom-rules.md](docs/custom-rules.md)).
+- **Ask this case, optional.** A question about the documents on screen, answered in a few sentences that each cite a cell, or not answered at all. It never decides ([docs/case-assistant.md](docs/case-assistant.md)).
 - **Safe by design.** Optional encryption at rest (off by default), 71 forgery attacks in the red-team set (the ones that still get through are documented), per-case and per-day spend caps, and it can run fully in-house on a local model ([docs/red-team.md](docs/red-team.md), [docs/local-llm.md](docs/local-llm.md)).
 
 ## See it

@@ -73,6 +73,7 @@ _REVIEW_PATH = re.compile(r"^/cases/[^/]+/review/?$")
 _OVERRIDE_PATH = re.compile(r"^/rules/[^/]+/override/?$")
 _JOB_PATH = re.compile(r"^/cases/[^/]+/(files|rerun)/?$")
 _CUSTOM_DRAFT_PATH = re.compile(r"^/custom-rules/drafts(/[^/]+/turns)?/?$")
+_ASK_PATH = re.compile(r"^/cases/[^/]+/ask/?$")
 _INCIDENT_PATH = re.compile(r"^/monitoring/incidents/?$")
 _UPLOAD_PATH = re.compile(r"^/cases(/[^/]+/files)?/?$")
 REQUEST_OVERHEAD_BYTES = 1024 * 1024  # form fields and multipart framing around the files
@@ -286,6 +287,7 @@ class AccessMiddleware:
             _REVIEW_PATH.match(path)
             or _OVERRIDE_PATH.match(path)
             or _CUSTOM_DRAFT_PATH.match(path)
+            or _ASK_PATH.match(path)
             or _INCIDENT_PATH.match(path)
         )
         if not (is_job or is_review):

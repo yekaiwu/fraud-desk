@@ -205,6 +205,38 @@ CREATE TABLE IF NOT EXISTS daily_spend_user (
     PRIMARY KEY (day, account)
 );
 
+-- Ask this case (docs/case-assistant.md). One officer's recent questions on one case version.
+-- The question text is sealed when encryption at rest is on. The audit log does not copy it.
+CREATE TABLE IF NOT EXISTS assistant_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    account TEXT NOT NULL,
+    case_id TEXT NOT NULL,
+    case_version INTEGER NOT NULL,
+    scope TEXT NOT NULL,
+    file_id TEXT,
+    page INTEGER,
+    question TEXT NOT NULL,
+    question_sha256 TEXT NOT NULL,
+    question_len INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    answer_json TEXT NOT NULL,
+    citations_kept INTEGER NOT NULL,
+    citations_dropped INTEGER NOT NULL,
+    drop_reasons TEXT NOT NULL,
+    model TEXT NOT NULL,
+    prompt_sha256 TEXT NOT NULL,
+    prompt_tokens INTEGER NOT NULL,
+    completion_tokens INTEGER NOT NULL,
+    usd TEXT NOT NULL,
+    seconds REAL NOT NULL,
+    called INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_assistant_turns_lookup
+    ON assistant_turns (account, case_id, case_version, id);
+CREATE INDEX IF NOT EXISTS idx_assistant_turns_case
+    ON assistant_turns (case_id, case_version);
+
 -- Alert state (app/alerts.py): one row per alert key (a monitoring metric, or monitor_stale). Global
 -- configuration like rule_overrides: no case id. Acknowledgements are also written to audit_log.
 CREATE TABLE IF NOT EXISTS alert_state (
