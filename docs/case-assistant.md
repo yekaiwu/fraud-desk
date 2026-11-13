@@ -6,13 +6,13 @@ It is off unless `GLDB_CASE_ASSISTANT=on`. It needs a personal sign-in. A shared
 
 ## Invariants
 
-1. **Cites or abstains.** The model must quote a cell it was shown (`file_id`, page, field or table row, and the quote). `_verify_citation` in `backend/app/semantic/claims.py` checks that the document was shown, the field or row exists, and the quote is in that cell after the same normalisation the semantic checks use. A sentence with no verified citation is dropped. If none remain, the reply is "I can't find that in this case's documents."
+1. **Cites or abstains.** The model must quote a cell it was shown (`file_id`, page, field or table row, and the quote), or a flag it was shown (`flag_id`, and a quote copied from that flag's evidence or explanation). `_verify_citation` in `backend/app/semantic/claims.py` checks a cell: the document was shown, the field or row exists, and the quote is in that cell after the same normalisation the semantic checks use. A flag quote is checked the same way against the flag's own evidence and explanation. A sentence with no verified citation is dropped. If none remain, the reply is "I can't find that in this case's documents."
 2. **Never decides.** A question that asks for a verdict ("should I approve?", "is this fraud?") gets a fixed first sentence: "That decision is yours. Here is the evidence that bears on it:" Then cited facts, and links to the open flags that sit on those documents. The words approve, reject, escalate and clear are not used as a recommendation.
 3. **Read-only.** The route does not write the case. Flags, the score, the lane and the decision are unchanged. The question is remembered only so the next turn can see the last four, and the audit log stores a length and a sha256, not the text.
 
 ## What the model sees
 
-Cells already stored on the case. Nothing is re-extracted. Scope `document` is every document in that file. Scope `case` is every file, cut to about 24,000 characters: pages with an open flag first, then the page on screen and its neighbours. Each block is wrapped with `wrap_untrusted`, and so is the question. Instructions live only in the system prompt (`assistant:ask`), which is registered for provenance. The model has no tools. The reply is schema-forced JSON.
+Cells already stored on the case, and the flags already on it. Nothing is re-extracted and no flag is rewritten. Scope `document` is every document in that file and the flags on it. Scope `case` is every flag, plus documents cut to about 24,000 characters: pages with an open flag first, then the page on screen and its neighbours. Each block is wrapped with `wrap_untrusted`, and so is the question. Instructions live only in the system prompt (`assistant:ask`), which is registered for provenance. The model has no tools. The reply is schema-forced JSON.
 
 The last four turns of this officer on this case version are sent with the next question. A new version starts with an empty memory. The question text is sealed when encryption at rest is on. Deleting the case deletes those turns. They are not kept in the audit log.
 

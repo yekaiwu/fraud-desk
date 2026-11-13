@@ -32,7 +32,7 @@ from app.core.errors import ApiError, LLMError, LLMSchemaError
 from app.core.llm import LLMClient, LLMRequest, wrap_untrusted
 from app.core.models import Case, Document, Flag, clean_text
 from app.core.privacy import PrivateModeViolation
-from app.semantic.claims import MAX_CITATIONS, _verify_citation
+from app.semantic.claims import MAX_CITATIONS, MIN_QUOTE_CHARS, _verify_citation, norm
 
 SENTENCE_MAX = 4
 TEXT_MAX = 400
@@ -106,12 +106,64 @@ def _as_verifier_citation(raw: Mapping[str, Any], doc: Document) -> dict[str, An
     return None
 
 
-def _check_citation(
-    raw: object, docs: Sequence[Document]
+def _flag_quote(quote: str, flag: Flag) -> bool:
+    """True when the quote is the flag's evidence or explanation, or a long enough piece of either."""
+    quote_n = norm(quote)
+    if not quote_n:
+        return False
+    for text in (flag.evidence, flag.explanation):
+        text_n = norm(text)
+        if not text_n:
+            continue
+        if quote_n == text_n or (len(quote_n) >= MIN_QUOTE_CHARS and quote_n in text_n):
+            return True
+    return False
+
+
+def _check_flag(
+    raw: Mapping[str, Any], flags: Sequence[Flag], case: Case
 ) -> tuple[dict[str, Any] | None, str | None]:
-    """One citation against the documents the model was shown. (public citation, None) or a reason."""
+    """A citation of a flag the model was shown. The quote must be in its evidence or explanation."""
+    flag_id = raw.get("flag_id")
+    quote = raw.get("quote")
+    if not isinstance(flag_id, str) or not flag_id or not isinstance(quote, str):
+        return None, "bad_shape"
+    flag = next((f for f in flags if f.id == flag_id), None)
+    if flag is None:
+        return None, "unknown_flag"
+    if not _flag_quote(quote, flag):
+        return None, "quote_not_found"
+    file_id, page, doc_id = context_mod.flag_anchor(flag, case)
+    if not file_id:
+        return None, "document_not_provided"
+    doc = next((d for d in case.documents if d.id == doc_id), None)
+    return (
+        {
+            "file_id": file_id,
+            "page": page,
+            "document_id": doc_id,
+            "doc_type": doc.doc_type if doc else "",
+            "field": None,
+            "table": None,
+            "row": None,
+            "flag_id": flag.id,
+            "rule": flag.rule,
+            "quote": clean_text(quote, 200),
+            "region": _region(flag.region),
+        },
+        None,
+    )
+
+
+def _check_citation(
+    raw: object, docs: Sequence[Document], flags: Sequence[Flag], case: Case
+) -> tuple[dict[str, Any] | None, str | None]:
+    """One citation against the documents and flags the model was shown."""
     if not isinstance(raw, dict):
         return None, "bad_shape"
+    flag_id = raw.get("flag_id")
+    if isinstance(flag_id, str) and flag_id:
+        return _check_flag(raw, flags, case)
     file_id, page, quote = raw.get("file_id"), raw.get("page"), raw.get("quote")
     if (
         not isinstance(file_id, str)
@@ -182,6 +234,8 @@ def _open_flags(case: Case, document_ids: set[str]) -> list[dict[str, Any]]:
 def verify_reply(
     reply: Mapping[str, Any],
     docs: Sequence[Document],
+    flags: Sequence[Flag],
+    case: Case,
     *,
     decision: bool,
 ) -> dict[str, Any]:
@@ -217,7 +271,7 @@ def verify_reply(
             continue
         kept: list[dict[str, Any]] = []
         for item in cites_raw[:MAX_CITATIONS]:
-            citation, reason = _check_citation(item, docs)
+            citation, reason = _check_citation(item, docs, flags, case)
             if citation is None:
                 citations_dropped += 1
                 dropped[reason or "bad_shape"] += 1
@@ -235,7 +289,9 @@ def verify_reply(
         status = "answered"
     else:
         status = "not_found"
-    cited_docs = {c["document_id"] for s in sentences for c in s["citations"]}
+    cited_docs = {
+        c["document_id"] for s in sentences for c in s["citations"] if c.get("document_id")
+    }
     return {
         "status": status,
         "sentences": sentences,
@@ -248,10 +304,24 @@ def verify_reply(
 
 def _user_message(
     docs: Sequence[Document],
+    flags: Sequence[Flag],
+    case: Case,
     question: str,
     earlier: Sequence[Mapping[str, Any]],
 ) -> str:
-    parts = [blocks_for_safe(docs)]
+    parts = []
+    if flags:
+        try:
+            parts.append(context_mod.blocks_for_flags(flags, case))
+        except ValueError as exc:
+            raise ApiError(
+                422,
+                "validation_error",
+                "A flag on this case cannot be read as plain text.",
+                {"field": "flags"},
+            ) from exc
+    if docs:
+        parts.append(blocks_for_safe(docs))
     for turn in earlier:
         parts.append(
             "Earlier question:\n" + wrap_untrusted(str(turn["question"]), label="earlier_question")
@@ -380,10 +450,11 @@ def answer(
     """One question. Does not write the case. Returns the body the route sends back."""
     decision = is_decision_question(question)
     docs = context_mod.select_documents(case, scope=scope, file_id=file_id, page=page)
+    flags = context_mod.select_flags(case, scope=scope, file_id=file_id)
     earlier = memory.recent(db, account=account, case_id=case.id, version=case.version)
     meter: CostMeter | None = None
     seeded = 0
-    if not docs:
+    if not docs and not flags:
         verified = _empty(decision, why={})
     else:
         meter = _meter(db, settings, case, account, now)
@@ -392,7 +463,7 @@ def answer(
             purpose=PURPOSE,
             model_role="cheap",
             system=SYSTEM,
-            user=_user_message(docs, question, earlier),
+            user=_user_message(docs, flags, case, question, earlier),
             schema_name=SCHEMA_NAME,
             json_schema=reply_schema(),
         )
@@ -449,7 +520,7 @@ def answer(
             )
             raise _unavailable(exc) from exc
         else:
-            verified = verify_reply(result.data, docs, decision=decision)
+            verified = verify_reply(result.data, docs, flags, case, decision=decision)
     called, model, prompt_tokens, completion_tokens, seconds, usd = _from_meter(meter, seeded)
     public = _public(verified, case)
     memory.remember(

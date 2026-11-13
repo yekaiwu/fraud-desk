@@ -174,6 +174,82 @@ def test_a_verified_quote_is_returned_with_the_cell_region(
     assert _body_column(db) == before  # the case row is untouched
 
 
+def test_a_question_about_a_flag_cites_that_flag(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    explanation = (
+        "165 bytes follow the last signed revision of this PDF. Content added after signing "
+        "means the signature no longer covers everything in the file."
+    )
+    flag = Flag(
+        id="pdf_bytes_after_signature.d1.-",
+        rule="pdf_bytes_after_signature",
+        stage="forensics",
+        severity="high",
+        document_ids=["d1"],
+        evidence="165 bytes follow the last signed revision (signature 1 covers [0,7298) of 7463).",
+        explanation=explanation,
+        region=_box(),
+    )
+    _case(db, [_invoice()], flags=[flag])
+    quote = "165 bytes follow the last signed revision of this PDF."
+    llm = FakeLLMClient(
+        {
+            PURPOSE: {
+                "status": "answered",
+                "sentences": [
+                    {
+                        "text": "The check recorded that bytes were added after the file was signed.",
+                        "citations": [
+                            {"file_id": "f1", "page": 1, "flag_id": flag.id, "quote": quote}
+                        ],
+                    }
+                ],
+            }
+        }
+    )
+    client = _app(settings, db, llm, monkeypatch)
+    before = _body_column(db)
+    r = _ask(client, question=f"{explanation} what does this mean")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "answered"
+    citation = body["sentences"][0]["citations"][0]
+    assert citation["flag_id"] == flag.id
+    assert citation["rule"] == "pdf_bytes_after_signature"
+    assert citation["file_id"] == "f1" and citation["page"] == 1
+    assert citation["region"] == _box().model_dump(exclude_none=True)
+    assert quote in llm.calls[0].user
+    assert quote not in llm.calls[0].system
+    assert _body_column(db) == before
+
+    made_up = FakeLLMClient(
+        {
+            PURPOSE: {
+                "status": "answered",
+                "sentences": [
+                    {
+                        "text": "The file is fine.",
+                        "citations": [
+                            {
+                                "file_id": "f1",
+                                "page": 1,
+                                "flag_id": flag.id,
+                                "quote": "the file is fine",
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    )
+    client = _app(settings, db, made_up, monkeypatch)
+    r = _ask(client, question="Is the signature fine?")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "not_found"
+    assert r.json()["message"] == NOT_FOUND
+
+
 def test_a_quote_that_is_not_in_the_cell_is_dropped(
     settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -230,11 +306,10 @@ def test_injection_text_does_not_change_the_case_or_leave_the_untrusted_block(
     (req,) = llm.calls
     assert isinstance(req, LLMRequest)
     assert text not in req.system
-    begins = re.findall(r"\[\[\[DOC-([0-9a-f]{8}) BEGIN", req.user)
-    assert begins
-    end = f"[[[DOC-{begins[0]} END]]]"
-    assert req.user.count(end) == 1
-    assert text in req.user[: req.user.index(end)]
+    at = req.user.index(text)
+    begin = req.user.rfind("[[[DOC-", 0, at)
+    end = req.user.find(" END]]]", at)
+    assert begin != -1 and end != -1
     again = db.load_case("c_ask")
     assert (
         again.score.model_dump() if again.score else None,

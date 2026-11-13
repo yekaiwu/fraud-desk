@@ -434,7 +434,7 @@ An officer asks one question about the documents already extracted on the case. 
 }
 ```
 
-`status` is `answered`, `not_found` or `decision_request`. `preamble` is set only for `decision_request`. `message` is the abstain line when no sentence survived. `region` is the cell's box, or null when the cell has none. `flags` is set only for a decision question: open flags on the cited documents, or the other open flags when none of those were cited.
+`status` is `answered`, `not_found` or `decision_request`. `preamble` is set only for `decision_request`. `message` is the abstain line when no sentence survived. `region` is the cell's box, or the flag's box, or null when there is none. A citation of a flag sets `flag_id` and `rule`; `quote` must be copied from that flag's evidence or explanation. `flags` is set only for a decision question: open flags on the cited documents, or the other open flags when none of those were cited.
 
 The model sees only extracted cells, wrapped as untrusted text, trimmed when the scope is the whole case. The last four turns of this officer on this case version are included. One call, purpose `assistant:ask`, charged to the case cap, the daily cap and the account cap. `429 user_budget_used`, `site_budget_used` or `case_budget_used` when a cap is already spent, and no call is made. `503 assistant_unavailable` when the model cannot be reached; the message says the checks and flags are unaffected. The question shares the review rate limit (`429 rate_limited`).
 

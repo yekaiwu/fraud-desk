@@ -395,6 +395,9 @@ export interface AskCitation {
   row?: number | null;
   quote: string;
   region?: Region | null;
+  /** Set when the sentence cites a flag's evidence or explanation, not a cell. */
+  flag_id?: string | null;
+  rule?: string | null;
 }
 export interface AskSentence { text: string; citations: AskCitation[] }
 export interface AskFlagLink { id: string; rule: string; severity: Severity; explanation: string }

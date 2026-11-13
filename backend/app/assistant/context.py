@@ -1,8 +1,8 @@
-"""The documents an Ask question may quote, built from cells already stored on the case.
+"""What an Ask question may quote: cells already stored on the case, and the flags already on it.
 
-Nothing is re-extracted. Each block is untrusted text with stable ids (file, page, field, row) so a
-citation can be checked against the cell it names. A whole-case question is trimmed to a character
-budget: pages with an open flag first, then the page the officer is looking at and its neighbours.
+Nothing is re-extracted and no flag is rewritten. Each block is untrusted text with stable ids so a
+citation can be checked. A whole-case question trims documents to a character budget: pages with an
+open flag first, then the page the officer is looking at and its neighbours. Flags in scope are kept.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from app.core.llm import wrap_untrusted
-from app.core.models import Case, Cell, Document, Flag, Row
+from app.core.models import Case, Cell, Document, Flag, Row, clean_text
 from app.semantic.render import shown
 
 # About six thousand tokens. A question stays inside the per-case dollar cap.
@@ -109,6 +109,62 @@ def select_documents(
         if used >= CHAR_BUDGET:
             break
     return kept
+
+
+def select_flags(case: Case, *, scope: str, file_id: str | None) -> list[Flag]:
+    """Flags the model may quote. A document-scoped question sees the flags on that file."""
+    flags = list(case.flags)
+    if scope != "document":
+        return flags
+    on_file = {d.id for d in case.documents if d.file_id == file_id}
+    picked: list[Flag] = []
+    for flag in flags:
+        if flag.region is not None and flag.region.file_id == file_id:
+            picked.append(flag)
+            continue
+        if on_file.intersection(flag.document_ids):
+            picked.append(flag)
+    return picked
+
+
+def flag_anchor(flag: Flag, case: Case) -> tuple[str, int, str]:
+    """Where a citation of this flag opens: its box, or the first document it names."""
+    doc = next((d for d in case.documents if d.id in flag.document_ids), None)
+    if flag.region is not None:
+        return flag.region.file_id, flag.region.page, doc.id if doc else ""
+    if doc is not None:
+        return doc.file_id, doc.page_start, doc.id
+    return "", 1, ""
+
+
+def render_flag(flag: Flag, case: Case) -> str:
+    """One flag as citable lines. The quote must be copied from evidence or explanation."""
+    file_id, page, doc_id = flag_anchor(flag, case)
+    lines = [
+        f"flag_id {flag.id}",
+        f"rule {flag.rule}",
+        f"severity {flag.severity}",
+        f"disposition {flag.disposition}",
+        f"file_id {file_id}",
+        f"page {page}",
+    ]
+    if doc_id:
+        lines.append(f"document_id {doc_id}")
+    evidence = clean_text(flag.evidence, 1000)
+    explanation = clean_text(flag.explanation, 400)
+    if evidence:
+        lines.append(f'evidence: "{evidence}"')
+    if explanation:
+        lines.append(f'explanation: "{explanation}"')
+    return "\n".join(lines)
+
+
+def blocks_for_flags(flags: Sequence[Flag], case: Case) -> str:
+    """One untrusted block per flag. The same end-marker rule as a document."""
+    parts: list[str] = []
+    for flag in flags:
+        parts.append(wrap_untrusted(render_flag(flag, case), label=f"flag.{flag.rule}"))
+    return "\n\n".join(parts)
 
 
 def blocks_for(docs: Sequence[Document]) -> str:

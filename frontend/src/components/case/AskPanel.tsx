@@ -110,6 +110,7 @@ export function AskPanel({
   }
 
   const chipLabel = (citation: AskCitation) => {
+    if (citation.rule) return `${citation.rule} · p.${citation.page}`;
     const name = citation.document_id ? names.doc(citation.document_id) : names.file(citation.file_id);
     return `${name} · p.${citation.page}`;
   };
@@ -118,7 +119,7 @@ export function AskPanel({
     <section aria-labelledby={titleId} className="space-y-4">
       <div>
         <h2 id={titleId} className="text-xl">Ask this case</h2>
-        <p className="mt-1 text-sm text-ink-2">Questions are answered from the documents already read. A sentence without a citation is not shown.</p>
+        <p className="mt-1 text-sm text-ink-2">Questions are answered from the documents and the flags already on this case. A sentence without a citation is not shown.</p>
       </div>
 
       <fieldset className="space-y-2">
@@ -212,7 +213,10 @@ export function AskPanel({
                   type="button"
                   onClick={() => onCite(citation)}
                   title={citation.quote}
-                  className="mx-0.5 inline-flex min-h-11 items-center rounded-md border border-rule-strong bg-surface px-2 align-middle text-sm font-medium text-brand-2 hover:bg-brand-tint"
+                  className={clsx(
+                    "mx-0.5 inline-flex min-h-11 items-center rounded-md border border-rule-strong bg-surface px-2 align-middle text-sm font-medium text-brand-2 hover:bg-brand-tint",
+                    citation.rule && "num text-xs",
+                  )}
                 >
                   {chipLabel(citation)}
                 </button>
