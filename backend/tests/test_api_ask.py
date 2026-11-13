@@ -404,6 +404,92 @@ def test_the_audit_row_keeps_a_hash_and_not_the_question(
     assert rows[0]["actor"] == WHO
 
 
+def test_deleting_the_case_deletes_the_questions(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient({PURPOSE: _reply("The invoice number is INV-2026-0117.", "INV-2026-0117")})
+    client = _app(settings, db, llm, monkeypatch)
+    assert _ask(client, question="What about S1234567D?").status_code == 200
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM assistant_turns").fetchone()[0] == 1
+    db.delete_case("c_ask")
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM assistant_turns").fetchone()[0] == 0
+
+
+def test_a_rejected_answer_still_counts_toward_the_case_cap(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient({PURPOSE: {"status": "answered"}})  # missing sentences: schema reject
+    client = _app(settings, db, llm, monkeypatch, max_llm_calls_per_case=1)
+    first = _ask(client, question="First question about the invoice")
+    assert first.status_code == 200, first.text
+    assert first.json()["status"] == "not_found"
+    second = _ask(client, question="Second question about the invoice")
+    assert second.status_code == 429, second.text
+    assert second.json()["error"]["code"] == "case_budget_used"
+    assert len(llm.calls) == 1
+
+
+def test_a_verdict_in_the_reply_is_dropped_even_when_the_wording_is_indirect(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient(
+        {
+            PURPOSE: {
+                "status": "decision_request",
+                "sentences": [
+                    {
+                        "text": "You should approve this case.",
+                        "citations": [
+                            {
+                                "file_id": "f1",
+                                "page": 1,
+                                "field": "invoice_number",
+                                "quote": "INV-2026-0117",
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    )
+    client = _app(settings, db, llm, monkeypatch)
+    r = _ask(client, question="Should this be approved?")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "decision_request"
+    assert body["preamble"] == DECISION_PREAMBLE
+    shown = " ".join([body["preamble"] or "", *[s["text"] for s in body["sentences"]]])
+    assert VERDICT_WORD.search(shown) is None
+    assert body["message"] == NOT_FOUND
+
+
+def test_document_scope_is_the_whole_file(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.assistant import context as context_mod
+
+    first = _invoice("INV-2026-0117")
+    second = make_doc(
+        "invoice",
+        id="d2",
+        file_id="f1",
+        fields={"invoice_number": "INV-2026-0118"},
+        page_start=2,
+        page_end=2,
+    )
+    case = _case(db, [first, second])
+    monkeypatch.setattr(context_mod, "CHAR_BUDGET", 40)
+    picked = context_mod.select_documents(case, scope="document", file_id="f1", page=1)
+    assert {d.id for d in picked} == {"d1", "d2"}
+    whole = context_mod.select_documents(case, scope="case", file_id="f1", page=1)
+    assert len(whole) == 1
+
+
 def test_only_the_last_four_turns_of_this_version_are_remembered(
     settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -42,6 +42,7 @@ _DECISION = re.compile(
     r"("
     r"\b(?:should|shall|do|can|would|could)\s+(?:i|we)\b.{0,80}"
     r"\b(?:approv|reject|escalat|clear|accept|declin)"
+    r"|\b(?:should|shall)\b.{0,40}\b(?:be\s+)?(?:approv|reject|escalat|clear)"
     r"|\bis this (?:a )?fraud\b"
     r"|\b(?:approve|reject|escalate)\s+this\b"
     r"|\byour (?:verdict|decision|recommendation)\b"
@@ -185,6 +186,8 @@ def verify_reply(
     decision: bool,
 ) -> dict[str, Any]:
     """Keep only sentences that cite a real cell. Verdict wording is dropped on a decision question."""
+    # The model can also hand the question back. Either way, a verdict word is not shown.
+    decision = decision or reply.get("status") == "decision_request"
     dropped: Counter[str] = Counter()
     sentences: list[dict[str, Any]] = []
     raw_sentences = reply.get("sentences")
@@ -378,16 +381,13 @@ def answer(
     decision = is_decision_question(question)
     docs = context_mod.select_documents(case, scope=scope, file_id=file_id, page=page)
     earlier = memory.recent(db, account=account, case_id=case.id, version=case.version)
-    called = False
-    model = ""
-    prompt_tokens = 0
-    completion_tokens = 0
-    usd = "0.000000"
-    seconds = 0.0
+    meter: CostMeter | None = None
+    seeded = 0
     if not docs:
         verified = _empty(decision, why={})
     else:
         meter = _meter(db, settings, case, account, now)
+        seeded = meter._calls
         req = LLMRequest(
             purpose=PURPOSE,
             model_role="cheap",
@@ -401,30 +401,56 @@ def answer(
                 result = llm.complete_json(req, ctx_costs=meter)
         except LLMBudgetExceeded as exc:
             _remember_failure(
-                db, case, account, question, scope, file_id, page, now, status="budget"
+                db,
+                case,
+                account,
+                question,
+                scope,
+                file_id,
+                page,
+                now,
+                status="budget",
+                meter=meter,
+                seeded=seeded,
             )
             raise _budget_error(exc) from exc
         except LLMSchemaError:
             # The model spoke, but not in the schema. Abstain. Do not show its words.
+            # The call was still reserved, and is counted below.
             verified = _empty(decision, why={"bad_shape": 1})
         except LLMError as exc:
             _remember_failure(
-                db, case, account, question, scope, file_id, page, now, status="unavailable"
+                db,
+                case,
+                account,
+                question,
+                scope,
+                file_id,
+                page,
+                now,
+                status="unavailable",
+                meter=meter,
+                seeded=seeded,
             )
             raise _unavailable(exc) from exc
         except PrivateModeViolation as exc:
             _remember_failure(
-                db, case, account, question, scope, file_id, page, now, status="unavailable"
+                db,
+                case,
+                account,
+                question,
+                scope,
+                file_id,
+                page,
+                now,
+                status="unavailable",
+                meter=meter,
+                seeded=seeded,
             )
             raise _unavailable(exc) from exc
         else:
-            called = True
-            model = result.model
-            prompt_tokens = result.cost.prompt_tokens
-            completion_tokens = result.cost.completion_tokens
-            usd = format(usd6(result.cost.usd), "f")
-            seconds = result.cost.seconds
             verified = verify_reply(result.data, docs, decision=decision)
+    called, model, prompt_tokens, completion_tokens, seconds, usd = _from_meter(meter, seeded)
     public = _public(verified, case)
     memory.remember(
         db,
@@ -482,6 +508,25 @@ def _iso(now: datetime) -> str:
     return ts(now)
 
 
+def _from_meter(meter: CostMeter | None, seeded: int) -> tuple[int, str, int, int, float, str]:
+    """Provider calls this question reserved, including one whose answer was rejected."""
+    if meter is None:
+        return 0, "", 0, 0, 0.0, "0.000000"
+    rows = [c for c in meter._costs if c.purpose == PURPOSE]
+    reserved = max(0, meter._calls - seeded)
+    if not rows:
+        return reserved, "", 0, 0, 0.0, "0.000000"
+    usd = sum((c.usd for c in rows), Decimal("0"))
+    return (
+        max(reserved, len(rows)),
+        rows[-1].model,
+        sum(c.prompt_tokens for c in rows),
+        sum(c.completion_tokens for c in rows),
+        sum(c.seconds for c in rows),
+        format(usd6(usd), "f"),
+    )
+
+
 def _remember_failure(
     db: Database,
     case: Case,
@@ -493,7 +538,10 @@ def _remember_failure(
     now: datetime,
     *,
     status: str,
+    meter: CostMeter | None = None,
+    seeded: int = 0,
 ) -> None:
+    called, model, prompt_tokens, completion_tokens, seconds, usd = _from_meter(meter, seeded)
     memory.remember(
         db,
         account=account,
@@ -508,13 +556,13 @@ def _remember_failure(
         citations_kept=0,
         citations_dropped=0,
         dropped={},
-        model="",
+        model=model,
         prompt_sha256=PROMPT_SHA256,
-        prompt_tokens=0,
-        completion_tokens=0,
-        usd="0.000000",
-        seconds=0.0,
-        called=False,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        usd=usd,
+        seconds=seconds,
+        called=called,
         ts=_iso(now),
     )
 

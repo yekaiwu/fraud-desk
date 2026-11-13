@@ -12,9 +12,11 @@ It is off unless `GLDB_CASE_ASSISTANT=on`. It needs a personal sign-in. A shared
 
 ## What the model sees
 
-Cells already stored on the case. Nothing is re-extracted. Scope `document` is that file. Scope `case` is every file, cut to about 24,000 characters: pages with an open flag first, then the page on screen and its neighbours. Each block is wrapped with `wrap_untrusted`, and so is the question. Instructions live only in the system prompt (`assistant:ask`), which is registered for provenance. The model has no tools. The reply is schema-forced JSON.
+Cells already stored on the case. Nothing is re-extracted. Scope `document` is every document in that file. Scope `case` is every file, cut to about 24,000 characters: pages with an open flag first, then the page on screen and its neighbours. Each block is wrapped with `wrap_untrusted`, and so is the question. Instructions live only in the system prompt (`assistant:ask`), which is registered for provenance. The model has no tools. The reply is schema-forced JSON.
 
-The last four turns of this officer on this case version are sent with the next question. A new version starts with an empty memory. The question text is sealed when encryption at rest is on.
+The last four turns of this officer on this case version are sent with the next question. A new version starts with an empty memory. The question text is sealed when encryption at rest is on. Deleting the case deletes those turns. They are not kept in the audit log.
+
+A call still counts toward the case cap when the model answers in a shape that cannot be used. The next question then stops if the cap is spent.
 
 ## Cost
 

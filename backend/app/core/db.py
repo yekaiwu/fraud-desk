@@ -911,9 +911,9 @@ class Database:
         return rows, total
 
     def delete_case(self, case_id: str) -> DeleteResult:
-        """Remove the case, versions, review entries, jobs, fingerprints, unreferenced files and
-        renders, and the ``llm_cache`` rows tied to files whose reference count drops to zero.
-        Audit rows are kept (``audit.py`` pseudonymises them)."""
+        """Remove the case, versions, review entries, jobs, fingerprints, Ask questions,
+        unreferenced files and renders, and the ``llm_cache`` rows tied to files whose reference
+        count drops to zero. Audit rows are kept (``audit.py`` pseudonymises them)."""
         with self.conn() as c:
             row = c.execute("SELECT id FROM cases WHERE id = ?", (case_id,)).fetchone()
             if row is None:
@@ -937,6 +937,8 @@ class Database:
             c.execute("DELETE FROM case_versions WHERE case_id = ?", (case_id,))
             c.execute("DELETE FROM fingerprints WHERE case_id = ?", (case_id,))
             c.execute("DELETE FROM case_files WHERE case_id = ?", (case_id,))
+            # Questions are not part of the audit log. They go with the case.
+            c.execute("DELETE FROM assistant_turns WHERE case_id = ?", (case_id,))
             c.execute("DELETE FROM cases WHERE id = ?", (case_id,))
 
             freed: list[str] = []

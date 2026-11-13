@@ -70,7 +70,7 @@ def remember(
     completion_tokens: int,
     usd: str,
     seconds: float,
-    called: bool,
+    called: int,
     ts: str,
 ) -> None:
     """Append one turn and drop any older than the four we keep for this officer and version."""
@@ -107,7 +107,7 @@ def remember(
                 completion_tokens,
                 usd,
                 seconds,
-                1 if called else 0,
+                max(0, called),
             ),
         )
         c.execute(
@@ -121,14 +121,18 @@ def remember(
 
 
 def prior_spend(db: Database, case_id: str) -> tuple[int, Decimal]:
-    """Model calls already made by Ask on this case, across versions: (calls, dollars)."""
+    """Provider calls already made by Ask on this case, across versions: (calls, dollars).
+
+    ``called`` is how many provider calls that question reserved, including one the model
+    answered badly. A later question counts them toward the case cap.
+    """
     with db.conn() as c:
         rows = c.execute(
-            "SELECT usd FROM assistant_turns WHERE case_id = ? AND called = 1",
+            "SELECT called, usd FROM assistant_turns WHERE case_id = ? AND called > 0",
             (case_id,),
         ).fetchall()
     total = sum((Decimal(r["usd"]) for r in rows), Decimal("0"))
-    return len(rows), total
+    return sum(int(r["called"]) for r in rows), total
 
 
 def cost_rows(db: Database, case_id: str, version: int) -> list[dict[str, Any]]:
@@ -137,7 +141,7 @@ def cost_rows(db: Database, case_id: str, version: int) -> list[dict[str, Any]]:
         rows = c.execute(
             "SELECT model, prompt_tokens, completion_tokens, usd, seconds, called"
             " FROM assistant_turns"
-            " WHERE case_id = ? AND case_version = ? AND called = 1 ORDER BY id",
+            " WHERE case_id = ? AND case_version = ? AND called > 0 ORDER BY id",
             (case_id, version),
         ).fetchall()
     return [

@@ -81,10 +81,14 @@ def select_documents(
     file_id: str | None,
     page: int | None,
 ) -> list[Document]:
-    """Documents the model may see, best first, cut once the character budget is full."""
+    """Documents the model may see, best first.
+
+    Scope ``document`` is every document in that file. Scope ``case`` is cut once the character
+    budget is full: an open flag first, then the page on screen and its neighbours.
+    """
     docs = list(case.documents)
     if scope == "document":
-        docs = [d for d in docs if d.file_id == file_id]
+        return [d for d in docs if d.file_id == file_id]
     flagged = _open_flag_docs(case.flags)
     ranked = sorted(
         docs,
