@@ -9,7 +9,7 @@ import { formatSeconds } from "./format";
 import { plural } from "./labels";
 import type { AgentReport, CaseDetail, CheckRun, Cost, Flag, ReviewEntry, Severity, StageName, StageRecord } from "./types";
 
-export type StepKind = "received" | StageName | "team" | "review";
+export type StepKind = "received" | StageName | "team" | "review" | "ask";
 export type StepStatus = "ok" | "failed" | "skipped" | "info";
 
 export interface SeverityTally {
@@ -51,6 +51,8 @@ export interface TimelineStep {
 
 /** The review team's two model calls are recorded under the cross-document stage; they belong to the team step. */
 const isTeamCall = (x: Cost): boolean => /^agent:/i.test(x.purpose);
+/** Ask this case is filed on the score stage only so the cost model accepts it. It has its own step. */
+const isAskCall = (x: Cost): boolean => /^assistant:/i.test(x.purpose);
 
 const emptyTally = (): SeverityTally => ({ high: 0, medium: 0, low: 0, info: 0 });
 
@@ -149,7 +151,7 @@ export function buildTimeline(c: CaseDetail): TimelineStep[] {
       error: rec.error ?? null,
       checks: c.check_runs.filter((r) => r.stage === stage),
       flags,
-      calls: c.costs.filter((x) => x.stage === stage && !isTeamCall(x)),
+      calls: c.costs.filter((x) => x.stage === stage && !isTeamCall(x) && !isAskCall(x)),
     });
     if (stage === "crossdoc" && (c.agents ?? []).length > 0) {
       const agents = c.agents ?? [];
@@ -170,6 +172,23 @@ export function buildTimeline(c: CaseDetail): TimelineStep[] {
         calls: c.costs.filter(isTeamCall),
       });
     }
+  }
+
+  const askCalls = c.costs.filter(isAskCall);
+  if (askCalls.length > 0) {
+    push({
+      ...base,
+      key: "ask",
+      kind: "ask",
+      title: "Ask this case",
+      at: null,
+      offsetSeconds: null,
+      seconds: askCalls.reduce((n, x) => n + x.seconds, 0),
+      costUsd: askCalls.reduce((n, x) => n + num(x.usd), 0),
+      status: "info",
+      headline: `${askCalls.length} ${plural(askCalls.length, "question")} about the documents. Nothing here changes a flag or the score.`,
+      calls: askCalls,
+    });
   }
 
   if (c.review.length > 0) {

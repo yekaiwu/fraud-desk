@@ -21,6 +21,8 @@ import type {
   Page,
   QueueItem,
   QueueQuery,
+  AskRequest,
+  AskResponse,
   ReviewEntry,
   ReviewRequest,
   ReviewResponse,
@@ -362,6 +364,57 @@ export async function getJob(id: string): Promise<Job> {
   if (elapsed >= MOCK_ANALYSIS_MS) return jobFor(id, meta.caseId, "succeeded", STAGES.length, null, meta.kind);
   const stage = Math.min(STAGES.length - 1, Math.floor((elapsed / MOCK_ANALYSIS_MS) * STAGES.length));
   return jobFor(id, meta.caseId, elapsed < 100 ? "queued" : "running", stage, null, meta.kind);
+}
+
+const DECISION = /\b(should|shall|do|can|would)\s+(i|we)\b/i;
+
+/** A canned, cited answer so mock mode can show the Ask tab without a model. */
+export async function askCase(id: string, req: AskRequest): Promise<AskResponse> {
+  await latency();
+  const c = getOrThrow(id);
+  const question = req.question.trim();
+  if (!question) throw err(422, "validation_error", "Type a question.", { field: "question" });
+  if (question.length > 500) throw err(422, "validation_error", "A question is at most 500 characters.", { field: "question" });
+  if (req.case_version !== c.version) {
+    throw err(409, "stale_version", `The case is now at version ${c.version}.`, { current_version: c.version });
+  }
+  const flag = c.flags.find((f) => f.region) ?? c.flags[0];
+  const doc = c.documents.find((d) => d.id === flag?.document_ids[0]) ?? c.documents[0];
+  const region = flag?.region ?? (doc ? { file_id: doc.file_id, page: doc.page_start, x: 0.12, y: 0.3, w: 0.4, h: 0.05 } : null);
+  const fileId = region?.file_id ?? doc?.file_id ?? req.file_id ?? "";
+  const page = region?.page ?? doc?.page_start ?? req.page ?? 1;
+  const quote = flag?.evidence?.slice(0, 80) || doc?.doc_type || "the document";
+  const citation = {
+    file_id: fileId,
+    page,
+    document_id: doc?.id ?? "",
+    doc_type: doc?.doc_type ?? "other",
+    field: flag?.field ?? null,
+    table: flag?.table ?? null,
+    row: flag?.row ?? null,
+    quote,
+    region,
+  };
+  const decision = DECISION.test(question) && /\b(approv|reject|escalat|clear)/i.test(question);
+  if (decision) {
+    return {
+      status: "decision_request",
+      preamble: "That decision is yours. Here is the evidence that bears on it:",
+      message: null,
+      sentences: [{ text: "The documents cited below are what the case holds on this point.", citations: [citation] }],
+      flags: c.flags.filter((f) => f.disposition === "open").slice(0, 6).map((f) => ({ id: f.id, rule: f.rule, severity: f.severity, explanation: f.explanation })),
+    };
+  }
+  if (/can't find|cannot find|not in the documents/i.test(question)) {
+    return { status: "not_found", preamble: null, message: "I can't find that in this case's documents.", sentences: [], flags: [] };
+  }
+  return {
+    status: "answered",
+    preamble: null,
+    message: null,
+    sentences: [{ text: "This is a specimen answer grounded in the case you are looking at.", citations: [citation] }],
+    flags: [],
+  };
 }
 
 export async function getReviewLog(id: string): Promise<{ entries: ReviewEntry[] }> {

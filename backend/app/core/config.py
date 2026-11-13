@@ -168,6 +168,10 @@ class Settings(BaseSettings):
     custom_rules_max_per_account: int = 50  # active rules one account may own
     custom_rules_dry_run_cases: int = 200  # newest stored cases a dry run reads
 
+    # Ask this case (docs/case-assistant.md): an officer asks a question about the documents already
+    # extracted. Off by default. Needs a personal sign-in. Read-only: it never writes a flag or a score.
+    case_assistant: Literal["off", "on"] = "off"
+
     # scoring model (docs/scoring-and-queue.md 4.4a): ``legacy`` = capped sum of finding weights,
     # ``calibrated`` = noisy-OR over per-finding probabilities from a fitted weights file. The
     # weights file defaults to the one shipped with the app (fitted on synthetic data).
@@ -282,9 +286,9 @@ class Settings(BaseSettings):
                 return "off"
         return v
 
-    @field_validator("custom_rules", mode="before")
+    @field_validator("custom_rules", "case_assistant", mode="before")
     @classmethod
-    def _custom_rules_switch(cls, v: Any) -> Any:
+    def _on_off_switch(cls, v: Any) -> Any:
         if isinstance(v, bool):
             return "on" if v else "off"
         if isinstance(v, str):
@@ -561,6 +565,8 @@ class Settings(BaseSettings):
             out["semantic_entity"] = self.semantic_entity
         if self.custom_rules == "on":  # listed only when on, like the others
             out["custom_rules"] = "on"
+        if self.case_assistant == "on":  # listed only when on, like the others
+            out["case_assistant"] = "on"
         if self.llm_reasoning_effort:
             out["llm_reasoning_effort"] = self.llm_reasoning_effort
         if not self.llm_supports_vision:

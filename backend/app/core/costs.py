@@ -396,6 +396,21 @@ class CostMeter:
                 raise self._call_breach
             self._calls += 1
 
+    def account_for_prior(self, *, calls: int, usd: Decimal) -> None:
+        """Count spend that already happened (a finished analysis, earlier questions) without
+        charging the daily ledger a second time. The next ``reserve_call`` then sees it."""
+        with self._lock:
+            self._calls += max(0, calls)
+            if usd > 0:
+                self._costs.append(
+                    Cost(
+                        stage="score",
+                        purpose="prior:accounted",
+                        model="prior",
+                        usd=usd6(usd),
+                    )
+                )
+
     def _set_call_breach(self, exc: LLMBudgetExceeded) -> None:
         self._call_breach = exc
         if self._first_breach is None:

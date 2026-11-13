@@ -31,6 +31,7 @@ from app.api._common import (
     require_user_budget,
     signed_in_reviewer,
 )
+from app.assistant.memory import cost_rows
 from app.audit import AuditLog, scrub
 from app.core.cases import add_file, new_case
 from app.core.costs import summarise_costs
@@ -205,6 +206,8 @@ def get_case(
     data["allowed_verdicts"] = allowed_verdicts(case, current=case.version == live.version)
     data["not_checked_documents"] = not_checked_documents(case)
     data["cost_summary"] = summarise_costs(case)
+    # Ask calls are not stored on the case. They are listed here so the timeline can show them.
+    data["costs"].extend(cost_rows(db, case.id, case.version))
     return data
 
 

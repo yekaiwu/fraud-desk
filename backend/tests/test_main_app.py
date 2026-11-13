@@ -14,6 +14,7 @@ from app.core.db import Database
 from app.core.errors import ApiError
 
 STUB_MODULES = [
+    "ask",
     "cases",
     "custom_rules",
     "effectiveness",

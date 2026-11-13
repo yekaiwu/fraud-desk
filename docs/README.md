@@ -33,6 +33,7 @@ Specs for the GLDB document-fraud analysis tool. Source plan: the master plan (n
 - [local-llm.md](local-llm.md): running the whole reading path on a local model server (a proof of concept for the in-house option): setup, private mode, measured accuracy, speed and the limits.
 - [name-fairness.md](name-fairness.md): name matching tested by name group and on real aliases from a public list: the metric and thresholds, adopted and rejected rules, and what is still unfair or undecided.
 - [custom-rules.md](custom-rules.md): rules officers write in plain English (off by default, `GLDB_CUSTOM_RULES`): the four templates, what is impossible, the six request statuses, tickets to the tech team, private, public and adopted rules, and how they run (at most medium, never a hard stop, outside coverage).
+- [case-assistant.md](case-assistant.md): Ask this case (off by default, `GLDB_CASE_ASSISTANT`): questions about the extracted documents, a citation on every sentence or an abstention, and no verdict.
 
 ## Work tracking
 

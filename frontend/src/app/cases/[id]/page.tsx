@@ -23,6 +23,7 @@ import { FindingsPanel, type DecideTarget, type SelectOpts } from "@/components/
 import { FlagDecisionDialog } from "@/components/case/FlagDecisionDialog";
 import { CaseTimeline } from "@/components/case/CaseTimeline";
 import { OfficerBrief } from "@/components/case/OfficerBrief";
+import { AskPanel } from "@/components/case/AskPanel";
 import { PageViewer } from "@/components/case/PageViewer";
 import { ProcessingStepper } from "@/components/case/ProcessingStepper";
 import { RecommendationHero } from "@/components/case/RecommendationHero";
@@ -36,7 +37,7 @@ import { getCase, getVersions, rerunCase } from "@/lib/api";
 import { ApiErrorException } from "@/lib/errors";
 import { documentFirstPage, numberFlags, uncheckedPageList } from "@/lib/flags";
 import { deriveEntityGraph, graphApplies, type GEdge } from "@/lib/graph";
-import type { CaseDetail, Region } from "@/lib/types";
+import type { AskCitation, CaseDetail, Region } from "@/lib/types";
 import type { CaseNav } from "@/components/case/CaseHeader";
 import { useIsLg } from "@/lib/useMedia";
 
@@ -75,6 +76,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
     if (showGraph) t.push({ id: "graph", label: "Graph" });
     t.push({ id: "review", label: "Decision & activity", count: pending > 0 ? pending : undefined });
     t.push({ id: "timeline", label: "Timeline" });
+    t.push({ id: "ask", label: "Ask" });
     return t;
   }, [c.findings, isLg, showGraph, pending]);
 
@@ -83,6 +85,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
   const [tabState, setTabState] = useState(urlTab);
   const [flagId, setFlagId] = useState<string | null>(urlFlag && c.flags.some((f) => f.id === urlFlag) ? urlFlag : null);
   const [loc, setLoc] = useState<Loc>(() => initialLoc(c, urlFlag, numbered.all));
+  const [mark, setMark] = useState<Region | null>(null);
   const tab = tabs.some((t) => t.id === tabState) ? tabState : "findings";
 
   const [decide, setDecide] = useState<DecideTarget | null>(null);
@@ -138,6 +141,13 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
       if (!isLg) goTab("page");
     },
     [isLg, goTab],
+  );
+  const openCitation = useCallback(
+    (citation: AskCitation) => {
+      setMark(citation.region ?? null);
+      showPage(citation.file_id, citation.page);
+    },
+    [showPage],
   );
   const showDocument = useCallback(
     (docId: string) => {
@@ -269,7 +279,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
   }
 
   const viewer = (
-    <PageViewer caseId={c.id} files={c.files} documents={c.documents} flags={numbered.all} selectedFlagId={flagId} onSelectFlag={(id) => select(id, undefined)} current={loc} onNavigate={setLoc} />
+    <PageViewer caseId={c.id} files={c.files} documents={c.documents} flags={numbered.all} selectedFlagId={flagId} onSelectFlag={(id) => select(id, undefined)} current={loc} onNavigate={setLoc} mark={mark} />
   );
   const findingsPanel = (
     <div className="space-y-3">
@@ -327,6 +337,15 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
           goTab("findings");
           select(id, { reveal: true });
         }}
+      />
+    ),
+    ask: (
+      <AskPanel
+        c={c}
+        fileId={loc.fileId}
+        page={loc.page}
+        onCite={openCitation}
+        onOpenFlag={(id) => select(id, { reveal: true })}
       />
     ),
     review: (
