@@ -144,10 +144,15 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
   );
   const openCitation = useCallback(
     (citation: AskCitation) => {
+      if (citation.worklist_id && citation.worklist_id !== c.id) {
+        router.push(`/cases/${citation.worklist_id}`);
+        return;
+      }
+      if (!citation.file_id) return;
       setMark(citation.region ?? null);
       showPage(citation.file_id, citation.page);
     },
-    [showPage],
+    [c.id, router, showPage],
   );
   const showDocument = useCallback(
     (docId: string) => {

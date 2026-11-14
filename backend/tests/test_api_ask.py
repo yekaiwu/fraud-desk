@@ -250,6 +250,83 @@ def test_a_question_about_a_flag_cites_that_flag(
     assert r.json()["message"] == NOT_FOUND
 
 
+def test_a_worklist_question_cites_the_other_open_case(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.models import Applicant
+
+    _case(db, [_invoice()])
+    other = Case(
+        id="c_other",
+        reference="demo-other",
+        use_case="aml",
+        status="open",
+        today=FIXED_TODAY,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+        applicant=Applicant(name="OTHER TRADING PTE LTD"),
+        score=Score(value=40, band="medium", partial=False),
+        lane="aml",
+        top_finding="A credit does not match an invoice.",
+    )
+    db.create_case(other)
+    llm = FakeLLMClient(
+        {
+            PURPOSE: {
+                "status": "answered",
+                "sentences": [
+                    {
+                        "text": "demo-other is on the worklist.",
+                        "citations": [
+                            {
+                                "file_id": "",
+                                "page": 1,
+                                "worklist_id": "c_other",
+                                "quote": "demo-other",
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    )
+    client = _app(settings, db, llm, monkeypatch)
+    r = _ask(client, question="Is demo-other on the worklist?", scope="case")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "answered"
+    citation = body["sentences"][0]["citations"][0]
+    assert citation["worklist_id"] == "c_other"
+    assert citation["reference"] == "demo-other"
+    assert "reference demo-other" in llm.calls[0].user
+    assert "c_ask" in llm.calls[0].user
+
+    invented = FakeLLMClient(
+        {
+            PURPOSE: {
+                "status": "answered",
+                "sentences": [
+                    {
+                        "text": "The score is ninety nine.",
+                        "citations": [
+                            {
+                                "file_id": "",
+                                "page": 1,
+                                "worklist_id": "c_other",
+                                "quote": "score 99",
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    )
+    client = _app(settings, db, invented, monkeypatch)
+    r = _ask(client, question="Is the score 99?")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "not_found"
+
+
 def test_a_flag_on_another_file_is_still_shown_for_this_document(
     settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:

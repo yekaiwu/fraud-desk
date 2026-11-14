@@ -16,6 +16,7 @@ from typing import Any
 
 from app.assistant import context as context_mod
 from app.assistant import memory
+from app.assistant import worklist as worklist_mod
 from app.assistant.prompts import (
     DECISION_PREAMBLE,
     NOT_FOUND,
@@ -108,16 +109,49 @@ def _as_verifier_citation(raw: Mapping[str, Any], doc: Document) -> dict[str, An
 
 def _flag_quote(quote: str, flag: Flag) -> bool:
     """True when the quote is the flag's evidence or explanation, or a long enough piece of either."""
+    return any(_quote_in(quote, text) for text in (flag.evidence, flag.explanation) if text)
+
+
+def _quote_in(quote: str, text: str) -> bool:
+    """True when the quote is the whole text, or a long enough piece of it."""
     quote_n = norm(quote)
-    if not quote_n:
+    text_n = norm(text)
+    if not quote_n or not text_n:
         return False
-    for text in (flag.evidence, flag.explanation):
-        text_n = norm(text)
-        if not text_n:
-            continue
-        if quote_n == text_n or (len(quote_n) >= MIN_QUOTE_CHARS and quote_n in text_n):
-            return True
-    return False
+    return quote_n == text_n or (len(quote_n) >= MIN_QUOTE_CHARS and quote_n in text_n)
+
+
+def _check_worklist(
+    raw: Mapping[str, Any], items: Sequence[Mapping[str, Any]]
+) -> tuple[dict[str, Any] | None, str | None]:
+    """A citation of one worklist line. The quote must be in that case's block."""
+    case_id = raw.get("worklist_id")
+    quote = raw.get("quote")
+    if not isinstance(case_id, str) or not case_id or not isinstance(quote, str):
+        return None, "bad_shape"
+    item = next((i for i in items if i["case_id"] == case_id), None)
+    if item is None:
+        return None, "unknown_case"
+    if not _quote_in(quote, str(item["text"])):
+        return None, "quote_not_found"
+    return (
+        {
+            "file_id": "",
+            "page": 1,
+            "document_id": "",
+            "doc_type": "",
+            "field": None,
+            "table": None,
+            "row": None,
+            "flag_id": None,
+            "rule": None,
+            "worklist_id": case_id,
+            "reference": item["reference"] or case_id,
+            "quote": clean_text(quote, 200),
+            "region": None,
+        },
+        None,
+    )
 
 
 def _check_flag(
@@ -156,11 +190,18 @@ def _check_flag(
 
 
 def _check_citation(
-    raw: object, docs: Sequence[Document], flags: Sequence[Flag], case: Case
+    raw: object,
+    docs: Sequence[Document],
+    flags: Sequence[Flag],
+    case: Case,
+    work: Sequence[Mapping[str, Any]],
 ) -> tuple[dict[str, Any] | None, str | None]:
-    """One citation against the documents and flags the model was shown."""
+    """One citation against the worklist, the flags, and the documents the model was shown."""
     if not isinstance(raw, dict):
         return None, "bad_shape"
+    worklist_id = raw.get("worklist_id")
+    if isinstance(worklist_id, str) and worklist_id:
+        return _check_worklist(raw, work)
     flag_id = raw.get("flag_id")
     if isinstance(flag_id, str) and flag_id:
         return _check_flag(raw, flags, case)
@@ -236,6 +277,7 @@ def verify_reply(
     docs: Sequence[Document],
     flags: Sequence[Flag],
     case: Case,
+    work: Sequence[Mapping[str, Any]],
     *,
     decision: bool,
 ) -> dict[str, Any]:
@@ -271,7 +313,7 @@ def verify_reply(
             continue
         kept: list[dict[str, Any]] = []
         for item in cites_raw[:MAX_CITATIONS]:
-            citation, reason = _check_citation(item, docs, flags, case)
+            citation, reason = _check_citation(item, docs, flags, case, work)
             if citation is None:
                 citations_dropped += 1
                 dropped[reason or "bad_shape"] += 1
@@ -302,14 +344,40 @@ def verify_reply(
     }
 
 
+def _quoted_flags(question: str, flags: Sequence[Flag]) -> list[str]:
+    """Flag ids whose explanation or evidence the officer pasted into the question."""
+    qn = norm(question)
+    if len(qn) < 40:
+        return []
+    ids: list[str] = []
+    for flag in flags:
+        for text in (flag.explanation, flag.evidence):
+            tn = norm(text)
+            if len(tn) >= 40 and (tn[:40] in qn or qn[:40] in tn):
+                ids.append(flag.id)
+                break
+    return ids
+
+
 def _user_message(
     docs: Sequence[Document],
     flags: Sequence[Flag],
     case: Case,
+    work: Sequence[Mapping[str, Any]],
     question: str,
     earlier: Sequence[Mapping[str, Any]],
 ) -> str:
     parts = []
+    if work:
+        try:
+            parts.append(worklist_mod.blocks_for_worklist(list(work)))
+        except ValueError as exc:
+            raise ApiError(
+                422,
+                "validation_error",
+                "The worklist cannot be read as plain text.",
+                {"field": "worklist"},
+            ) from exc
     if flags:
         try:
             parts.append(context_mod.blocks_for_flags(flags, case))
@@ -330,6 +398,13 @@ def _user_message(
         parts.append(
             "Earlier answer, already checked:\n"
             + wrap_untrusted(shown_answer, label="earlier_answer")
+        )
+    quoted = _quoted_flags(question, flags)
+    if quoted:
+        parts.append(
+            "The officer's question quotes these flags: "
+            + ", ".join(quoted)
+            + ". Explain those flags and cite them."
         )
     try:
         parts.append(
@@ -451,10 +526,11 @@ def answer(
     decision = is_decision_question(question)
     docs = context_mod.select_documents(case, scope=scope, file_id=file_id, page=page)
     flags = context_mod.select_flags(case, scope=scope, file_id=file_id)
+    work = worklist_mod.load_worklist(db, on_screen=case.id)
     earlier = memory.recent(db, account=account, case_id=case.id, version=case.version)
     meter: CostMeter | None = None
     seeded = 0
-    if not docs and not flags:
+    if not docs and not flags and not work:
         verified = _empty(decision, why={})
     else:
         meter = _meter(db, settings, case, account, now)
@@ -463,7 +539,7 @@ def answer(
             purpose=PURPOSE,
             model_role="cheap",
             system=SYSTEM,
-            user=_user_message(docs, flags, case, question, earlier),
+            user=_user_message(docs, flags, case, work, question, earlier),
             schema_name=SCHEMA_NAME,
             json_schema=reply_schema(),
         )
@@ -520,7 +596,7 @@ def answer(
             )
             raise _unavailable(exc) from exc
         else:
-            verified = verify_reply(result.data, docs, flags, case, decision=decision)
+            verified = verify_reply(result.data, docs, flags, case, work, decision=decision)
     called, model, prompt_tokens, completion_tokens, seconds, usd = _from_meter(meter, seeded)
     public = _public(verified, case)
     memory.remember(

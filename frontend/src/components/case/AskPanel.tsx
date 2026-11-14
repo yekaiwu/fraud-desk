@@ -34,7 +34,9 @@ export function suggestionQuestions(c: CaseDetail): string[] {
   }
   if (c.documents.length > 0) add("Summarise this document");
   if (c.flags.some((f) => f.disposition === "open")) add("What do the open flags on this case cite?");
-  return chips.slice(0, 3);
+  const about = chips.slice(0, 2);
+  about.push("Which open case has the highest score?");
+  return about;
 }
 
 function askFailure(e: unknown): { title: string; detail: string } {
@@ -110,6 +112,7 @@ export function AskPanel({
   }
 
   const chipLabel = (citation: AskCitation) => {
+    if (citation.worklist_id) return citation.reference || citation.worklist_id;
     if (citation.rule) return `${citation.rule} · p.${citation.page}`;
     const name = citation.document_id ? names.doc(citation.document_id) : names.file(citation.file_id);
     return `${name} · p.${citation.page}`;
@@ -119,7 +122,7 @@ export function AskPanel({
     <section aria-labelledby={titleId} className="space-y-4">
       <div>
         <h2 id={titleId} className="text-xl">Ask this case</h2>
-        <p className="mt-1 text-sm text-ink-2">Questions are answered from the flags on this case and the documents in view. A sentence without a citation is not shown.</p>
+        <p className="mt-1 text-sm text-ink-2">Questions are answered from this case and the open worklist. A sentence without a citation is not shown.</p>
       </div>
 
       <fieldset className="space-y-2">
