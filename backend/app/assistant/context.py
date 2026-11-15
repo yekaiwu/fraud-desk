@@ -1,0 +1,247 @@
+"""What an Ask question may quote: cells already stored on the case, and the flags already on it.
+
+Nothing is re-extracted and no flag is rewritten. Each block is untrusted text with stable ids so a
+citation can be checked. A whole-case question trims documents to a character budget: pages with an
+open flag first, then the page the officer is looking at and its neighbours. Flags in scope are kept.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Sequence
+
+from app.core.llm import truncate_untrusted, wrap_untrusted
+from app.core.models import Case, Cell, Document, Flag, Row, clean_text
+from app.semantic.render import shown
+
+# About six thousand tokens. A question stays inside the per-case dollar cap.
+CHAR_BUDGET = 24_000
+MAX_ROWS = 150
+
+
+def _page_of(cell: Cell, fallback: int) -> int:
+    return cell.box.page if cell.box is not None else fallback
+
+
+def _row_page(row: Row, fallback: int) -> int:
+    if row.box is not None:
+        return row.box.page
+    for cell in row.cells.values():
+        if cell.box is not None:
+            return cell.box.page
+    return fallback
+
+
+def render_document(doc: Document) -> str:
+    """One document as citable lines. Empty cells are left out. Ids are the ones the verifier uses."""
+    lines = [
+        f"document_id {doc.id}",
+        f"file_id {doc.file_id}",
+        f"pages {doc.page_start}-{doc.page_end}",
+        f"type {doc.doc_type}",
+    ]
+    for name, cell in doc.fields.items():
+        text = shown(cell)
+        if text:
+            lines.append(f'field {name} page {_page_of(cell, doc.page_start)}: "{text}"')
+    for tname, table in doc.tables.items():
+        for row in table.rows[:MAX_ROWS]:
+            cells = [f'{col}="{shown(cell)}"' for col, cell in row.cells.items() if shown(cell)]
+            if not cells:
+                continue
+            page = _row_page(row, doc.page_start)
+            lines.append(f"table {tname} row {row.index} page {page}: " + " | ".join(cells))
+        if len(table.rows) > MAX_ROWS:
+            lines.append(f"table {tname}: {len(table.rows) - MAX_ROWS} more rows not shown")
+    return "\n".join(lines)
+
+
+_SHOWN_LINE = re.compile(r"^(field .+?|table .+? row -?\d+) page -?\d+: ")
+
+
+def shown_cells(doc: Document) -> set[str]:
+    """The ``field NAME`` and ``table NAME row N`` lines the model actually received for this
+    document: after the row limit and after ``wrap_untrusted`` cuts an oversized block."""
+    text, _ = truncate_untrusted(render_document(doc))
+    found: set[str] = set()
+    for line in text.splitlines():
+        m = _SHOWN_LINE.match(line)
+        if m:
+            found.add(m.group(1))
+    return found
+
+
+def was_shown(doc: Document, *, field: str | None, table: str | None, row: int | None) -> bool:
+    """True when the verified cell sat on a line of the block the model was given."""
+    if field:
+        return f"field {field}" in shown_cells(doc)
+    if table and row is not None:
+        return f"table {table} row {row}" in shown_cells(doc)
+    return False
+
+
+def _open_flag_docs(flags: Sequence[Flag]) -> set[str]:
+    return {d for f in flags if f.disposition == "open" for d in f.document_ids}
+
+
+def _rank(
+    doc: Document, flagged: set[str], file_id: str | None, page: int | None
+) -> tuple[int, int]:
+    """Higher is kept first: an open flag, then the viewed page or a neighbour."""
+    neighbour = 0
+    if (
+        file_id
+        and page
+        and doc.file_id == file_id
+        and doc.page_start - 1 <= page <= doc.page_end + 1
+    ):
+        neighbour = 1
+    return (1 if doc.id in flagged else 0, neighbour)
+
+
+def select_documents(
+    case: Case,
+    *,
+    scope: str,
+    file_id: str | None,
+    page: int | None,
+) -> list[Document]:
+    """Documents the model may see, best first.
+
+    Scope ``document`` is every document in that file. Scope ``case`` is cut once the character
+    budget is full: an open flag first, then the page on screen and its neighbours.
+    """
+    docs = list(case.documents)
+    if scope == "document":
+        return [d for d in docs if d.file_id == file_id]
+    flagged = _open_flag_docs(case.flags)
+    ranked = sorted(
+        docs,
+        key=lambda d: _rank(d, flagged, file_id, page),
+        reverse=True,
+    )
+    kept: list[Document] = []
+    used = 0
+    for doc in ranked:
+        text = render_document(doc)
+        if kept and used + len(text) > CHAR_BUDGET:
+            continue
+        if not kept and len(text) > CHAR_BUDGET:
+            kept.append(doc)  # one oversized document is still shown, truncated by wrap_untrusted
+            break
+        kept.append(doc)
+        used += len(text)
+        if used >= CHAR_BUDGET:
+            break
+    return kept
+
+
+def select_flags(case: Case, *, scope: str, file_id: str | None) -> list[Flag]:
+    """Every flag on the case. Scope limits which documents are shown, not the flags.
+
+    An officer asks about a finding while the page on screen is a different file. The finding is
+    still part of the question.
+    """
+    del scope, file_id
+    return list(case.flags)
+
+
+def flag_anchor(flag: Flag, case: Case) -> tuple[str, int, str]:
+    """Where a citation of this flag opens: its box, or the first document it names."""
+    doc = next((d for d in case.documents if d.id in flag.document_ids), None)
+    if flag.region is not None:
+        return flag.region.file_id, flag.region.page, doc.id if doc else ""
+    if doc is not None:
+        return doc.file_id, doc.page_start, doc.id
+    return "", 1, ""
+
+
+def flag_texts(flag: Flag) -> tuple[str, str]:
+    """(evidence, explanation) exactly as a flag block shows them. A quote is checked against these."""
+    return clean_text(flag.evidence, 1000), clean_text(flag.explanation, 400)
+
+
+def render_flag(flag: Flag, case: Case) -> str:
+    """One flag as citable lines. The quote must be copied from evidence or explanation."""
+    file_id, page, doc_id = flag_anchor(flag, case)
+    lines = [
+        f"flag_id {flag.id}",
+        f"rule {flag.rule}",
+        f"severity {flag.severity}",
+        f"disposition {flag.disposition}",
+        f"file_id {file_id}",
+        f"page {page}",
+    ]
+    if doc_id:
+        lines.append(f"document_id {doc_id}")
+    evidence, explanation = flag_texts(flag)
+    if evidence:
+        lines.append(f'evidence: "{evidence}"')
+    if explanation:
+        lines.append(f'explanation: "{explanation}"')
+    return "\n".join(lines)
+
+
+def render_team(case: Case) -> str:
+    """The review team on this case: what the challenger lowered or kept, and the officer's summary."""
+    lines: list[str] = []
+    for agent in case.agents:
+        if agent.agent == "challenger":
+            lines.append(f"challenger status {agent.status}")
+            if agent.summary:
+                lines.append(f'summary: "{clean_text(agent.summary, 400)}"')
+            for verdict in agent.verdicts:
+                # The finding in words, not its rule id: the answer is read by a person.
+                flag = next((f for f in case.flags if f.id == verdict.flag_id), None)
+                about = clean_text(flag.explanation, 240) if flag is not None else ""
+                if about:
+                    lines.append(f'verdict {verdict.action} finding: "{about}"')
+                else:
+                    lines.append(f"verdict {verdict.action} on a finding")
+                if verdict.reason:
+                    lines.append(f'reason: "{clean_text(verdict.reason, 400)}"')
+                if verdict.quote:
+                    lines.append(f'quote: "{clean_text(verdict.quote, 240)}"')
+        elif agent.agent == "case_officer" and agent.status == "ok" and agent.summary:
+            lines.append(f'case_officer summary: "{clean_text(agent.summary, 500)}"')
+            for step in agent.next_steps[:3]:
+                lines.append(f'next_step: "{clean_text(step, 240)}"')
+    return "\n".join(lines)
+
+
+def rule_ids(case: Case) -> set[str]:
+    """Rule ids and flag ids on this case, lower case. A sentence shown to the officer names none."""
+    ids: set[str] = set()
+    for flag in case.flags:
+        ids.update({flag.rule.lower(), flag.id.lower()})
+    for agent in case.agents:
+        for verdict in agent.verdicts:
+            ids.update({verdict.flag_id.lower(), verdict.flag_id.split(".", 1)[0].lower()})
+    return {i for i in ids if i}
+
+
+def officer_texts(case: Case) -> list[str]:
+    """The case officer's summary and next steps, trimmed exactly as the review-team block shows them."""
+    out: list[str] = []
+    for agent in case.agents:
+        if agent.agent == "case_officer" and agent.status == "ok" and agent.summary:
+            out.append(clean_text(agent.summary, 500))
+            out.extend(clean_text(step, 240) for step in agent.next_steps[:3])
+    return [t for t in out if t]
+
+
+def blocks_for_flags(flags: Sequence[Flag], case: Case) -> str:
+    """One untrusted block per flag. The same end-marker rule as a document."""
+    parts: list[str] = []
+    for flag in flags:
+        parts.append(wrap_untrusted(render_flag(flag, case), label=f"flag.{flag.rule}"))
+    return "\n\n".join(parts)
+
+
+def blocks_for(docs: Sequence[Document]) -> str:
+    """One untrusted block per document. Raises ValueError if a block forges its own end marker."""
+    parts: list[str] = []
+    for doc in docs:
+        label = f"{doc.file_id}.p{doc.page_start}-{doc.page_end}.{doc.id}"
+        parts.append(wrap_untrusted(render_document(doc), label=label))
+    return "\n\n".join(parts)

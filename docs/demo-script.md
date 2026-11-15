@@ -103,6 +103,14 @@ Say: the live lookup and the sanctions screen are opt-in outside sources, off un
 2. **More actions, Add documents**, choose `supply_agreement_C-2026-002.pdf`, **Add and re-run**. Its payment terms say the buyer may pay through three named affiliates, the three payers.
 3. Version 2, expect score about 60. The challenger lowers `x_remitter_vs_buyer` to info and quotes "payable by Orchid Bay or its affiliates VANTAGE CREST, SILVERLINE IMPORTS and PACIFIC ANCHOR"; it keeps `x_sof_support`, because no credit backs the declared amount. Version 1 stays readable.
 
+Open the **Ask** tab (needs `GLDB_CASE_ASSISTANT=on`) on the source-of-funds declaration and ask:
+
+- "Who paid invoice INV-2026-0117, and does any document allow it?" The answer cites the three bank-statement credits and the clause in `supply_agreement_C-2026-002`.
+- "Which credits support the S$1,000,000 declared?" The answer is "I can't find a credit that supports it", with the declaration cited.
+- "Should I approve this case?" The answer starts "That decision is yours…" and cites the evidence. It does not recommend a verdict.
+
+Each question is one cheap-model call. Read the tokens, dollars and seconds on the Timeline's "Ask this case" step. A live Haiku measurement of ten questions was not run for this change.
+
 Say: the challenger lowers a flag only when it can quote the case's own documents, and the tool cannot tell whether a customer's document is true. In the measured runs it lowered nothing; this agreement was written to explain the flag, so the demo shows the mechanism, not a hit rate. The walkthrough with a screenshot of every step is in the demo folder (`expected-results/`).
 
 ## 4. The ranked queue

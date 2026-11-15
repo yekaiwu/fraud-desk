@@ -36,11 +36,13 @@ def test_me_reports_the_signed_in_account(env: Env) -> None:
         "reviewer": "alice",
         "admin": False,
         "custom_rules": False,
+        "case_assistant": False,
     }
     assert env.client.get("/me", headers=PROXY).json() == {
         "reviewer": None,
         "admin": False,
         "custom_rules": False,
+        "case_assistant": False,
     }
 
 

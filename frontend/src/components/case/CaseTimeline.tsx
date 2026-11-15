@@ -254,7 +254,7 @@ function StepBody({ c, step, onShowFlag }: { c: CaseDetail; step: TimelineStep; 
         </Section>
       ) : null}
 
-      {step.kind !== "received" && step.kind !== "review" && step.kind !== "team" ? (
+      {step.kind !== "received" && step.kind !== "review" && step.kind !== "team" && step.kind !== "ask" ? (
         <Section title={`Flags this step raised (${step.flags.length})`}>
           <FlagRows c={c} flags={step.flags} onShowFlag={onShowFlag} names={names} />
         </Section>

@@ -37,6 +37,8 @@ import type {
   CustomTurnRequest,
   DraftResponse,
   DryRunResult,
+  AskRequest,
+  AskResponse,
   EffectivenessResponse,
   ExplainMethod,
   Health,
@@ -143,6 +145,8 @@ export interface Me {
   admin: boolean;
   /** The custom rules feature is switched on and an account is signed in (the navigation entry follows it). */
   custom_rules: boolean;
+  /** Ask this case is switched on and an account is signed in. */
+  case_assistant?: boolean;
 }
 
 export async function getMe(): Promise<Me> {
@@ -250,6 +254,12 @@ export async function pollJob(id: string, onUpdate: (j: Job) => void, signal: Ab
     if (job.state === "succeeded" || job.state === "failed") return job;
     await sleep(Date.now() - started >= POLL_BACKOFF_AFTER_MS ? POLL_SLOW_MS : POLL_FAST_MS, signal);
   }
+}
+
+/** Ask a question about the documents already on the case. Read-only: it never changes a flag or the score. */
+export async function askCase(id: string, req: AskRequest): Promise<AskResponse> {
+  if (USE_MOCK) return (await import("./mock/handlers")).askCase(id, req);
+  return request<AskResponse>(`/cases/${encodeURIComponent(id)}/ask`, jsonInit("POST", req));
 }
 
 export async function postReview(id: string, req: ReviewRequest): Promise<ReviewResponse> {

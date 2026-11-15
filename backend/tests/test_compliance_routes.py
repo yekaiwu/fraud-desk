@@ -34,6 +34,8 @@ API_MD_SECTION_2: set[tuple[str, str]] = {
     ("GET", "/cases/{}"),
     ("GET", "/cases/{}/pages/{}"),
     ("POST", "/cases/{}/review"),
+    # Ask this case (api.md section 9d): a question about extracted documents. It records no verdict.
+    ("POST", "/cases/{}/ask"),
     ("GET", "/cases/{}/review"),
     ("GET", "/cases/{}/pack"),
     ("GET", "/rules/effectiveness"),

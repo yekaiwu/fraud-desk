@@ -71,7 +71,8 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | GET | `/explain/method` | scoring and routing method, read from the engine's constants | explainability |
 | DELETE | `/cases/{id}` | delete a case and its data | 7.2 |
 | POST | `/admin/retention/purge` | purge cases older than retention; administrator accounts only when accounts are signed in or configured (403 `forbidden` otherwise) | 7.2 |
-| GET | `/me` | the signed-in account the proxy vouched for, or null, whether it is an administrator (`GLDB_ADMIN_USERS`), and whether custom rules are available to it (`custom_rules`) | 5.9 |
+| POST | `/cases/{id}/ask` | ask a question about the documents already extracted; every sentence cites a cell or the reply abstains | case assistant |
+| GET | `/me` | the signed-in account the proxy vouched for, or null, whether it is an administrator (`GLDB_ADMIN_USERS`), and whether custom rules and Ask this case are available (`custom_rules`, `case_assistant`) | 5.9 |
 | GET | `/monitoring` | metrics against thresholds, spend, owner, disk encryption, application encryption at rest | 5.23 |
 | GET | `/monitoring/incidents` | the AI incident log, newest first | 5.23 |
 | POST | `/monitoring/incidents` | report (or resolve) an AI incident; severity medium or high is also announced through the alert sinks | 5.23 |
@@ -103,7 +104,7 @@ Base URL `http://localhost:8000`. JSON UTF-8 except uploads (multipart) and page
 | POST | `/custom-rules/{rule_id}/unadopt` | stop using an adopted rule | custom rules |
 | POST | `/custom-rules/{rule_id}/retire` | retire an own rule; every version is kept (reason required) | custom rules |
 
-Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `spending.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`), `custom_rules.py` (custom rules, section 9c).
+Routers: `health.py`, `cases.py` (create, get, delete, rerun, files, versions, documents), `queue.py` (list), `jobs.py`, `files.py` (pages, file download), `review.py` (+audit), `pack.py`, `effectiveness.py`, `spending.py`, `rules.py` (catalogue, overrides and change log), `explain.py`, `monitoring.py` (monitoring, alerts, readiness and the incident log; `/me` is in `health.py`), `custom_rules.py` (custom rules, section 9c), `ask.py` (Ask this case, section 9d).
 
 ## 3. Create case: `POST /cases`
 
@@ -395,6 +396,53 @@ interface DraftResponse { draft_id: string; turn: number; turns_left: number; st
 The full set of types (`CustomRuleSpec`, `Question`, `DuplicateNote`, `Idea`, `DryRunResult`, `CustomRuleView`, `AdoptedRuleView`, `SharedRuleView`, `CustomTicket`) is in `frontend/src/lib/types.ts`.
 
 **Error codes** (besides the common ones in section 1): 404 `feature_off`; 403 `account_required`; 404 `not_found` (rule, draft or ticket not visible); 403 `forbidden` (a visible rule of another account: publish, retire, enable); 422 `bad_answer`; 409 `draft_closed`, `draft_turn_limit`, `draft_busy`, `no_spec`, `dry_run_required`, `duplicate_builtin`, `duplicate_custom`, `rule_limit`, `adoption_limit` (50 adopted rules), `withdrawn_by_admin` (publishing a check an administrator took back, even as a new rule), `rule_retired`, `already_public`, `not_public`, `own_rule`, `already_adopted`, `not_adopted`, `draft_refused`; 422 `draft_not_ready`, `narrower_not_accepted`, `warnings_not_confirmed`, `no_change`, `name_required`, `reason_required`; 429 `user_budget_used` (this account's daily model budget is used; authoring only), `site_budget_used`, `rate_limited`; 503 `authoring_unavailable` (no usable model: the message says the idea can still go to the tech team).
+
+## 9d. Ask this case: `POST /cases/{id}/ask`
+
+An officer asks one question about the documents already extracted on the case. The answer is one to four short sentences. Every sentence cites a cell. A sentence with no citation that survives the check is dropped, and if none remain the reply is the fixed line "I can't find that in this case's documents." A question that asks for a verdict is answered with "That decision is yours. Here is the evidence that bears on it:" and cited facts, plus links to the open flags. The route never writes a flag, a score, a lane or a decision. Plain-language guide: [case-assistant.md](case-assistant.md).
+
+**Gate.** `404 feature_off` unless `GLDB_CASE_ASSISTANT=on`. `403 account_required` unless a personal account is signed in (`/me` reports `case_assistant: true` only then). `409 stale_version` when `case_version` is not the case's current version (`details.current_version`).
+
+**Body.** `{"question", "scope": "document"|"case", "file_id"?, "page"?, "case_version"}`. `question` is 1 to 500 characters after whitespace is collapsed. Scope `document` needs `file_id`. Extra fields are a 422.
+
+**Reply.**
+
+```json
+{
+  "status": "answered",
+  "preamble": null,
+  "message": null,
+  "sentences": [
+    {
+      "text": "The invoice number is INV-2026-0117.",
+      "citations": [
+        {
+          "file_id": "f1",
+          "page": 1,
+          "document_id": "d1",
+          "doc_type": "invoice",
+          "field": "invoice_number",
+          "table": null,
+          "row": null,
+          "quote": "INV-2026-0117",
+          "region": {"file_id": "f1", "page": 1, "x": 0.12, "y": 0.34, "w": 0.4, "h": 0.04}
+        }
+      ]
+    }
+  ],
+  "flags": []
+}
+```
+
+`status` is `answered`, `not_found` or `decision_request`. `preamble` is set only for `decision_request`. `message` is the abstain line when no sentence survived. `region` is the cell's box, or the flag's box, or null when there is none. A citation of a flag sets `flag_id` and `rule`; `quote` must be copied from that flag's evidence or explanation. `flags` is set only for a decision question: open flags on the cited documents, or the other open flags when none of those were cited.
+
+The model sees only extracted cells, wrapped as untrusted text, trimmed when the scope is the whole case. The last four turns of this officer on this case version are included. One call, purpose `assistant:ask`, charged to the case cap, the daily cap and the account cap. `429 user_budget_used`, `site_budget_used` or `case_budget_used` when a cap is already spent, and no call is made. `503 assistant_unavailable` when the model cannot be reached; the message says the checks and flags are unaffected. The question shares the review rate limit (`429 rate_limited`).
+
+One audit row `assistant.asked` per question that passes the gate: account (the actor), case version, question length, question sha256, scope, status, citations kept and dropped, drop reasons, model id, prompt sha256, tokens, dollars, seconds. Not the question text, and not an NRIC.
+
+`GET /cases/{id}` adds any Ask calls for that version onto `costs` (purpose `assistant:ask`) so the timeline can list them. They are not stored in the case body.
+
+**Error codes** (besides section 1): 404 `feature_off`; 403 `account_required`; 409 `stale_version`; 422 `validation_error`; 429 `user_budget_used`, `site_budget_used`, `case_budget_used`, `rate_limited`; 503 `assistant_unavailable`.
 
 ## 10. Delete and retention
 

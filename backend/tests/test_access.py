@@ -320,6 +320,7 @@ def test_spending_is_for_administrator_accounts_only(settings, monkeypatch) -> N
         "reviewer": "boss",
         "admin": True,
         "custom_rules": False,
+        "case_assistant": False,
     }
     assert c.get("/me", headers={**H, "X-Gldb-Reviewer": "user1"}).json()["admin"] is False
     body = c.get("/spending", headers={**H, "X-Gldb-Reviewer": "boss"}).json()

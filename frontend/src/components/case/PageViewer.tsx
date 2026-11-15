@@ -8,8 +8,8 @@ import { makeDocNamer } from "@/lib/docNames";
 import { locusOf, touchesPage, type Place } from "@/lib/flagLocus";
 import type { NumberedFlag } from "@/lib/flags";
 import { severityLabel } from "@/lib/labels";
-import { pickImageWidth } from "@/lib/regions";
-import type { Document, FileRef, Severity } from "@/lib/types";
+import { paddedRegionStyle, pickImageWidth } from "@/lib/regions";
+import type { Document, FileRef, Region, Severity } from "@/lib/types";
 import { usePrefersReducedMotion } from "@/lib/useMedia";
 import { Button, EmptyState, Notice, inputClasses } from "../ui";
 import { FlaggedPagesStrip } from "./FlaggedPagesStrip";
@@ -41,6 +41,7 @@ export function PageViewer({
   current: wanted,
   onNavigate,
   documents = EMPTY_DOCS,
+  mark = null,
 }: {
   caseId: string;
   files: FileRef[];
@@ -51,6 +52,8 @@ export function PageViewer({
   onNavigate: (to: { fileId: string; page: number }) => void;
   /** Optional: the case's documents, so pages read as "Bank statement, Nov 2025, page 1" instead of file names. */
   documents?: Document[];
+  /** A passage cited by Ask this case. Drawn only when it sits on the page now open. */
+  mark?: Region | null;
 }) {
   const reduced = usePrefersReducedMotion();
   const names = useMemo(() => makeDocNamer(documents, files), [documents, files]);
@@ -262,6 +265,14 @@ export function PageViewer({
               onError={() => setState("error")}
             />
             <RegionOverlay flags={flags} current={{ fileId: file.id, page: current.page }} selectedFlagId={selectedFlagId} onSelect={onSelectFlag} showChips={showChips} documents={documents} pageHeightPx={pageH} />
+            {mark && mark.file_id === file.id && mark.page === current.page && paddedRegionStyle(mark) ? (
+              <div
+                data-testid="citation-box"
+                aria-label="Cited passage"
+                className="pointer-events-none absolute border-2 border-brass bg-brass-tint"
+                style={paddedRegionStyle(mark) ?? undefined}
+              />
+            ) : null}
           </div>
         )}
       </div>

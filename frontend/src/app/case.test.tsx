@@ -407,7 +407,7 @@ describe("layout and a11y", () => {
     setViewport(1280);
     await openCase("c_aml_graph");
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Documents", "Graph", "Decision & activity", "Timeline"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Documents", "Graph", "Decision & activity", "Timeline", "Ask"]);
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", tabs[0].id);
     tabs[0].focus();
     await user.keyboard("{ArrowRight}");
@@ -420,7 +420,7 @@ describe("layout and a11y", () => {
     setViewport(390);
     await openCase("c_aml_graph");
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Page", "Docs", "Graph", "Decision & activity", "Timeline"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Findings3", "Page", "Docs", "Graph", "Decision & activity", "Timeline", "Ask"]);
     expect(screen.queryByRole("region", { name: /Page image/ })).toBeNull();
     await user.click(screen.getAllByRole("button", { name: /Show on document.*flag 1/ })[0]);
     expect(await screen.findByRole("region", { name: /Page image/ })).toBeInTheDocument();
