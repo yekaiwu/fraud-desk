@@ -3,9 +3,8 @@
 import clsx from "clsx";
 import { useId, useState } from "react";
 import { askCase } from "@/lib/api";
-import { makeDocNamer } from "@/lib/docNames";
 import { explainError, isApiError } from "@/lib/errors";
-import type { AskCitation, AskRequest, AskResponse, AskScope, CaseDetail } from "@/lib/types";
+import type { AskRequest, AskResponse, AskScope, CaseDetail } from "@/lib/types";
 import { GENERATED_NOTE } from "../explain/AnalysisTrail";
 import { Button } from "../ui/Button";
 import { Notice } from "../ui/Notice";
@@ -67,20 +66,15 @@ export function AskPanel({
   c,
   fileId,
   page,
-  onCite,
-  onOpenFlag,
   ask = askCase,
 }: {
   c: CaseDetail;
   fileId: string;
   page: number;
-  onCite: (citation: AskCitation) => void;
-  onOpenFlag?: (id: string) => void;
   ask?: (id: string, body: AskRequest) => Promise<AskResponse>;
 }) {
   const titleId = useId();
   const questionId = useId();
-  const names = makeDocNamer(c.documents, c.files);
   const [scope, setScope] = useState<AskScope>(fileId ? "document" : "case");
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -110,13 +104,6 @@ export function AskPanel({
       setBusy(false);
     }
   }
-
-  const chipLabel = (citation: AskCitation) => {
-    if (citation.worklist_id) return citation.reference || citation.worklist_id;
-    if (citation.rule) return `${citation.rule} · p.${citation.page}`;
-    const name = citation.document_id ? names.doc(citation.document_id) : names.file(citation.file_id);
-    return `${name} · p.${citation.page}`;
-  };
 
   return (
     <section aria-labelledby={titleId} className="space-y-4">
@@ -209,40 +196,10 @@ export function AskPanel({
           {answer.preamble ? <p className="mt-1 text-[0.9375rem] leading-normal text-ink">{answer.preamble}</p> : null}
           {answer.sentences.map((sentence, i) => (
             <p key={i} className="mt-2 text-[0.9375rem] leading-normal text-ink">
-              {sentence.text}{" "}
-              {sentence.citations.map((citation, n) => (
-                <button
-                  key={`${citation.file_id}-${citation.page}-${n}`}
-                  type="button"
-                  onClick={() => onCite(citation)}
-                  title={citation.quote}
-                  className={clsx(
-                    "mx-0.5 inline-flex min-h-11 items-center rounded-md border border-rule-strong bg-surface px-2 align-middle text-sm font-medium text-brand-2 hover:bg-brand-tint",
-                    citation.rule && "num text-xs",
-                  )}
-                >
-                  {chipLabel(citation)}
-                </button>
-              ))}
+              {sentence.text}
             </p>
           ))}
           {answer.message ? <p className="mt-2 text-[0.9375rem] leading-normal text-ink">{answer.message}</p> : null}
-          {answer.flags.length > 0 ? (
-            <ul className="mt-2 space-y-1">
-              {answer.flags.map((flag) => (
-                <li key={flag.id}>
-                  <button
-                    type="button"
-                    onClick={() => onOpenFlag?.(flag.id)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-md px-1 text-left text-sm font-semibold text-brand-2 hover:bg-brand-tint"
-                  >
-                    <span className="num text-xs">{flag.rule}</span>
-                    <span className="font-normal text-ink-2">{flag.explanation}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
           <p className="mt-2 text-xs text-muted">{GENERATED_NOTE}</p>
         </div>
       ) : null}

@@ -250,6 +250,47 @@ def test_a_question_about_a_flag_cites_that_flag(
     assert r.json()["message"] == NOT_FOUND
 
 
+def test_what_the_challenger_lowered_is_answered_from_its_verdicts(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.models import AgentReport, AgentVerdict
+
+    case = _case(db, [_invoice()])
+    case.agents = [
+        AgentReport(
+            agent="challenger",
+            role="Argues the innocent reading",
+            status="ok",
+            verdicts=[
+                AgentVerdict(
+                    flag_id="x_remitter_vs_buyer.d1.0",
+                    verdict="doubtful",
+                    action="lowered",
+                    reason="The contract allows payment by named affiliates.",
+                    quote="payable by Orchid Bay or its affiliates",
+                ),
+                AgentVerdict(
+                    flag_id="x_sof_support.d1.declared_amount",
+                    verdict="upheld",
+                    action="kept",
+                    reason="No credit supports the declared amount.",
+                ),
+            ],
+        )
+    ]
+    db.save_case(case)
+    llm = FakeLLMClient({PURPOSE: {"status": "not_found", "sentences": []}})
+    client = _app(settings, db, llm, monkeypatch)
+    r = _ask(client, question="what did the challenger reduce")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "answered"
+    text = " ".join(s["text"] for s in body["sentences"])
+    assert "named affiliates" in text
+    assert "x_remitter" not in text
+    assert "lowered one finding" in text
+
+
 def test_a_worklist_question_cites_the_other_open_case(
     settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:

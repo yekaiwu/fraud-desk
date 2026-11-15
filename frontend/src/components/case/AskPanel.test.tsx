@@ -1,14 +1,11 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { numberFlags } from "@/lib/flags";
 import { buildCase, SPECS } from "@/lib/mock/fixtures";
 import { askCase } from "@/lib/mock/handlers";
 import { GENERATED_NOTE } from "../explain/AnalysisTrail";
 import type { AskCitation, AskRequest, AskResponse, Region } from "@/lib/types";
 import { AskPanel } from "./AskPanel";
-import { PageViewer } from "./PageViewer";
 
 afterEach(cleanup);
 
@@ -38,7 +35,7 @@ function answered(c: ReturnType<typeof fraud>): AskResponse {
 }
 
 describe("AskPanel", () => {
-  it("shows suggestion chips, the generated-text label, and opens the cited page", async () => {
+  it("shows the answer as prose, without citation boxes", async () => {
     const user = userEvent.setup();
     const c = fraud();
     const ask = vi.fn(async (_id: string, req: AskRequest) => {
@@ -46,54 +43,20 @@ describe("AskPanel", () => {
       return answered(c);
     });
 
-    function Harness() {
-      const numbered = numberFlags(c.findings, c.flags);
-      const [loc, setLoc] = useState({ fileId: c.files[0].id, page: 1 });
-      const [mark, setMark] = useState<Region | null>(null);
-      return (
-        <>
-          <AskPanel
-            c={c}
-            fileId={loc.fileId}
-            page={loc.page}
-            ask={ask}
-            onCite={(cit) => {
-              setMark(cit.region ?? null);
-              setLoc({ fileId: cit.file_id, page: cit.page });
-            }}
-          />
-          <PageViewer
-            caseId={c.id}
-            files={c.files}
-            documents={c.documents}
-            flags={numbered.all}
-            selectedFlagId={null}
-            onSelectFlag={() => {}}
-            current={loc}
-            onNavigate={setLoc}
-            mark={mark}
-          />
-        </>
-      );
-    }
-
-    render(<Harness />);
+    render(<AskPanel c={c} fileId={c.files[0].id} page={1} ask={ask} />);
     expect(screen.getByRole("button", { name: "Summarise this document" })).toBeInTheDocument();
     expect(screen.getAllByRole("listitem").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(GENERATED_NOTE)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Summarise this document" }));
     expect(ask).toHaveBeenCalled();
-    expect(screen.getByText("The credit is on the statement.")).toBeInTheDocument();
+    const answer = screen.getByText("The credit is on the statement.");
+    expect(answer).toBeInTheDocument();
     expect(screen.getByText(GENERATED_NOTE)).toBeInTheDocument();
-
-    const chip = screen.getByRole("button", { name: /· p\.\d+/ });
-    await user.click(chip);
-    const box = screen.getByTestId("citation-box");
-    const cited = citation(c);
-    expect(box).toHaveAttribute("aria-label", "Cited passage");
-    const viewer = screen.getByRole("region", { name: "Page viewer" });
-    expect(within(viewer).getByRole("combobox", { name: "Document and page" })).toHaveValue(`${cited.file_id}:${cited.page}`);
+    const box = answer.closest("div");
+    expect(box).not.toBeNull();
+    expect(within(box!).queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: /x_directors|demo3|· p\./ })).toBeNull();
   });
 
   it("mock mode returns a cited answer and the decision hand-back", async () => {

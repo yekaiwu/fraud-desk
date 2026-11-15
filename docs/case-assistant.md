@@ -1,6 +1,6 @@
 # Ask this case
 
-An officer can ask a question about the case on screen and about the cases still on the worklist. The answer is a few short sentences. Every sentence cites a cell, a flag, or a worklist line. A sentence that cannot be checked is not shown. The assistant does not decide, and it does not change a flag, a score, a lane or a decision.
+An officer can ask a question about the case on screen and about the cases still on the worklist. The answer is a few short sentences, shown as prose. Every case fact is still checked against a cell, a flag, the review team, or a worklist line before it is shown. The check is not printed as a label in the sentence. The assistant does not decide, and it does not change a flag, a score, a lane or a decision.
 
 It is off unless `GLDB_CASE_ASSISTANT=on`. It needs a personal sign-in. A shared login gets `403 account_required`.
 

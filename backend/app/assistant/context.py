@@ -153,6 +153,28 @@ def render_flag(flag: Flag, case: Case) -> str:
     return "\n".join(lines)
 
 
+def render_team(case: Case) -> str:
+    """The review team on this case: what the challenger lowered or kept, and the officer's summary."""
+    lines: list[str] = []
+    for agent in case.agents:
+        if agent.agent == "challenger":
+            lines.append(f"challenger status {agent.status}")
+            if agent.summary:
+                lines.append(f'summary: "{clean_text(agent.summary, 400)}"')
+            for verdict in agent.verdicts:
+                rule = verdict.flag_id.split(".", 1)[0]
+                lines.append(f"verdict {verdict.action} rule {rule}")
+                if verdict.reason:
+                    lines.append(f'reason: "{clean_text(verdict.reason, 400)}"')
+                if verdict.quote:
+                    lines.append(f'quote: "{clean_text(verdict.quote, 240)}"')
+        elif agent.agent == "case_officer" and agent.status == "ok" and agent.summary:
+            lines.append(f'case_officer summary: "{clean_text(agent.summary, 500)}"')
+            for step in agent.next_steps[:3]:
+                lines.append(f'next_step: "{clean_text(step, 240)}"')
+    return "\n".join(lines)
+
+
 def blocks_for_flags(flags: Sequence[Flag], case: Case) -> str:
     """One untrusted block per flag. The same end-marker rule as a document."""
     parts: list[str] = []

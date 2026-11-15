@@ -37,7 +37,7 @@ import { getCase, getVersions, rerunCase } from "@/lib/api";
 import { ApiErrorException } from "@/lib/errors";
 import { documentFirstPage, numberFlags, uncheckedPageList } from "@/lib/flags";
 import { deriveEntityGraph, graphApplies, type GEdge } from "@/lib/graph";
-import type { AskCitation, CaseDetail, Region } from "@/lib/types";
+import type { CaseDetail, Region } from "@/lib/types";
 import type { CaseNav } from "@/components/case/CaseHeader";
 import { useIsLg } from "@/lib/useMedia";
 
@@ -85,7 +85,6 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
   const [tabState, setTabState] = useState(urlTab);
   const [flagId, setFlagId] = useState<string | null>(urlFlag && c.flags.some((f) => f.id === urlFlag) ? urlFlag : null);
   const [loc, setLoc] = useState<Loc>(() => initialLoc(c, urlFlag, numbered.all));
-  const [mark, setMark] = useState<Region | null>(null);
   const tab = tabs.some((t) => t.id === tabState) ? tabState : "findings";
 
   const [decide, setDecide] = useState<DecideTarget | null>(null);
@@ -141,18 +140,6 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
       if (!isLg) goTab("page");
     },
     [isLg, goTab],
-  );
-  const openCitation = useCallback(
-    (citation: AskCitation) => {
-      if (citation.worklist_id && citation.worklist_id !== c.id) {
-        router.push(`/cases/${citation.worklist_id}`);
-        return;
-      }
-      if (!citation.file_id) return;
-      setMark(citation.region ?? null);
-      showPage(citation.file_id, citation.page);
-    },
-    [c.id, router, showPage],
   );
   const showDocument = useCallback(
     (docId: string) => {
@@ -284,7 +271,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
   }
 
   const viewer = (
-    <PageViewer caseId={c.id} files={c.files} documents={c.documents} flags={numbered.all} selectedFlagId={flagId} onSelectFlag={(id) => select(id, undefined)} current={loc} onNavigate={setLoc} mark={mark} />
+    <PageViewer caseId={c.id} files={c.files} documents={c.documents} flags={numbered.all} selectedFlagId={flagId} onSelectFlag={(id) => select(id, undefined)} current={loc} onNavigate={setLoc} />
   );
   const findingsPanel = (
     <div className="space-y-3">
@@ -345,13 +332,7 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
       />
     ),
     ask: (
-      <AskPanel
-        c={c}
-        fileId={loc.fileId}
-        page={loc.page}
-        onCite={openCitation}
-        onOpenFlag={(id) => select(id, { reveal: true })}
-      />
+      <AskPanel c={c} fileId={loc.fileId} page={loc.page} />
     ),
     review: (
       <ReviewPanel

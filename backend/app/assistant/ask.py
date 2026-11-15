@@ -23,6 +23,7 @@ from app.assistant.prompts import (
     PROMPT_SHA256,
     PURPOSE,
     SCHEMA_NAME,
+    SERVICE,
     SYSTEM,
     reply_schema,
 )
@@ -344,6 +345,58 @@ def verify_reply(
     }
 
 
+def _from_challenger(case: Case, question: str) -> dict[str, Any] | None:
+    """A plain answer when the officer asks what the challenger lowered and the model abstained.
+
+    Built only from the challenger's recorded verdicts. It names the reason, not a rule id.
+    """
+    q = norm(question)
+    if "challenger" not in q and "review team" not in q:
+        return None
+    if not any(
+        word in q for word in ("reduc", "lower", "kept", "keep", "change", "what did", "which")
+    ):
+        return None
+    report = next((a for a in case.agents if a.agent == "challenger"), None)
+    if report is None or report.status != "ok":
+        return None
+    lowered = [v for v in report.verdicts if v.action == "lowered"]
+    kept = [v for v in report.verdicts if v.action == "kept"]
+    sentences: list[dict[str, Any]] = []
+    if not report.verdicts:
+        sentences.append(
+            {"text": "The challenger did not review a flag on this case.", "citations": []}
+        )
+    elif not lowered:
+        sentences.append(
+            {
+                "text": "The challenger lowered no finding. It kept the ones it reviewed.",
+                "citations": [],
+            }
+        )
+    else:
+        reasons = [clean_text(v.reason, 240) for v in lowered if v.reason]
+        lead = (
+            "The challenger lowered one finding."
+            if len(lowered) == 1
+            else f"The challenger lowered {len(lowered)} findings."
+        )
+        sentences.append({"text": " ".join([lead, *reasons]), "citations": []})
+        if kept:
+            noun = "finding" if len(kept) == 1 else "findings"
+            sentences.append(
+                {"text": f"It kept {len(kept)} other {noun} it reviewed.", "citations": []}
+            )
+    return {
+        "status": "answered",
+        "preamble": None,
+        "message": None,
+        "sentences": sentences[:SENTENCE_MAX],
+        "flags": [],
+        "dropped": {"citations_kept": 0, "citations_dropped": 0, "why": {}},
+    }
+
+
 def _quoted_flags(question: str, flags: Sequence[Flag]) -> list[str]:
     """Flag ids whose explanation or evidence the officer pasted into the question."""
     qn = norm(question)
@@ -527,6 +580,14 @@ def answer(
     docs = context_mod.select_documents(case, scope=scope, file_id=file_id, page=page)
     flags = context_mod.select_flags(case, scope=scope, file_id=file_id)
     work = worklist_mod.load_worklist(db, on_screen=case.id)
+    work.append(
+        {"case_id": "service", "reference": "this service", "text": SERVICE, "on_screen": False}
+    )
+    team = context_mod.render_team(case)
+    if team:
+        work.append(
+            {"case_id": "review-team", "reference": "review team", "text": team, "on_screen": True}
+        )
     earlier = memory.recent(db, account=account, case_id=case.id, version=case.version)
     meter: CostMeter | None = None
     seeded = 0
@@ -599,6 +660,10 @@ def answer(
             verified = verify_reply(result.data, docs, flags, case, work, decision=decision)
     called, model, prompt_tokens, completion_tokens, seconds, usd = _from_meter(meter, seeded)
     public = _public(verified, case)
+    if public["status"] == "not_found" and not decision:
+        filled = _from_challenger(case, question)
+        if filled is not None:
+            public = filled
     memory.remember(
         db,
         account=account,
