@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useId, useState } from "react";
 import { askCase } from "@/lib/api";
 import { explainError, isApiError } from "@/lib/errors";
+import type { Me } from "@/lib/api";
 import type { AskRequest, AskResponse, AskScope, CaseDetail } from "@/lib/types";
 import { GENERATED_NOTE } from "../explain/AnalysisTrail";
 import { Button } from "../ui/Button";
@@ -36,6 +37,11 @@ export function suggestionQuestions(c: CaseDetail): string[] {
   const about = chips.slice(0, 2);
   about.push("Which open case has the highest score?");
   return about;
+}
+
+/** The Ask tab shows only when /me says it is on for this account. Mock mode has a canned answer and always shows it. */
+export function askTabShown(me: Pick<Me, "case_assistant"> | null, mock: boolean): boolean {
+  return mock || me?.case_assistant === true;
 }
 
 function askFailure(e: unknown): { title: string; detail: string } {

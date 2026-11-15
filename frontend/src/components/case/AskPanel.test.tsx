@@ -5,7 +5,7 @@ import { buildCase, SPECS } from "@/lib/mock/fixtures";
 import { askCase } from "@/lib/mock/handlers";
 import { GENERATED_NOTE } from "../explain/AnalysisTrail";
 import type { AskCitation, AskRequest, AskResponse, Region } from "@/lib/types";
-import { AskPanel } from "./AskPanel";
+import { AskPanel, askTabShown } from "./AskPanel";
 
 afterEach(cleanup);
 
@@ -69,5 +69,20 @@ describe("AskPanel", () => {
     expect(decision.status).toBe("decision_request");
     expect(decision.preamble).toMatch(/That decision is yours/);
     expect(decision.sentences.join(" ")).not.toMatch(/\b(approve|reject|escalate|clear)\b/i);
+  });
+
+  it("shows the tab only when /me says Ask is on, or in mock mode", () => {
+    expect(askTabShown(null, false)).toBe(false);
+    expect(askTabShown({ case_assistant: false }, false)).toBe(false);
+    expect(askTabShown({}, false)).toBe(false);
+    expect(askTabShown({ case_assistant: true }, false)).toBe(true);
+    expect(askTabShown(null, true)).toBe(true);
+  });
+
+  it("mock mode abstains with the server's words", async () => {
+    const c = fraud();
+    const none = await askCase(c.id, { question: "I can't find the lease", scope: "case", case_version: c.version });
+    expect(none.status).toBe("not_found");
+    expect(none.message).toBe("I can't find that in this case or on the worklist.");
   });
 });

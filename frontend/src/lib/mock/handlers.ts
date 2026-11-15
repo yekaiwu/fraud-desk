@@ -406,7 +406,7 @@ export async function askCase(id: string, req: AskRequest): Promise<AskResponse>
     };
   }
   if (/can't find|cannot find|not in the documents/i.test(question)) {
-    return { status: "not_found", preamble: null, message: "I can't find that in this case's documents.", sentences: [], flags: [] };
+    return { status: "not_found", preamble: null, message: "I can't find that in this case or on the worklist.", sentences: [], flags: [] };
   }
   return {
     status: "answered",

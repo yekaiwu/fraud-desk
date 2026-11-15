@@ -1,7 +1,8 @@
 """The last four turns of one officer on one case version.
 
 A new version starts with an empty memory. The question text is stored here so the next turn can
-be read in context, and nowhere else: the audit log keeps a length and a hash. When encryption at
+be read in context, and nowhere else: the audit log keeps a length and a hash. An older turn keeps
+only its counts (calls, tokens, dollars), so the case cap still sees every call Ask made. When encryption at
 rest is on, the question and the verified answer are sealed with the case vault.
 """
 
@@ -27,7 +28,7 @@ def recent(db: Database, *, account: str, case_id: str, version: int) -> list[di
         rows = c.execute(
             "SELECT question, question_sha256, answer_json, status FROM ("
             " SELECT question, question_sha256, answer_json, status, id FROM assistant_turns"
-            " WHERE account = ? AND case_id = ? AND case_version = ?"
+            " WHERE account = ? AND case_id = ? AND case_version = ? AND question <> ''"
             " ORDER BY id DESC LIMIT ?"
             ") ORDER BY id ASC",
             (account, case_id, version, TURNS_KEPT),
@@ -73,7 +74,8 @@ def remember(
     called: int,
     ts: str,
 ) -> None:
-    """Append one turn and drop any older than the four we keep for this officer and version."""
+    """Append one turn. Older than the four kept for this officer and version, a turn loses its
+    question and answer. One that reserved a call stays as a count for the case cap."""
     digest = sha256_text(question)
     ctx = _ctx(account, case_id, version, digest)
     payload = json.dumps(answer, ensure_ascii=False, sort_keys=True)
@@ -110,14 +112,20 @@ def remember(
                 max(0, called),
             ),
         )
-        c.execute(
-            "DELETE FROM assistant_turns WHERE id IN ("
-            " SELECT id FROM assistant_turns"
-            " WHERE account = ? AND case_id = ? AND case_version = ?"
+        older = (
+            "SELECT id FROM assistant_turns"
+            " WHERE account = ? AND case_id = ? AND case_version = ? AND question <> ''"
             " ORDER BY id DESC LIMIT -1 OFFSET ?"
-            ")",
-            (account, case_id, version, TURNS_KEPT),
         )
+        args = (account, case_id, version, TURNS_KEPT)
+        # A turn that reserved a provider call keeps its count and dollars: prior_spend reads them
+        # for the case cap, and the timeline lists them. Only its words are dropped.
+        c.execute(
+            f"UPDATE assistant_turns SET question = '', answer_json = ''"
+            f" WHERE called > 0 AND id IN ({older})",
+            args,
+        )
+        c.execute(f"DELETE FROM assistant_turns WHERE called = 0 AND id IN ({older})", args)
 
 
 def prior_spend(db: Database, case_id: str) -> tuple[int, Decimal]:

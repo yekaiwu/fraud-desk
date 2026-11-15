@@ -23,7 +23,7 @@ import { FindingsPanel, type DecideTarget, type SelectOpts } from "@/components/
 import { FlagDecisionDialog } from "@/components/case/FlagDecisionDialog";
 import { CaseTimeline } from "@/components/case/CaseTimeline";
 import { OfficerBrief } from "@/components/case/OfficerBrief";
-import { AskPanel } from "@/components/case/AskPanel";
+import { AskPanel, askTabShown } from "@/components/case/AskPanel";
 import { PageViewer } from "@/components/case/PageViewer";
 import { ProcessingStepper } from "@/components/case/ProcessingStepper";
 import { RecommendationHero } from "@/components/case/RecommendationHero";
@@ -39,7 +39,9 @@ import { documentFirstPage, numberFlags, uncheckedPageList } from "@/lib/flags";
 import { deriveEntityGraph, graphApplies, type GEdge } from "@/lib/graph";
 import type { CaseDetail, Region } from "@/lib/types";
 import type { CaseNav } from "@/components/case/CaseHeader";
+import { USE_MOCK } from "@/lib/constants";
 import { useIsLg } from "@/lib/useMedia";
+import { useMe } from "@/lib/useMe";
 
 type Loc = { fileId: string; page: number };
 const GROUP = "case";
@@ -69,6 +71,8 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
   const graph = useMemo(() => (showGraph ? deriveEntityGraph(c) : null), [c, showGraph]);
 
   const pending = c.pending_second_approvals.length;
+  // Ask is off unless the server says so (GLDB_CASE_ASSISTANT and a personal sign-in).
+  const askOn = askTabShown(useMe(), USE_MOCK);
   const tabs = useMemo(() => {
     const t: TabItem[] = [{ id: "findings", label: "Findings", count: c.findings.filter((f) => f.severity !== "info").length }];
     if (!isLg) t.push({ id: "page", label: "Page" });
@@ -76,9 +80,9 @@ function CaseBody({ c, versionParam, jobId, reload, reloadVersions, versions, la
     if (showGraph) t.push({ id: "graph", label: "Graph" });
     t.push({ id: "review", label: "Decision & activity", count: pending > 0 ? pending : undefined });
     t.push({ id: "timeline", label: "Timeline" });
-    t.push({ id: "ask", label: "Ask" });
+    if (askOn) t.push({ id: "ask", label: "Ask" });
     return t;
-  }, [c.findings, isLg, showGraph, pending]);
+  }, [c.findings, isLg, showGraph, pending, askOn]);
 
   const urlTab = params.get("tab") ?? "findings";
   const urlFlag = params.get("flag");

@@ -7,9 +7,10 @@ open flag first, then the page the officer is looking at and its neighbours. Fla
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
-from app.core.llm import wrap_untrusted
+from app.core.llm import truncate_untrusted, wrap_untrusted
 from app.core.models import Case, Cell, Document, Flag, Row, clean_text
 from app.semantic.render import shown
 
@@ -53,6 +54,30 @@ def render_document(doc: Document) -> str:
         if len(table.rows) > MAX_ROWS:
             lines.append(f"table {tname}: {len(table.rows) - MAX_ROWS} more rows not shown")
     return "\n".join(lines)
+
+
+_SHOWN_LINE = re.compile(r"^(field .+?|table .+? row -?\d+) page -?\d+: ")
+
+
+def shown_cells(doc: Document) -> set[str]:
+    """The ``field NAME`` and ``table NAME row N`` lines the model actually received for this
+    document: after the row limit and after ``wrap_untrusted`` cuts an oversized block."""
+    text, _ = truncate_untrusted(render_document(doc))
+    found: set[str] = set()
+    for line in text.splitlines():
+        m = _SHOWN_LINE.match(line)
+        if m:
+            found.add(m.group(1))
+    return found
+
+
+def was_shown(doc: Document, *, field: str | None, table: str | None, row: int | None) -> bool:
+    """True when the verified cell sat on a line of the block the model was given."""
+    if field:
+        return f"field {field}" in shown_cells(doc)
+    if table and row is not None:
+        return f"table {table} row {row}" in shown_cells(doc)
+    return False
 
 
 def _open_flag_docs(flags: Sequence[Flag]) -> set[str]:
@@ -131,6 +156,11 @@ def flag_anchor(flag: Flag, case: Case) -> tuple[str, int, str]:
     return "", 1, ""
 
 
+def flag_texts(flag: Flag) -> tuple[str, str]:
+    """(evidence, explanation) exactly as a flag block shows them. A quote is checked against these."""
+    return clean_text(flag.evidence, 1000), clean_text(flag.explanation, 400)
+
+
 def render_flag(flag: Flag, case: Case) -> str:
     """One flag as citable lines. The quote must be copied from evidence or explanation."""
     file_id, page, doc_id = flag_anchor(flag, case)
@@ -144,8 +174,7 @@ def render_flag(flag: Flag, case: Case) -> str:
     ]
     if doc_id:
         lines.append(f"document_id {doc_id}")
-    evidence = clean_text(flag.evidence, 1000)
-    explanation = clean_text(flag.explanation, 400)
+    evidence, explanation = flag_texts(flag)
     if evidence:
         lines.append(f'evidence: "{evidence}"')
     if explanation:

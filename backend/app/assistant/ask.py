@@ -34,18 +34,23 @@ from app.core.errors import ApiError, LLMError, LLMSchemaError
 from app.core.llm import LLMClient, LLMRequest, wrap_untrusted
 from app.core.models import Case, Document, Flag, clean_text
 from app.core.privacy import PrivateModeViolation
-from app.semantic.claims import MAX_CITATIONS, MIN_QUOTE_CHARS, _verify_citation, norm
+from app.semantic.claims import MAX_CITATIONS, _verify_citation, norm
 
 SENTENCE_MAX = 4
 TEXT_MAX = 400
 FLAG_LINKS_MAX = 6
+# A piece of a flag, the review team or the service note must be at least this long and start and end
+# on a word boundary. Three letters ("the") appear in any prose and would let any sentence through.
+PROSE_QUOTE_MIN = 12
+# The worklist values a quote may copy (docs/case-assistant.md). Not the labels around them.
+WORKLIST_FIELDS = ("reference", "applicant", "score", "band", "lane")
 
 _DECISION = re.compile(
     r"("
     r"\b(?:should|shall|do|can|would|could)\s+(?:i|we)\b.{0,80}"
     r"\b(?:approv|reject|escalat|clear|accept|declin)"
     r"|\b(?:should|shall)\b.{0,40}\b(?:be\s+)?(?:approv|reject|escalat|clear)"
-    r"|\bis this (?:a )?fraud\b"
+    r"|\bis\s+(?:this|it|that)(?:\s+(?:case|application|applicant|company))?\s+(?:a\s+)?fraud"
     r"|\b(?:approve|reject|escalate)\s+this\b"
     r"|\byour (?:verdict|decision|recommendation)\b"
     r")",
@@ -54,6 +59,14 @@ _DECISION = re.compile(
 _VERDICT_WORD = re.compile(
     r"\b(?:approve|approved|approving|approval|reject|rejected|rejecting|rejection|"
     r"escalate|escalated|escalating|escalation|clear|cleared|clearing|clearance)\b",
+    re.IGNORECASE,
+)
+
+# A recommendation of a verdict, whatever the question was. The reply never decides.
+_RECOMMENDATION = re.compile(
+    r"\b(?:should|must|ought\s+to|recommend\w*|advisable|best\s+to|safe\s+to"
+    r"|(?:i|we)\s+(?:would|suggest|advise))\b[^.;]{0,60}?\b(?:approv|reject|escalat|declin)\w*"
+    r"|\b(?:approve|reject|escalate|decline|clear)\s+(?:the|this)\s+(?:case|application|applicant)\b",
     re.IGNORECASE,
 )
 
@@ -109,17 +122,49 @@ def _as_verifier_citation(raw: Mapping[str, Any], doc: Document) -> dict[str, An
 
 
 def _flag_quote(quote: str, flag: Flag) -> bool:
-    """True when the quote is the flag's evidence or explanation, or a long enough piece of either."""
-    return any(_quote_in(quote, text) for text in (flag.evidence, flag.explanation) if text)
+    """True when the quote is in the evidence or explanation as the model was shown it (trimmed)."""
+    shown_texts = context_mod.flag_texts(flag)
+    return any(_quote_in(quote, text) for text in shown_texts if text)
 
 
 def _quote_in(quote: str, text: str) -> bool:
-    """True when the quote is the whole text, or a long enough piece of it."""
+    """True when the quote is the whole text, or a piece of at least PROSE_QUOTE_MIN characters
+    that starts and ends on a word boundary."""
     quote_n = norm(quote)
     text_n = norm(text)
     if not quote_n or not text_n:
         return False
-    return quote_n == text_n or (len(quote_n) >= MIN_QUOTE_CHARS and quote_n in text_n)
+    if quote_n == text_n:
+        return True
+    if len(quote_n) < PROSE_QUOTE_MIN:
+        return False
+    start = text_n.find(quote_n)
+    while start != -1:
+        end = start + len(quote_n)
+        before = start == 0 or not text_n[start - 1].isalnum()
+        after = end == len(text_n) or not text_n[end].isalnum()
+        if before and after:
+            return True
+        start = text_n.find(quote_n, start + 1)
+    return False
+
+
+def _worklist_quote(quote: str, item: Mapping[str, Any]) -> bool:
+    """A worklist line: a whole reference, applicant, score, band or lane, or a piece of the top
+    finding. The service note and the review team are prose and use the prose rule."""
+    if "top_finding" not in item:
+        return _quote_in(quote, str(item["text"]))
+    quote_n = norm(quote)
+    if not quote_n:
+        return False
+    for key in WORKLIST_FIELDS:
+        value = item.get(key)
+        if value is None or value == "":
+            continue
+        if quote_n in (norm(str(value)), norm(f"{key} {value}")):
+            return True
+    top = str(item.get("top_finding") or "")
+    return bool(top) and _quote_in(quote, top)
 
 
 def _check_worklist(
@@ -133,7 +178,7 @@ def _check_worklist(
     item = next((i for i in items if i["case_id"] == case_id), None)
     if item is None:
         return None, "unknown_case"
-    if not _quote_in(quote, str(item["text"])):
+    if not _worklist_quote(quote, item):
         return None, "quote_not_found"
     return (
         {
@@ -234,6 +279,12 @@ def _check_citation(
         if verified is None:
             last_reason = reason or "bad_shape"
             continue
+        if not context_mod.was_shown(
+            doc, field=verified.field, table=verified.table, row=verified.row
+        ):
+            # A row past MAX_ROWS, or a cell cut off by the block limit, was never in the prompt.
+            last_reason = "not_shown"
+            continue
         cell = verified.cells[0] if verified.cells else None
         box = cell.box if cell is not None else None
         if box is not None and (box.page != page or box.file_id != file_id):
@@ -305,7 +356,7 @@ def verify_reply(
             dropped["bad_shape"] += 1
             continue
         text = clean_text(raw["text"], TEXT_MAX)
-        if decision and _VERDICT_WORD.search(text):
+        if (decision and _VERDICT_WORD.search(text)) or _RECOMMENDATION.search(text):
             dropped["verdict_language"] += 1
             continue
         cites_raw = raw.get("citations")

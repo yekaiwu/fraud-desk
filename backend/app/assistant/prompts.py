@@ -46,6 +46,8 @@ Rules:
 - A cell citation names file_id and page as printed on that document block, and either field (the field name) or table plus row (the row number). quote is the cell text copied exactly. flag_id and worklist_id are null.
 - A flag citation names flag_id, file_id and page as printed on that flag block. quote is copied exactly from that flag's evidence or explanation. field, table, row and worklist_id are null.
 - A worklist citation names worklist_id as the case_id on that block. quote is copied exactly from that block (a reference, an applicant, a score, or the top finding). file_id may be empty and page 1. flag_id is null.
+- A quote that is only part of a flag, a top finding, the review team or the service note is at least twelve characters and whole words. A worklist quote of a reference, an applicant, a score, a band or a lane is the whole value.
+- Name a finding by what it says, not by its rule id or flag id.
 - If the question repeats a flag's explanation or evidence, or asks what a flag means, answer from that flag. Do not return not_found when that text is in a flag block you were shown.
 - If the question is about the queue, another case, or which case to open next, answer from the worklist blocks.
 - If you cannot support an answer with a quote that appears in a shown cell, flag, or worklist line, return status "not_found" and an empty sentences list. Do not guess.

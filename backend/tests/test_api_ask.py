@@ -762,3 +762,186 @@ def test_only_the_last_four_turns_of_this_version_are_remembered(
     assert r.status_code == 200, r.text
     assert "mark-5-question" not in llm.calls[-1].user
     assert "fresh version question" in llm.calls[-1].user
+
+
+def _cite_reply(text: str, citation: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "answered", "sentences": [{"text": text, "citations": [citation]}]}
+
+
+@pytest.mark.parametrize(
+    "citation",
+    [
+        {"file_id": "", "page": 1, "worklist_id": "service", "quote": "the"},
+        {"file_id": "", "page": 1, "worklist_id": "service", "quote": "decides every c"},
+        {"file_id": "f1", "page": 1, "flag_id": "x_remitter_vs_buyer.d1.0", "quote": "the"},
+        {"file_id": "", "page": 1, "worklist_id": "c_ask", "quote": "on_screen yes"},
+        {"file_id": "", "page": 1, "worklist_id": "c_ask", "quote": "open"},
+    ],
+)
+def test_a_scrap_of_prose_or_a_worklist_label_does_not_carry_a_sentence(
+    citation: dict[str, Any], settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Three letters are in any prose. A label is not a value. Neither proves the sentence."""
+    _case(db, [_invoice()], flags=[_flag()])
+    llm = FakeLLMClient(
+        {PURPOSE: _cite_reply("The applicant was convicted of fraud in 2019.", citation)}
+    )
+    r = _ask(_app(settings, db, llm, monkeypatch), question="Any history?", scope="case")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "not_found"
+    assert r.json()["message"] == NOT_FOUND
+
+
+@pytest.mark.parametrize(
+    "citation",
+    [
+        {
+            "file_id": "",
+            "page": 1,
+            "worklist_id": "service",
+            "quote": "A person decides every case.",
+        },
+        {
+            "file_id": "f1",
+            "page": 1,
+            "flag_id": "x_remitter_vs_buyer.d1.0",
+            "quote": "not the buyer",
+        },
+        {"file_id": "", "page": 1, "worklist_id": "c_ask", "quote": "score 60"},
+    ],
+)
+def test_whole_words_and_whole_values_still_verify(
+    citation: dict[str, Any], settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()], flags=[_flag()])
+    llm = FakeLLMClient({PURPOSE: _cite_reply("A fact from what was shown.", citation)})
+    r = _ask(_app(settings, db, llm, monkeypatch), question="Tell me", scope="case")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "answered"
+
+
+def test_older_turns_still_count_toward_the_case_cap(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Memory keeps four turns. The calls before them are still spent on this case."""
+    _case(db, [_invoice()])
+    llm = FakeLLMClient({PURPOSE: _reply("The invoice number is INV-2026-0117.", "INV-2026-0117")})
+    client = _app(settings, db, llm, monkeypatch, max_llm_calls_per_case=5)
+    codes = [_ask(client, question=f"question number {n}").status_code for n in range(6)]
+    assert codes == [200, 200, 200, 200, 200, 429]
+    assert len(llm.calls) == 5
+    with db.conn() as c:
+        rows = c.execute(
+            "SELECT question, answer_json, called FROM assistant_turns ORDER BY id"
+        ).fetchall()
+    assert sum(r["called"] for r in rows) == 5
+    # Four turns keep their words (the refused sixth question is one). The older ones keep a count.
+    assert [r["question"] != "" for r in rows] == [False, False, True, True, True, True]
+    assert all(r["answer_json"] == "" and r["called"] == 1 for r in rows[:2])
+    # The timeline still lists every call Ask made on this version.
+    from app.assistant.memory import cost_rows
+
+    assert len(cost_rows(db, "c_ask", 1)) == 5
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "You should reject this application; the invoice is INV-2026-0117.",
+        "I would recommend approving it, given invoice INV-2026-0117.",
+        "Approve the case: the invoice is INV-2026-0117.",
+    ],
+)
+def test_a_recommendation_is_dropped_whatever_the_question(
+    text: str, settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient({PURPOSE: _reply(text, "INV-2026-0117")})
+    r = _ask(_app(settings, db, llm, monkeypatch), question="Summarise the invoice")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "not_found"
+    assert body["dropped"]["why"]["verdict_language"] == 1
+
+
+def test_a_fact_about_a_cleared_payment_is_still_shown(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient(
+        {PURPOSE: _reply("The payment for INV-2026-0117 cleared in January.", "INV-2026-0117")}
+    )
+    r = _ask(_app(settings, db, llm, monkeypatch), question="When was it paid?")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "answered"
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["Is this fraudulent?", "Is this case fraud?", "Is it fraud?", "Should I approve this?"],
+)
+def test_a_fraud_verdict_question_is_a_decision(question: str) -> None:
+    from app.assistant.ask import is_decision_question
+
+    assert is_decision_question(question)
+    assert not is_decision_question("Which flags mention fraud typologies?")
+
+
+def test_a_row_past_the_row_limit_was_not_shown_and_cannot_be_cited(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.assistant import context as context_mod
+
+    doc = make_doc(
+        "bank_statement",
+        id="d1",
+        file_id="f1",
+        tables={
+            "transactions": [
+                {"date": "2026-01-04", "description": "FIRST CREDIT", "credit": "10.00"},
+                {"date": "2026-01-05", "description": "HIDDEN CREDIT", "credit": "20.00"},
+            ]
+        },
+    )
+    _case(db, [doc])
+    monkeypatch.setattr(context_mod, "MAX_ROWS", 1)
+    hidden = doc.tables["transactions"].rows[1].index
+    llm = FakeLLMClient(
+        {
+            PURPOSE: _cite_reply(
+                "A second credit came in.",
+                {
+                    "file_id": "f1",
+                    "page": 1,
+                    "table": "transactions",
+                    "row": hidden,
+                    "quote": "HIDDEN CREDIT",
+                },
+            )
+        }
+    )
+    r = _ask(_app(settings, db, llm, monkeypatch), question="What came in?")
+    assert r.status_code == 200, r.text
+    assert "HIDDEN CREDIT" not in llm.calls[0].user
+    assert r.json()["status"] == "not_found"
+    assert r.json()["dropped"]["why"].get("not_shown") == 1
+
+
+def test_a_flag_quote_from_past_the_trimmed_evidence_is_dropped(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tail = "the hidden tail of the evidence names a second payer"
+    flag = _flag().model_copy(update={"evidence": "x " * 600 + tail})
+    _case(db, [_invoice()], flags=[flag])
+    llm = FakeLLMClient(
+        {
+            PURPOSE: _cite_reply(
+                "A second payer is named.",
+                {"file_id": "f1", "page": 1, "flag_id": flag.id, "quote": tail},
+            )
+        }
+    )
+    r = _ask(_app(settings, db, llm, monkeypatch), question="Who else paid?")
+    assert r.status_code == 200, r.text
+    assert tail not in llm.calls[0].user
+    assert r.json()["status"] == "not_found"
