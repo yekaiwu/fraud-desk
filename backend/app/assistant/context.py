@@ -191,8 +191,13 @@ def render_team(case: Case) -> str:
             if agent.summary:
                 lines.append(f'summary: "{clean_text(agent.summary, 400)}"')
             for verdict in agent.verdicts:
-                rule = verdict.flag_id.split(".", 1)[0]
-                lines.append(f"verdict {verdict.action} rule {rule}")
+                # The finding in words, not its rule id: the answer is read by a person.
+                flag = next((f for f in case.flags if f.id == verdict.flag_id), None)
+                about = clean_text(flag.explanation, 240) if flag is not None else ""
+                if about:
+                    lines.append(f'verdict {verdict.action} finding: "{about}"')
+                else:
+                    lines.append(f"verdict {verdict.action} on a finding")
                 if verdict.reason:
                     lines.append(f'reason: "{clean_text(verdict.reason, 400)}"')
                 if verdict.quote:
@@ -202,6 +207,27 @@ def render_team(case: Case) -> str:
             for step in agent.next_steps[:3]:
                 lines.append(f'next_step: "{clean_text(step, 240)}"')
     return "\n".join(lines)
+
+
+def rule_ids(case: Case) -> set[str]:
+    """Rule ids and flag ids on this case, lower case. A sentence shown to the officer names none."""
+    ids: set[str] = set()
+    for flag in case.flags:
+        ids.update({flag.rule.lower(), flag.id.lower()})
+    for agent in case.agents:
+        for verdict in agent.verdicts:
+            ids.update({verdict.flag_id.lower(), verdict.flag_id.split(".", 1)[0].lower()})
+    return {i for i in ids if i}
+
+
+def officer_texts(case: Case) -> list[str]:
+    """The case officer's summary and next steps, trimmed exactly as the review-team block shows them."""
+    out: list[str] = []
+    for agent in case.agents:
+        if agent.agent == "case_officer" and agent.status == "ok" and agent.summary:
+            out.append(clean_text(agent.summary, 500))
+            out.extend(clean_text(step, 240) for step in agent.next_steps[:3])
+    return [t for t in out if t]
 
 
 def blocks_for_flags(flags: Sequence[Flag], case: Case) -> str:

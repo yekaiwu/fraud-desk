@@ -835,9 +835,10 @@ def test_older_turns_still_count_toward_the_case_cap(
             "SELECT question, answer_json, called FROM assistant_turns ORDER BY id"
         ).fetchall()
     assert sum(r["called"] for r in rows) == 5
-    # Four turns keep their words (the refused sixth question is one). The older ones keep a count.
-    assert [r["question"] != "" for r in rows] == [False, False, True, True, True, True]
-    assert all(r["answer_json"] == "" and r["called"] == 1 for r in rows[:2])
+    # The refused sixth question spent nothing and is not a row. Four turns keep their words; the
+    # oldest keeps only its count.
+    assert [r["question"] != "" for r in rows] == [False, True, True, True, True]
+    assert rows[0]["answer_json"] == "" and rows[0]["called"] == 1
     # The timeline still lists every call Ask made on this version.
     from app.assistant.memory import cost_rows
 
@@ -945,3 +946,167 @@ def test_a_flag_quote_from_past_the_trimmed_evidence_is_dropped(
     assert r.status_code == 200, r.text
     assert tail not in llm.calls[0].user
     assert r.json()["status"] == "not_found"
+
+
+def _team_case(db: Database) -> Case:
+    from app.core.models import AgentReport, AgentVerdict
+
+    case = _case(db, [_invoice()], flags=[_flag()])
+    case.agents = [
+        AgentReport(
+            agent="challenger",
+            role="Argues the innocent reading",
+            status="ok",
+            verdicts=[
+                AgentVerdict(
+                    flag_id="x_remitter_vs_buyer.d1.0",
+                    verdict="doubtful",
+                    action="lowered",
+                    reason="The contract allows payment by named affiliates.",
+                )
+            ],
+        ),
+        AgentReport(
+            agent="case_officer",
+            role="Writes the summary",
+            status="ok",
+            summary="One payer is not the buyer named on the invoice.",
+            next_steps=["Escalate the case to compliance for enhanced due diligence."],
+        ),
+    ]
+    db.save_case(case)
+    return case
+
+
+def test_a_sentence_that_names_a_rule_id_is_not_shown(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The model sees flag ids so it can cite them. The officer reads prose without them."""
+    _team_case(db)
+    cite = {
+        "file_id": "f1",
+        "page": 1,
+        "flag_id": "x_remitter_vs_buyer.d1.0",
+        "quote": "The payer is not the buyer.",
+    }
+    llm = FakeLLMClient(
+        {
+            PURPOSE: {
+                "status": "answered",
+                "sentences": [
+                    {"text": "The challenger lowered x_remitter_vs_buyer.", "citations": [cite]},
+                    {"text": "Flag X_REMITTER_VS_BUYER.d1.0 is open.", "citations": [cite]},
+                ],
+            }
+        }
+    )
+    r = _ask(_app(settings, db, llm, monkeypatch), question="what did the challenger reduce")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["dropped"]["why"]["rule_id"] == 2
+    # Both sentences went, so the recorded verdicts answer in plain words instead.
+    assert body["status"] == "answered"
+    text = " ".join(s["text"] for s in body["sentences"])
+    assert "named affiliates" in text and "x_remitter" not in text.lower()
+    # The review-team block names the finding in words, not by its rule id.
+    team = llm.calls[0].user[llm.calls[0].user.index("verdict lowered") :]
+    assert team.startswith('verdict lowered finding: "The payer is not the buyer named')
+
+
+def test_a_rule_id_in_the_challengers_reason_is_left_out_of_the_fallback(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = _team_case(db)
+    case.agents[0].verdicts[0].reason = "x_remitter_vs_buyer is explained by the contract."
+    db.save_case(case)
+    llm = FakeLLMClient({PURPOSE: {"status": "not_found", "sentences": []}})
+    r = _ask(_app(settings, db, llm, monkeypatch), question="what did the challenger lower")
+    assert r.status_code == 200, r.text
+    text = " ".join(s["text"] for s in r.json()["sentences"])
+    assert "lowered one finding" in text and "x_remitter" not in text
+
+
+def _team_cite(quote: str) -> dict[str, Any]:
+    return {"file_id": "", "page": 1, "worklist_id": "review-team", "quote": quote}
+
+
+def test_the_case_officers_next_step_can_be_relayed(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _team_case(db)
+    step = "Escalate the case to compliance for enhanced due diligence."
+    relayed = "The case officer's next step is to escalate the case to compliance."
+    llm = FakeLLMClient({PURPOSE: _cite_reply(relayed, _team_cite(step))})
+    r = _ask(_app(settings, db, llm, monkeypatch), question="What does the team suggest next?")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "answered"
+    assert r.json()["sentences"][0]["text"] == relayed
+
+
+@pytest.mark.parametrize(
+    ("text", "quote"),
+    [
+        # The assistant's own voice, even when the quote is the officer's.
+        (
+            "Escalate the case to compliance.",
+            "Escalate the case to compliance for enhanced due diligence.",
+        ),
+        # Names the officer, but the verdict is not in what the officer wrote.
+        (
+            "The case officer says you should reject this application.",
+            "One payer is not the buyer named on the invoice.",
+        ),
+        # The quote is the challenger's reason, not the officer's words.
+        (
+            "The case officer would approve the case.",
+            "The contract allows payment by named affiliates.",
+        ),
+    ],
+)
+def test_a_recommendation_not_in_the_officers_words_is_still_dropped(
+    text: str, quote: str, settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _team_case(db)
+    llm = FakeLLMClient({PURPOSE: _cite_reply(text, _team_cite(quote))})
+    r = _ask(_app(settings, db, llm, monkeypatch), question="What next?")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "not_found"
+    assert r.json()["dropped"]["why"]["verdict_language"] == 1
+
+
+def test_a_refused_question_does_not_take_a_memory_slot(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient({PURPOSE: _reply("The invoice number is INV-2026-0117.", "INV-2026-0117")})
+    client = _app(settings, db, llm, monkeypatch, max_usd_per_user_per_day=Decimal("1.00"))
+    assert _ask(client, question="first answered question").status_code == 200
+    with db.conn() as c:
+        c.execute(
+            "INSERT INTO daily_spend_user (day, account, micro_usd) VALUES (?, ?, ?)",
+            ("2026-10-27", WHO, 1_000_000),
+        )
+    assert _ask(client, question="refused for budget").status_code == 429
+    with db.conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM assistant_turns").fetchone()[0] == 1
+        c.execute("DELETE FROM daily_spend_user")
+    assert _ask(client, question="next question").status_code == 200
+    last = llm.calls[-1].user
+    assert "first answered question" in last
+    assert "refused for budget" not in last
+
+
+def test_a_failed_call_counts_but_is_not_remembered(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    client = _app(settings, db, FakeLLMClient({}), monkeypatch)  # no fixture: the call fails
+    r = _ask(client, question="the model is down")
+    assert r.status_code == 503, r.text
+    with db.conn() as c:
+        row = c.execute("SELECT question, answer_json, called FROM assistant_turns").fetchone()
+    assert (row["question"], row["answer_json"], row["called"]) == ("", "", 1)
+    from app.assistant.memory import prior_spend, recent
+
+    assert prior_spend(db, "c_ask")[0] == 1
+    assert recent(db, account=WHO, case_id="c_ask", version=1) == []

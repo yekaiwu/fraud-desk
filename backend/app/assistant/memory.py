@@ -62,6 +62,7 @@ def remember(
     question: str,
     status: str,
     answer: dict[str, Any],
+    keep_words: bool = True,
     citations_kept: int,
     citations_dropped: int,
     dropped: dict[str, int],
@@ -75,7 +76,10 @@ def remember(
     ts: str,
 ) -> None:
     """Append one turn. Older than the four kept for this officer and version, a turn loses its
-    question and answer. One that reserved a call stays as a count for the case cap."""
+    question and answer. One that reserved a call stays as a count for the case cap.
+
+    ``keep_words=False`` stores only the counts: a question that failed after a call is spent on
+    the case but is not a turn of memory, and does not push an answered turn out."""
     digest = sha256_text(question)
     ctx = _ctx(account, case_id, version, digest)
     payload = json.dumps(answer, ensure_ascii=False, sort_keys=True)
@@ -95,11 +99,11 @@ def remember(
                 scope,
                 file_id,
                 page,
-                db.vault.seal_text(question, ctx),
+                db.vault.seal_text(question, ctx) if keep_words else "",
                 digest,
                 len(question),
                 status,
-                db.vault.seal_text(payload, ctx),
+                db.vault.seal_text(payload, ctx) if keep_words else "",
                 citations_kept,
                 citations_dropped,
                 json.dumps(dropped, sort_keys=True),

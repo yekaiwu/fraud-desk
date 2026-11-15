@@ -71,6 +71,37 @@ _RECOMMENDATION = re.compile(
 )
 
 
+def _names_rule(text: str, ids: set[str]) -> bool:
+    """True when the sentence names a rule id or flag id from this case (``x_remitter_vs_buyer``)."""
+    lowered = text.lower()
+    for rid in ids:
+        if re.search(r"(?<![A-Za-z0-9_])" + re.escape(rid) + r"(?![A-Za-z0-9_])", lowered):
+            return True
+    return False
+
+
+def _relays_officer(text: str, kept: Sequence[Mapping[str, Any]], officer: Sequence[str]) -> bool:
+    """True when every recommendation in the sentence is the case officer's recorded words.
+
+    "The case officer's next step is to escalate the case to compliance" relays a next step, cited
+    from the review team. The sentence must name the case officer, and each recommending phrase
+    must sit inside a cited quote that is itself the officer's summary or a next step.
+    """
+    if "case officer" not in norm(text):
+        return False
+    officer_n = [norm(t) for t in officer]
+    quotes = [
+        norm(str(c.get("quote") or ""))
+        for c in kept
+        if c.get("worklist_id") == "review-team"
+        and any(norm(str(c.get("quote") or "")) in t for t in officer_n)
+    ]
+    quotes = [q for q in quotes if q]
+    if not quotes:
+        return False
+    return all(any(norm(m.group(0)) in q for q in quotes) for m in _RECOMMENDATION.finditer(text))
+
+
 def is_decision_question(question: str) -> bool:
     """True when the officer is asking the tool to decide. The reply is then fixed."""
     return _DECISION.search(question) is not None
@@ -344,6 +375,8 @@ def verify_reply(
         raw_sentences = []
     citations_kept = 0
     citations_dropped = 0
+    ids = context_mod.rule_ids(case)
+    officer = context_mod.officer_texts(case)
     for raw in raw_sentences:
         if len(sentences) >= SENTENCE_MAX:
             dropped["over_limit"] += 1
@@ -356,25 +389,37 @@ def verify_reply(
             dropped["bad_shape"] += 1
             continue
         text = clean_text(raw["text"], TEXT_MAX)
-        if (decision and _VERDICT_WORD.search(text)) or _RECOMMENDATION.search(text):
+        if decision and _VERDICT_WORD.search(text):
             dropped["verdict_language"] += 1
+            continue
+        if _names_rule(text, ids):
+            # The screen shows prose. A rule id is a label for the check, not words for a person.
+            dropped["rule_id"] += 1
             continue
         cites_raw = raw.get("citations")
         if not isinstance(cites_raw, list) or not cites_raw:
             dropped["no_citation"] += 1
             continue
         kept: list[dict[str, Any]] = []
+        failed: list[str] = []
         for item in cites_raw[:MAX_CITATIONS]:
             citation, reason = _check_citation(item, docs, flags, case, work)
             if citation is None:
-                citations_dropped += 1
-                dropped[reason or "bad_shape"] += 1
+                failed.append(reason or "bad_shape")
                 continue
             kept.append(citation)
-            citations_kept += 1
+        if _RECOMMENDATION.search(text) and not _relays_officer(text, kept, officer):
+            # A verdict recommended in the assistant's own voice. Relaying the case officer's
+            # recorded next step, cited, is allowed.
+            dropped["verdict_language"] += 1
+            continue
+        citations_dropped += len(failed)
+        for reason in failed:
+            dropped[reason] += 1
         if not kept:
             dropped["no_citation"] += 1
             continue
+        citations_kept += len(kept)
         sentences.append({"text": text, "citations": kept})
     model_status = reply.get("status")
     if decision or model_status == "decision_request":
@@ -426,7 +471,12 @@ def _from_challenger(case: Case, question: str) -> dict[str, Any] | None:
             }
         )
     else:
-        reasons = [clean_text(v.reason, 240) for v in lowered if v.reason]
+        ids = context_mod.rule_ids(case)
+        reasons = [
+            clean_text(v.reason, 240)
+            for v in lowered
+            if v.reason and not _names_rule(v.reason, ids)
+        ]
         lead = (
             "The challenger lowered one finding."
             if len(lowered) == 1
@@ -714,6 +764,7 @@ def answer(
     if public["status"] == "not_found" and not decision:
         filled = _from_challenger(case, question)
         if filled is not None:
+            filled["dropped"] = public["dropped"]  # what the model said that was not shown
             public = filled
     memory.remember(
         db,
@@ -805,6 +856,11 @@ def _remember_failure(
     seeded: int = 0,
 ) -> None:
     called, model, prompt_tokens, completion_tokens, seconds, usd = _from_meter(meter, seeded)
+    if called == 0:
+        # Nothing was spent (a full budget refuses before the call). The audit row records it.
+        return
+    # A call was made and must count toward the case cap. The question is not a turn the next
+    # question should read: it got no answer, so its words are not kept.
     memory.remember(
         db,
         account=account,
@@ -814,6 +870,7 @@ def _remember_failure(
         file_id=file_id,
         page=page,
         question=question,
+        keep_words=False,
         status=status,
         answer={"status": status, "sentences": [], "message": None, "preamble": None},
         citations_kept=0,
