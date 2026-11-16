@@ -35,6 +35,7 @@ from app.core.llm import LLMClient, LLMRequest, wrap_untrusted
 from app.core.models import Case, Document, Flag, clean_text
 from app.core.privacy import PrivateModeViolation
 from app.semantic.claims import MAX_CITATIONS, _verify_citation, norm
+from app.semantic.render import shown
 
 SENTENCE_MAX = 4
 TEXT_MAX = 400
@@ -76,6 +77,86 @@ def _names_rule(text: str, ids: set[str]) -> bool:
     lowered = text.lower()
     for rid in ids:
         if re.search(r"(?<![A-Za-z0-9_])" + re.escape(rid) + r"(?![A-Za-z0-9_])", lowered):
+            return True
+    return False
+
+
+# A background sentence is general knowledge with no citation. It may not talk about this case.
+_CASE_TALK = re.compile(
+    r"\b(?:this|your)\s+case\b|\bthe\s+case\b(?!\s+of)|\b(?:this|your|the)\s+(?:applicant|worklist)\b"
+    r"|\b(?:this|your)\s+(?:company|customer|client|document|file|page|statement|invoice|receipt"
+    r"|flag|finding|bundle|upload|scan|photo|id|card|passport|contract)\b"
+    r"|\bon\s+(?:the\s+)?(?:screen|worklist)\b",
+    re.IGNORECASE,
+)
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+CASE_NUMBER_MIN_DIGITS = 3
+CASE_PHRASE_MIN = 4
+
+
+def _digits(token: str) -> str:
+    return token.replace(",", "").rstrip(".")
+
+
+def case_values(
+    case: Case, docs: Sequence[Document], work: Sequence[Mapping[str, Any]]
+) -> tuple[set[str], set[str]]:
+    """(phrases, numbers) the model was shown on this case: cell values, flag text, the worklist.
+
+    A background sentence that repeats one of them is a case fact with no citation, so it is dropped.
+    """
+    texts: list[str] = []
+    for doc in docs:
+        for cell in doc.fields.values():
+            texts.append(shown(cell))
+        for table in doc.tables.values():
+            for row in table.rows:
+                texts.extend(shown(cell) for cell in row.cells.values())
+    for flag in case.flags:
+        texts.extend([flag.evidence or "", flag.explanation or ""])
+    phrases: set[str] = set()
+    for text in texts:
+        text_n = norm(text)
+        flat = re.sub(r"[^a-z0-9]+", " ", text_n).strip()
+        # A value that is a name, an id or an amount. A lone common word ("payment") is not one.
+        specific = any(ch.isdigit() for ch in flat) or (len(flat.split()) >= 2 and len(flat) >= 6)
+        if specific and CASE_PHRASE_MIN <= len(text_n) <= 80:
+            phrases.add(text_n)
+    for item in work:
+        if item.get("case_id") in ("service", "review-team"):
+            continue
+        for key in ("reference", "applicant"):
+            value = norm(str(item.get(key) or ""))
+            if len(value) >= CASE_PHRASE_MIN:
+                phrases.add(value)
+        texts.append(str(item.get("top_finding") or ""))
+    numbers: set[str] = set()
+    for text in texts:
+        for token in _NUMBER.findall(text):
+            d = _digits(token)
+            if sum(ch.isdigit() for ch in d) >= CASE_NUMBER_MIN_DIGITS:
+                numbers.add(d)
+    # Flag explanations are the check's own template words, not a case value. Only a short value
+    # (a name, an id, an amount) counts as a phrase.
+    phrases -= {norm(f.explanation or "") for f in case.flags}
+    phrases -= {norm(f.evidence or "") for f in case.flags if len(norm(f.evidence or "")) > 40}
+    return phrases, numbers
+
+
+def _talks_about_case(text: str, values: tuple[set[str], set[str]]) -> bool:
+    """True when a background sentence refers to this case or repeats something shown on it."""
+    if _CASE_TALK.search(text):
+        return True
+    phrases, numbers = values
+    text_n = norm(text)
+    padded = f" {re.sub(r'[^a-z0-9]+', ' ', text_n)} "
+    for phrase in phrases:
+        flat = re.sub(r"[^a-z0-9]+", " ", phrase).strip()
+        if len(flat) >= CASE_PHRASE_MIN and f" {flat} " in padded:
+            return True
+    for token in _NUMBER.findall(text):
+        d = _digits(token)
+        if sum(ch.isdigit() for ch in d) >= CASE_NUMBER_MIN_DIGITS and d in numbers:
             return True
     return False
 
@@ -377,6 +458,7 @@ def verify_reply(
     citations_dropped = 0
     ids = context_mod.rule_ids(case)
     officer = context_mod.officer_texts(case)
+    values = case_values(case, docs, work)
     for raw in raw_sentences:
         if len(sentences) >= SENTENCE_MAX:
             dropped["over_limit"] += 1
@@ -397,12 +479,25 @@ def verify_reply(
             dropped["rule_id"] += 1
             continue
         cites_raw = raw.get("citations")
-        if not isinstance(cites_raw, list) or not cites_raw:
+        cites_list: list[Any] = cites_raw if isinstance(cites_raw, list) else []
+        no_cites = not cites_list
+        if no_cites and raw.get("background") is True:
+            # General knowledge, labelled as such. It carries no case fact, no verdict and no rule id.
+            if decision:
+                dropped["background_on_decision"] += 1
+            elif _RECOMMENDATION.search(text):
+                dropped["verdict_language"] += 1
+            elif _talks_about_case(text, values):
+                dropped["case_fact_in_background"] += 1
+            else:
+                sentences.append({"text": text, "citations": [], "background": True})
+            continue
+        if no_cites:
             dropped["no_citation"] += 1
             continue
         kept: list[dict[str, Any]] = []
         failed: list[str] = []
-        for item in cites_raw[:MAX_CITATIONS]:
+        for item in cites_list[:MAX_CITATIONS]:
             citation, reason = _check_citation(item, docs, flags, case, work)
             if citation is None:
                 failed.append(reason or "bad_shape")
@@ -422,10 +517,13 @@ def verify_reply(
         citations_kept += len(kept)
         sentences.append({"text": text, "citations": kept})
     model_status = reply.get("status")
+    cited_sentences = [s for s in sentences if not s.get("background")]
     if decision or model_status == "decision_request":
         status = "decision_request"
-    elif sentences:
+    elif cited_sentences:
         status = "answered"
+    elif sentences:
+        status = "general"
     else:
         status = "not_found"
     cited_docs = {
@@ -454,6 +552,20 @@ def _from_challenger(case: Case, question: str) -> dict[str, Any] | None:
     ):
         return None
     report = next((a for a in case.agents if a.agent == "challenger"), None)
+    if report is not None and report.status == "skipped":
+        # Nothing was argued, so nothing was lowered. Its own recorded note says why.
+        note = clean_text(report.summary or "", 200)
+        text = "The challenger lowered nothing on this case: it had no judgement flag to argue."
+        return {
+            "status": "answered",
+            "preamble": None,
+            "message": None,
+            "sentences": [
+                {"text": f"{text} Its note says: {note}" if note else text, "citations": []}
+            ],
+            "flags": [],
+            "dropped": {"citations_kept": 0, "citations_dropped": 0, "why": {}},
+        }
     if report is None or report.status != "ok":
         return None
     lowered = [v for v in report.verdicts if v.action == "lowered"]
@@ -598,7 +710,10 @@ def _earlier_answer(turn: Mapping[str, Any]) -> str:
     if isinstance(sentences, list):
         for sentence in sentences:
             if isinstance(sentence, dict) and isinstance(sentence.get("text"), str):
-                lines.append(sentence["text"])
+                tag = (
+                    "(general background, not from the case) " if sentence.get("background") else ""
+                )
+                lines.append(tag + sentence["text"])
     if answer.get("message"):
         lines.append(str(answer["message"]))
     return "\n".join(lines) or NOT_FOUND
@@ -657,7 +772,11 @@ def _stored_answer(public: Mapping[str, Any]) -> dict[str, Any]:
         "preamble": public["preamble"],
         "message": public["message"],
         "sentences": [
-            {"text": s["text"], "citations": [{"quote": c["quote"]} for c in s["citations"]]}
+            {
+                "text": s["text"],
+                "citations": [{"quote": c["quote"]} for c in s["citations"]],
+                **({"background": True} if s.get("background") else {}),
+            }
             for s in public["sentences"]
         ],
     }

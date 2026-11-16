@@ -1110,3 +1110,259 @@ def test_a_failed_call_counts_but_is_not_remembered(
 
     assert prior_spend(db, "c_ask")[0] == 1
     assert recent(db, account=WHO, case_id="c_ask", version=1) == []
+
+
+# ------------------------------------------------------------------ general background
+
+
+def _background(*texts: str, status: str = "answered") -> dict[str, Any]:
+    return {
+        "status": status,
+        "sentences": [{"text": t, "background": True, "citations": []} for t in texts],
+    }
+
+
+GENERAL_Q = "so normally does a national id recompress evenly"
+GENERAL_A = (
+    "A page saved once as a JPEG is compressed fairly evenly, so a resave shows a similar error "
+    "level almost everywhere.",
+    "A pasted area with its own compression history can stand out, but honest scans show it too.",
+)
+
+
+def test_a_general_question_gets_a_labelled_answer_with_no_citation(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()], flags=[_flag()])
+    before = _body_column(db)
+    llm = FakeLLMClient({PURPOSE: _background(*GENERAL_A)})
+    r = _ask(_app(settings, db, llm, monkeypatch), question=GENERAL_Q)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "general"
+    assert body["message"] is None
+    assert [s["text"] for s in body["sentences"]] == list(GENERAL_A)
+    assert all(s["background"] is True and s["citations"] == [] for s in body["sentences"])
+    assert body["flags"] == []
+    assert _body_column(db) == before  # still read-only
+
+
+def test_a_background_sentence_that_repeats_a_case_value_is_dropped(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fact about the case with no citation must not get through as 'general'."""
+    _case(db, [_invoice()], flags=[_flag()])
+    llm = FakeLLMClient(
+        {
+            PURPOSE: _background(
+                "Invoice INV-2026-0117 is the kind that gets recompressed.",
+                "Page 0117 shows an uneven error level.",
+                "About 165 bytes are usually appended.",
+            )
+        }
+    )
+    # the invoice number as a phrase, a number from it, and a number from a flag
+    case = db.load_case("c_ask")
+    case.flags[0].evidence = "165 bytes follow the last signed revision"
+    db.save_case(case)
+    r = _ask(_app(settings, db, llm, monkeypatch), question=GENERAL_Q)
+    body = r.json()
+    assert body["status"] == "not_found"
+    assert body["sentences"] == []
+    assert body["message"] == NOT_FOUND
+    assert body["dropped"]["why"]["case_fact_in_background"] == 3
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "In this case the photo has been swapped.",
+        "The applicant's ID was edited after it was saved.",
+        "Your document was recompressed unevenly.",
+        "The flag on screen is a false alarm.",
+    ],
+)
+def test_a_background_sentence_about_the_case_is_dropped(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch, text: str
+) -> None:
+    _case(db, [_invoice()], flags=[_flag()])
+    llm = FakeLLMClient({PURPOSE: _background(text)})
+    body = _ask(_app(settings, db, llm, monkeypatch), question=GENERAL_Q).json()
+    assert body["status"] == "not_found"
+    assert body["dropped"]["why"]["case_fact_in_background"] == 1
+
+
+def test_a_phrase_like_in_the_case_of_is_not_mistaken_for_the_case(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()], flags=[_flag()])
+    text = "In the case of a JPEG, quality 90 and 8 by 8 blocks are common."
+    llm = FakeLLMClient({PURPOSE: _background(text)})
+    body = _ask(_app(settings, db, llm, monkeypatch), question=GENERAL_Q).json()
+    assert body["status"] == "general"
+    assert body["sentences"][0]["text"] == text
+
+
+def test_a_background_sentence_keeps_the_rule_id_and_verdict_rules(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()], flags=[_flag()])
+    llm = FakeLLMClient(
+        {
+            PURPOSE: _background(
+                "A check like x_remitter_vs_buyer compares two names.",
+                "You should reject an applicant whose scan looks uneven.",
+                "A scan saved once is compressed fairly evenly.",
+            )
+        }
+    )
+    body = _ask(_app(settings, db, llm, monkeypatch), question=GENERAL_Q).json()
+    assert [s["text"] for s in body["sentences"]] == [
+        "A scan saved once is compressed fairly evenly."
+    ]
+    why = body["dropped"]["why"]
+    assert why["rule_id"] == 1 and why["verdict_language"] == 1
+
+
+def test_a_sentence_without_a_citation_and_without_the_background_flag_is_still_dropped(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    reply = {"status": "answered", "sentences": [{"text": GENERAL_A[0], "citations": []}]}
+    llm = FakeLLMClient({PURPOSE: reply})
+    body = _ask(_app(settings, db, llm, monkeypatch), question=GENERAL_Q).json()
+    assert body["status"] == "not_found"
+    assert body["dropped"]["why"]["no_citation"] == 1
+
+
+def test_a_decision_question_never_gets_background_text(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()], flags=[_flag()])
+    reply = {
+        "status": "answered",
+        "sentences": [
+            {"text": "Scans are usually compressed evenly.", "background": True, "citations": []},
+            {
+                "text": "The invoice number is INV-2026-0117.",
+                "citations": [
+                    {
+                        "file_id": "f1",
+                        "page": 1,
+                        "field": "invoice_number",
+                        "quote": "INV-2026-0117",
+                    }
+                ],
+            },
+        ],
+    }
+    llm = FakeLLMClient({PURPOSE: reply})
+    body = _ask(_app(settings, db, llm, monkeypatch), question="Should I approve this?").json()
+    assert body["status"] == "decision_request"
+    assert [s["text"] for s in body["sentences"]] == ["The invoice number is INV-2026-0117."]
+    assert body["dropped"]["why"]["background_on_decision"] == 1
+
+
+def test_a_mixed_question_keeps_the_cited_part_and_labels_the_general_part(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    reply = {
+        "status": "answered",
+        "sentences": [
+            {"text": GENERAL_A[0], "background": True, "citations": []},
+            {
+                "text": "The invoice number is INV-2026-0117.",
+                "background": False,
+                "citations": [
+                    {
+                        "file_id": "f1",
+                        "page": 1,
+                        "field": "invoice_number",
+                        "quote": "INV-2026-0117",
+                    }
+                ],
+            },
+        ],
+    }
+    llm = FakeLLMClient({PURPOSE: reply})
+    body = _ask(
+        _app(settings, db, llm, monkeypatch), question="Is recompression even, and who paid?"
+    ).json()
+    assert body["status"] == "answered"
+    assert [bool(s.get("background")) for s in body["sentences"]] == [True, False]
+    assert body["sentences"][1]["citations"][0]["field"] == "invoice_number"
+
+
+def test_a_background_answer_is_audited_by_hash_counts_and_is_marked_for_the_next_turn(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient({PURPOSE: _background(*GENERAL_A)})
+    client = _app(settings, db, llm, monkeypatch)
+    assert _ask(client, question=GENERAL_Q).json()["status"] == "general"
+    rows = [row for row in read_audit(db, "c_ask") if row["action"] == "assistant.asked"]
+    detail = rows[0]["detail"]
+    blob = json.dumps(detail)
+    assert detail["status"] == "general"
+    assert GENERAL_Q not in blob and GENERAL_A[0] not in blob
+    assert detail["question_sha256"] == sha256_text(GENERAL_Q)
+    # The next question sees the earlier answer, marked as background and not as a case fact.
+    _ask(client, question="and a second thing")
+    assert "(general background, not from the case) " + GENERAL_A[0] in llm.calls[-1].user
+
+
+def test_a_background_answer_counts_toward_the_case_cap(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _case(db, [_invoice()])
+    llm = FakeLLMClient({PURPOSE: _background(*GENERAL_A)})
+    client = _app(settings, db, llm, monkeypatch)
+    assert _ask(client, question=GENERAL_Q).json()["status"] == "general"
+    from app.assistant.memory import prior_spend
+
+    assert prior_spend(db, "c_ask")[0] == 1
+
+
+def test_the_prompt_tells_the_model_how_to_answer_a_general_question() -> None:
+    from app.assistant.prompts import SYSTEM, reply_schema
+
+    assert "General background" in SYSTEM
+    schema = reply_schema()
+    sentence = schema["properties"]["sentences"]["items"]
+    assert sentence["properties"]["background"] == {"type": "boolean"}
+    assert "background" not in sentence["required"]
+
+
+def test_a_skipped_challenger_is_answered_in_plain_words_when_the_model_cannot_cite_it(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live: Haiku answered correctly but left the worklist id off both citations, so nothing showed."""
+    from app.core.models import AgentReport
+
+    case = _case(db, [_invoice()])
+    case.agents = [
+        AgentReport(
+            agent="challenger",
+            role="Argues the innocent reading",
+            status="skipped",
+            summary="No judgement flags to argue.",
+        )
+    ]
+    db.save_case(case)
+    bad = {
+        "status": "answered",
+        "sentences": [
+            {
+                "text": "No, the challenger did not lower anything.",
+                "citations": [{"file_id": "", "page": 1, "quote": "challenger status skipped"}],
+            }
+        ],
+    }
+    llm = FakeLLMClient({PURPOSE: bad})
+    body = _ask(
+        _app(settings, db, llm, monkeypatch), question="did the challenger lower anything?"
+    ).json()
+    assert body["status"] == "answered"
+    text = " ".join(s["text"] for s in body["sentences"])
+    assert "lowered nothing" in text and "No judgement flags to argue." in text

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { useId, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import { askCase } from "@/lib/api";
 import { explainError, isApiError } from "@/lib/errors";
 import type { Me } from "@/lib/api";
@@ -11,6 +11,7 @@ import { Button } from "../ui/Button";
 import { Notice } from "../ui/Notice";
 
 const QUESTION_MAX = 500;
+export const BACKGROUND_LABEL = "General background, not from this case";
 
 /** Three questions built from what this case actually contains. */
 export function suggestionQuestions(c: CaseDetail): string[] {
@@ -179,7 +180,7 @@ export function AskPanel({
           maxLength={QUESTION_MAX}
           rows={3}
           onChange={(ev) => setQuestion(ev.target.value)}
-          placeholder="Ask about the documents on screen"
+          placeholder="Ask about this case, or how something works in general"
           className="w-full rounded-md border border-rule-strong bg-surface px-3 py-2 text-base text-ink shadow-paper placeholder:text-muted focus:outline-2 focus:outline-offset-2 focus:outline-brand-2"
         />
         <div className="flex items-center justify-between gap-3">
@@ -201,9 +202,12 @@ export function AskPanel({
           <p className="label-caps">Answer</p>
           {answer.preamble ? <p className="mt-1 text-[0.9375rem] leading-normal text-ink">{answer.preamble}</p> : null}
           {answer.sentences.map((sentence, i) => (
-            <p key={i} className="mt-2 text-[0.9375rem] leading-normal text-ink">
-              {sentence.text}
-            </p>
+            <Fragment key={i}>
+              {sentence.background && !answer.sentences[i - 1]?.background ? (
+                <p className="label-caps mt-3 text-muted">{BACKGROUND_LABEL}</p>
+              ) : null}
+              <p className="mt-2 text-[0.9375rem] leading-normal text-ink">{sentence.text}</p>
+            </Fragment>
           ))}
           {answer.message ? <p className="mt-2 text-[0.9375rem] leading-normal text-ink">{answer.message}</p> : null}
           <p className="mt-2 text-xs text-muted">{GENERATED_NOTE}</p>
