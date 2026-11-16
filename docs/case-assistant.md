@@ -25,7 +25,7 @@ One cheap-model call per question (purpose `assistant:ask`). It is reserved thro
 
 Private mode uses the local model. A hosted model is refused at startup, and the socket guard still blocks anything else.
 
-A live measurement of ten questions on demo 4 with Claude Haiku was not run for this change. The offline tests use `FakeLLMClient`, which records the call and prices it at zero. To measure: process demo 4 with `GLDB_CASE_ASSISTANT=on` and the Haiku backend, ask the three questions in the demo script plus seven more, and read `prompt_tokens`, `completion_tokens`, `usd` and `seconds` from the timeline or from `assistant_turns`.
+Live check, 16 Nov 2026 (Claude Haiku 5.5 through OpenRouter, demo 1 Clementi Ember, 17 questions): 3 general, 5 about the case, 2 mixed, 3 traps, 2 decision questions and a follow-up pair. Each question cost between $0.0020 and $0.0025 (about a fifth of a cent); the 17 cost $0.037 and analysing the 22 files $0.005. No background sentence repeated a case value. Repeat it with `uv run python backend/scripts/ask_live_check.py --files DIR --use-case aml --cap 0.12`: it copies only the model settings from the env file, uses a throwaway data folder, stops at the cap, and prints PASS or FAIL per question. It spends money, so pytest never runs it. The offline tests use `FakeLLMClient`, which records the call and prices it at zero.
 
 ## Limits
 

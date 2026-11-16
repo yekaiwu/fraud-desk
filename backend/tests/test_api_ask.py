@@ -1332,3 +1332,37 @@ def test_the_prompt_tells_the_model_how_to_answer_a_general_question() -> None:
     sentence = schema["properties"]["sentences"]["items"]
     assert sentence["properties"]["background"] == {"type": "boolean"}
     assert "background" not in sentence["required"]
+
+
+def test_a_skipped_challenger_is_answered_in_plain_words_when_the_model_cannot_cite_it(
+    settings: Settings, db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live: Haiku answered correctly but left the worklist id off both citations, so nothing showed."""
+    from app.core.models import AgentReport
+
+    case = _case(db, [_invoice()])
+    case.agents = [
+        AgentReport(
+            agent="challenger",
+            role="Argues the innocent reading",
+            status="skipped",
+            summary="No judgement flags to argue.",
+        )
+    ]
+    db.save_case(case)
+    bad = {
+        "status": "answered",
+        "sentences": [
+            {
+                "text": "No, the challenger did not lower anything.",
+                "citations": [{"file_id": "", "page": 1, "quote": "challenger status skipped"}],
+            }
+        ],
+    }
+    llm = FakeLLMClient({PURPOSE: bad})
+    body = _ask(
+        _app(settings, db, llm, monkeypatch), question="did the challenger lower anything?"
+    ).json()
+    assert body["status"] == "answered"
+    text = " ".join(s["text"] for s in body["sentences"])
+    assert "lowered nothing" in text and "No judgement flags to argue." in text

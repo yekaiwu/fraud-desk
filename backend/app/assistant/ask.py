@@ -552,6 +552,20 @@ def _from_challenger(case: Case, question: str) -> dict[str, Any] | None:
     ):
         return None
     report = next((a for a in case.agents if a.agent == "challenger"), None)
+    if report is not None and report.status == "skipped":
+        # Nothing was argued, so nothing was lowered. Its own recorded note says why.
+        note = clean_text(report.summary or "", 200)
+        text = "The challenger lowered nothing on this case: it had no judgement flag to argue."
+        return {
+            "status": "answered",
+            "preamble": None,
+            "message": None,
+            "sentences": [
+                {"text": f"{text} Its note says: {note}" if note else text, "citations": []}
+            ],
+            "flags": [],
+            "dropped": {"citations_kept": 0, "citations_dropped": 0, "why": {}},
+        }
     if report is None or report.status != "ok":
         return None
     lowered = [v for v in report.verdicts if v.action == "lowered"]
