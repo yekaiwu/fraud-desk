@@ -127,7 +127,7 @@ def test_three_tables_with_current_prior_and_subtotal_flags() -> None:
 def test_header_fields_basis_company_and_year_end() -> None:
     result, *_ = extract()
     f = {k: c.value for k, c in result.fields.items()}
-    assert f["company_name"] == "Meridian Fastener Supplies Pte. Ltd."
+    assert f["company_name"] == "Meridian Shipping Pte. Ltd."
     assert f["uen"] == "201912345R"
     assert f["period_end"] == "2025-12-31"
     assert f["basis"] == "audited"

@@ -57,7 +57,7 @@ Ruleset `rs-02de835ec068`, today 2026-10-27 (injected, never the wall clock), se
 
 ## 3. Loan bundle
 
-**Story.** Meridian Fastener Supplies Pte. Ltd. prints FY2025 revenue of S$2,400,000.00 against about S$900,000.00 of bank credits; invoices marked paid have no matching receipt; invoices exceed their contract (deck slide 16).
+**Story.** Meridian Shipping Pte. Ltd. prints FY2025 revenue of S$2,400,000.00 against about S$900,000.00 of bank credits; invoices marked paid have no matching receipt; invoices exceed their contract (deck slide 16).
 
 **Clicks.**
 

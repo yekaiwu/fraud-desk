@@ -207,7 +207,7 @@ def test_all_scenarios_build_in_well_under_a_minute_with_the_union_registry(tmp_
     reg = json.loads((tmp_path / "registry.json").read_text())
     names = {e["entity_name"] for e in reg["entities"]}
     assert {
-        "Meridian Fastener Supplies Pte. Ltd.",
+        "Meridian Shipping Pte. Ltd.",
         "Sembrook Freight Pte. Ltd.",
         "Tanjong Ridge Trading Pte. Ltd.",
         "Kestrel Capital Holdings Pte. Ltd.",

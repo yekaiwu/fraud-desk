@@ -102,11 +102,11 @@ def r13(b: Bundle, rng: random.Random) -> Outcome:
 def r14(b: Bundle, rng: random.Random) -> Outcome:
     ss = stmts(b)
     for s in ss.stmts[:3]:
-        it = find(s.edit.items(0), "MERIDIAN FASTENER SUPPLIES PTE. LTD.")
-        s.edit.set_text(it, "MERIDIAN FASTENER SUPPLY PTE. LTD.", align="left")
+        it = find(s.edit.items(0), "MERIDIAN SHIPPING PTE. LTD.")
+        s.edit.set_text(it, "MERIDIAN SHIPPNG PTE. LTD.", align="left")
     ss.write_back(b.files)
     return Outcome(
-        "Three statements show 'SUPPLY' instead of 'SUPPLIES' as the account holder; the UEN printed is still the applicant's.",
+        "Three statements show 'SHIPPNG' instead of 'SHIPPING' as the account holder; the UEN printed is still the applicant's.",
         [s.name for s in ss.stmts[:3]],
     )
 
@@ -119,7 +119,7 @@ def r14(b: Bundle, rng: random.Random) -> Outcome:
 def r15(b: Bundle, rng: random.Random) -> Outcome:
     ss = stmts(b)
     for s in ss.stmts[:3]:
-        it = find(s.edit.items(0), "MERIDIAN FASTENER SUPPLIES PTE. LTD.")
+        it = find(s.edit.items(0), "MERIDIAN SHIPPING PTE. LTD.")
         s.edit.set_text(it, "BRIGHTWELL COMPONENTS PTE. LTD.", align="left")
         u = [i for i in s.edit.items(0) if i.text.startswith("UEN:")][0]
         s.edit.set_text(u, "UEN: 201522334G", align="left")

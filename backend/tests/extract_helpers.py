@@ -171,7 +171,7 @@ class Txn:
 @dataclass
 class StatementSpec:
     layout: str = "dbs"  # dbs | ocbc | uob | software
-    holder: str = "Meridian Fastener Supplies Pte. Ltd."
+    holder: str = "Meridian Shipping Pte. Ltd."
     account: str = "123-456-789-0"
     uen: str = "201912345R"
     start: date = date(2026, 3, 1)
@@ -464,7 +464,7 @@ def render_invoice(
     c = canvas.Canvas(buf, pagesize=A4, invariant=1)
     y = PAGE_H - 50
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(40, y, "Meridian Fastener Supplies Pte. Ltd.")
+    c.drawString(40, y, "Meridian Shipping Pte. Ltd.")
     c.setFont("Helvetica", 10)
     y -= 16
     c.drawString(40, y, "UEN: 201912345R")
@@ -546,7 +546,7 @@ def render_po() -> bytes:
         ("Delivery Date:", "15 Mar 2026"),
         ("Buyer:", "Orchid Bay Holdings Pte. Ltd."),
         ("Buyer UEN:", "202012345H"),
-        ("Supplier:", "Meridian Fastener Supplies Pte. Ltd."),
+        ("Supplier:", "Meridian Shipping Pte. Ltd."),
         ("Supplier UEN:", "201912345R"),
         ("Contract Ref:", "CT-2026-01"),
         ("Currency:", "SGD"),
@@ -597,7 +597,7 @@ def render_contract(*, labelled: bool = True) -> bytes:
             ("Agreement Date:", "01 Feb 2026"),
             ("Effective Date:", "01 Mar 2026"),
             ("Expiry Date:", "28 Feb 2027"),
-            ("Seller:", "Meridian Fastener Supplies Pte. Ltd."),
+            ("Seller:", "Meridian Shipping Pte. Ltd."),
             ("Seller UEN:", "201912345R"),
             ("Buyer:", "Orchid Bay Holdings Pte. Ltd."),
             ("Buyer UEN:", "202012345H"),
@@ -609,7 +609,7 @@ def render_contract(*, labelled: bool = True) -> bytes:
             c.drawString(150, y, value)
             y -= 14
         y -= 20
-        c.drawString(40, y, "Signed for and on behalf of Meridian Fastener Supplies Pte. Ltd.")
+        c.drawString(40, y, "Signed for and on behalf of Meridian Shipping Pte. Ltd.")
         y -= 14
         c.drawString(40, y, "Lim Hui Min")
         y -= 24
@@ -648,7 +648,7 @@ def render_fs(
     years: tuple[int, int] = (2025, 2024),
     scale_note: str | None = None,
     audited: bool = True,
-    company: str = "Meridian Fastener Supplies Pte. Ltd.",
+    company: str = "Meridian Shipping Pte. Ltd.",
     uen: str = "201912345R",
     note_column: bool = False,
 ) -> bytes:
