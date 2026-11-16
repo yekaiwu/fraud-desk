@@ -405,6 +405,18 @@ export async function askCase(id: string, req: AskRequest): Promise<AskResponse>
       flags: c.flags.filter((f) => f.disposition === "open").slice(0, 6).map((f) => ({ id: f.id, rule: f.rule, severity: f.severity, explanation: f.explanation })),
     };
   }
+  if (/\b(normally|generally|in general|usually|how does|what is a|what does .* mean)\b/i.test(question)) {
+    return {
+      status: "general",
+      preamble: null,
+      message: null,
+      sentences: [
+        { text: "A page saved once as a JPEG is compressed fairly evenly.", citations: [], background: true },
+        { text: "A pasted area with its own compression history can stand out, but honest scans show it too.", citations: [], background: true },
+      ],
+      flags: [],
+    };
+  }
   if (/can't find|cannot find|not in the documents/i.test(question)) {
     return { status: "not_found", preamble: null, message: "I can't find that in this case or on the worklist.", sentences: [], flags: [] };
   }

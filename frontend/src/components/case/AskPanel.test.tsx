@@ -5,7 +5,7 @@ import { buildCase, SPECS } from "@/lib/mock/fixtures";
 import { askCase } from "@/lib/mock/handlers";
 import { GENERATED_NOTE } from "../explain/AnalysisTrail";
 import type { AskCitation, AskRequest, AskResponse, Region } from "@/lib/types";
-import { AskPanel, askTabShown } from "./AskPanel";
+import { AskPanel, askTabShown, BACKGROUND_LABEL } from "./AskPanel";
 
 afterEach(cleanup);
 
@@ -77,6 +77,56 @@ describe("AskPanel", () => {
     expect(askTabShown({}, false)).toBe(false);
     expect(askTabShown({ case_assistant: true }, false)).toBe(true);
     expect(askTabShown(null, true)).toBe(true);
+  });
+
+  it("labels a general answer once and shows no citation", async () => {
+    const user = userEvent.setup();
+    const c = fraud();
+    const ask = vi.fn(async (): Promise<AskResponse> => ({
+      status: "general",
+      preamble: null,
+      message: null,
+      sentences: [
+        { text: "A page saved once is compressed evenly.", citations: [], background: true },
+        { text: "A pasted area can stand out.", citations: [], background: true },
+      ],
+      flags: [],
+    }));
+    render(<AskPanel c={c} fileId={c.files[0].id} page={1} ask={ask} />);
+    await user.type(screen.getByLabelText("Question"), "does a national id recompress evenly");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    expect(screen.getByText("A page saved once is compressed evenly.")).toBeInTheDocument();
+    expect(screen.getAllByText(BACKGROUND_LABEL)).toHaveLength(1);
+  });
+
+  it("labels only the general part of a mixed answer", async () => {
+    const user = userEvent.setup();
+    const c = fraud();
+    const ask = vi.fn(async (): Promise<AskResponse> => ({
+      status: "answered",
+      preamble: null,
+      message: null,
+      sentences: [
+        { text: "The credit is on the statement.", citations: [citation(c)] },
+        { text: "Scans are usually compressed evenly.", citations: [], background: true },
+      ],
+      flags: [],
+    }));
+    render(<AskPanel c={c} fileId={c.files[0].id} page={1} ask={ask} />);
+    await user.type(screen.getByLabelText("Question"), "what credit, and is recompression even");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    const label = screen.getByText(BACKGROUND_LABEL);
+    const cited = screen.getByText("The credit is on the statement.");
+    const general = screen.getByText("Scans are usually compressed evenly.");
+    expect(cited.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(label.compareDocumentPosition(general) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("mock mode answers a general question as background", async () => {
+    const c = fraud();
+    const r = await askCase(c.id, { question: "so normally does an id recompress evenly", scope: "case", case_version: c.version });
+    expect(r.status).toBe("general");
+    expect(r.sentences.every((s) => s.background && s.citations.length === 0)).toBe(true);
   });
 
   it("mock mode abstains with the server's words", async () => {

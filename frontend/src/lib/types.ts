@@ -384,7 +384,8 @@ export interface CustomTicketResponse { ticket: CustomTicket; message: string; e
 
 /** Ask this case (docs/case-assistant.md). Every sentence cites a cell, or the reply abstains. */
 export type AskScope = "document" | "case";
-export type AskStatus = "answered" | "not_found" | "decision_request";
+/** "general": every sentence is background knowledge with no citation, labelled as such. */
+export type AskStatus = "answered" | "general" | "not_found" | "decision_request";
 export interface AskCitation {
   file_id: string;
   page: number;
@@ -402,7 +403,12 @@ export interface AskCitation {
   worklist_id?: string | null;
   reference?: string | null;
 }
-export interface AskSentence { text: string; citations: AskCitation[] }
+export interface AskSentence {
+  text: string;
+  citations: AskCitation[];
+  /** General knowledge, not a fact about this case. It has no citation and is labelled on screen. */
+  background?: boolean;
+}
 export interface AskFlagLink { id: string; rule: string; severity: Severity; explanation: string }
 export interface AskResponse {
   status: AskStatus;

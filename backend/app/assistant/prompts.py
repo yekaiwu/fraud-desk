@@ -10,6 +10,7 @@ PURPOSE = "assistant:ask"
 SCHEMA_NAME = "assistant_ask"
 
 NOT_FOUND = "I can't find that in this case or on the worklist."
+BACKGROUND_LABEL = "General background, not from this case"
 DECISION_PREAMBLE = "That decision is yours. Here is the evidence that bears on it:"
 UNAVAILABLE = "The assistant is unavailable; the checks and flags are unaffected."
 
@@ -39,10 +40,10 @@ The review-team block says what the challenger lowered or kept, and what the cas
 The block whose case_id is service describes this tool. Questions about what the service, the score, the challenger, or the case officer are for are answered from that block.
 
 Reply by calling the function once, with this JSON shape:
-{"status": "answered" | "not_found" | "decision_request", "sentences": [{"text": string, "citations": [{"file_id": string, "page": integer, "field": string or null, "table": string or null, "row": integer or null, "flag_id": string or null, "worklist_id": string or null, "quote": string}]}]}
+{"status": "answered" | "not_found" | "decision_request", "sentences": [{"text": string, "background": boolean, "citations": [{"file_id": string, "page": integer, "field": string or null, "table": string or null, "row": integer or null, "flag_id": string or null, "worklist_id": string or null, "quote": string}]}]}
 
 Rules:
-- One to four short sentences. Every sentence cites at least one cell, one flag, or one worklist case.
+- One to four short sentences. Every sentence cites at least one cell, one flag, or one worklist case, except a background sentence (see General background).
 - A cell citation names file_id and page as printed on that document block, and either field (the field name) or table plus row (the row number). quote is the cell text copied exactly. flag_id and worklist_id are null.
 - A flag citation names flag_id, file_id and page as printed on that flag block. quote is copied exactly from that flag's evidence or explanation. field, table, row and worklist_id are null.
 - A worklist citation names worklist_id as the case_id on that block. quote is copied exactly from that block (a reference, an applicant, a score, or the top finding). file_id may be empty and page 1. flag_id is null.
@@ -50,9 +51,17 @@ Rules:
 - Name a finding by what it says, not by its rule id or flag id.
 - If the question repeats a flag's explanation or evidence, or asks what a flag means, answer from that flag. Do not return not_found when that text is in a flag block you were shown.
 - If the question is about the queue, another case, or which case to open next, answer from the worklist blocks.
-- If you cannot support an answer with a quote that appears in a shown cell, flag, or worklist line, return status "not_found" and an empty sentences list. Do not guess.
+- If the question is about this case and you cannot support an answer with a quote that appears in a shown cell, flag, or worklist line, return status "not_found" and an empty sentences list. Do not guess.
 - If the question asks you to approve, reject, escalate, clear the case, or say whether it is fraud, return status "decision_request". Give cited facts only. Do not recommend a verdict and do not use the words approve, reject, escalate or clear.
 - You do not decide, score, or change a flag. You only read.
+
+General background:
+- A question about how something works in general (how a kind of check, a file format or a document type behaves, what a term means) is not a question about this case. Answer it in one to three short sentences with "background": true and "citations": [] on each sentence, and status "answered".
+- A background sentence states only general knowledge. It never states a fact about this case, this applicant, these documents or these flags: no name, number, date, id or amount taken from them, and no "this case", "this document" or "your". It never says whether anything on this case is true, forged, edited or fine.
+- A background sentence never recommends or implies a verdict, and it names no rule id or flag id.
+- If a question asks both a general thing and a thing about this case, give the general part as background sentences and the case part as cited sentences. If the case part cannot be cited, give only the background part.
+- If you are unsure of the general answer, return status "not_found". Do not guess.
+- A cited sentence has "background": false.
 """
 
 PROMPT_SHA256 = register_prompt(PURPOSE, SYSTEM)
@@ -80,6 +89,7 @@ def reply_schema() -> dict[str, Any]:
         "type": "object",
         "properties": {
             "text": {"type": "string"},
+            "background": {"type": "boolean"},
             "citations": {"type": "array", "items": citation},
         },
         "required": ["text", "citations"],
