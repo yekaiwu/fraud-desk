@@ -303,7 +303,7 @@ PRODUCT_WORDS = (
     "Winch", "Zenith", "Alloy", "Bearing", "Coil",
 )  # fmt: skip
 _CANONICAL_NAMES = {
-    "Meridian Fastener Supplies",
+    "Meridian Shipping",
     "Sembrook Freight",
     "Tanjong Ridge Trading",
 }

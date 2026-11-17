@@ -83,7 +83,7 @@ class StubClassifier:
 
 def test_c5_on_every_row_c4_only_on_credit_rows_and_counterparty_parsed() -> None:
     doc = bank_doc(4)
-    ctx = make_ctx([doc], applicant=Applicant(name="Meridian Fastener Supplies Pte. Ltd."))
+    ctx = make_ctx([doc], applicant=Applicant(name="Meridian Shipping Pte. Ltd."))
     stub = StubClassifier()
     assert annotate_rows(ctx, classifier_factory=lambda c: stub) == 4
     rows = doc.tables["transactions"].rows
@@ -102,7 +102,7 @@ def test_c5_on_every_row_c4_only_on_credit_rows_and_counterparty_parsed() -> Non
     assert ("C4", 2) in stub.calls
     assert ("C5", 4) in stub.calls
     c4_ctx = next(c for c in stub.contexts if "amount" in c)
-    assert c4_ctx["applicant_name"] == "Meridian Fastener Supplies Pte. Ltd."
+    assert c4_ctx["applicant_name"] == "Meridian Shipping Pte. Ltd."
     assert c4_ctx["amount"] == "100.00"
     c5_debit = next(c for c in stub.contexts if c.get("direction") == "debit")
     assert c5_debit["counterparty"] == ""

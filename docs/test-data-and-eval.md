@@ -163,7 +163,7 @@ class Manifest(G):
 {"schema_version": "1", "bundle_id": "loan-fraud",
  "documents": [{"key": "bank_statement:2025-07", "doc_type": "bank_statement",
    "sources": [{"render": "digital", "file": "digital/bank_statement_2025-07.pdf", "page_start": 1, "page_end": 3}],
-   "fields": {"account_holder": {"value": "Meridian Fastener Supplies Pte. Ltd.", "raw": "MERIDIAN FASTENER SUPPLIES PTE. LTD.", "page": 1, "box": null}},
+   "fields": {"account_holder": {"value": "Meridian Shipping Pte. Ltd.", "raw": "MERIDIAN SHIPPING PTE. LTD.", "page": 1, "box": null}},
    "tables": {"transactions": {"columns": ["date", "description", "debit", "credit", "balance"],
      "rows": [{"index": 0, "page": 1, "box": {"file": "digital/bank_statement_2025-07.pdf", "page": 1, "x": 0.06, "y": 0.31, "w": 0.88, "h": 0.015},
                "cells": {"date": {"value": "2025-07-01", "raw": "01 Jul 2025"}, "description": {"value": "RENT 1 FICTITIOUS RD", "raw": "RENT 1 FICTITIOUS RD"},
@@ -179,7 +179,7 @@ Keys, column names and canonical forms are exactly data-model.md section 6; ever
 
 ```json
 {"schema_version": "1", "bundle_id": "loan-fraud", "kind": "bundle", "use_case": "loan",
- "applicant": {"name": "Meridian Fastener Supplies Pte. Ltd.", "uen": "<generated, passes stdnum.sg.uen>"},
+ "applicant": {"name": "Meridian Shipping Pte. Ltd.", "uen": "<generated, passes stdnum.sg.uen>"},
  "registry_path": "../../registry.json",
  "expected": {"lane": "loan", "band_min": "medium", "verdict": "reject_or_escalate",
    "must_fire": [{"rule": "x_revenue_vs_credits", "min_severity": "medium"}, {"rule": "x_invoice_vs_receipts"}, {"rule": "x_invoice_vs_contract"},
@@ -225,7 +225,7 @@ Ranking-pool companies cycle layouts `company_index % 4` over `[dbs_style, ocbc_
 
 | Scenario | Name (company 0) | Declared activity | Directors (name form, ID) |
 |---|---|---|---|
-| loan | Meridian Fastener Supplies Pte. Ltd. | Wholesale of fasteners and industrial supplies (trading) | Lim Hui Min (NRIC), Mohd Faizal bin Rahmat (NRIC) |
+| loan | Meridian Shipping Pte. Ltd. | Wholesale of fasteners and industrial supplies (trading) | Lim Hui Min (NRIC), Mohd Faizal bin Rahmat (NRIC) |
 | kyc | Sembrook Freight Pte. Ltd. | Freight forwarding and logistics (SSIC 52291) | Tan Wei Ming (NRIC), Muhammad Hafiz bin Ismail (NRIC), Elena Vasquez (passport) |
 | aml | Tanjong Ridge Trading Pte. Ltd. | General wholesale trade | Rajesh s/o Kumar (NRIC), Wong Jessica (NRIC) |
 

@@ -65,7 +65,7 @@ JSON files are UTF-8, `sort_keys`, 2-space indent, trailing newline. Amounts are
 
 ## The loan bundles (plan 0.5, 9.1)
 
-Company 0 is **Meridian Fastener Supplies Pte. Ltd.** (UEN generated so `stdnum.sg.uen.is_valid` is true; directors Lim Hui Min and Mohd Faizal bin Rahmat). Statements 2025-07 to 2025-12 (default layout `dbs_style`), financial statements FY2024 and FY2025, 14 invoices, 3 contracts, 4 purchase orders, a company profile and two NRIC cards. 32 documents, about 70 pages.
+Company 0 is **Meridian Shipping Pte. Ltd.** (UEN generated so `stdnum.sg.uen.is_valid` is true; directors Lim Hui Min and Mohd Faizal bin Rahmat). Statements 2025-07 to 2025-12 (default layout `dbs_style`), financial statements FY2024 and FY2025, 14 invoices, 3 contracts, 4 purchase orders, a company profile and two NRIC cards. 32 documents, about 70 pages.
 
 | Bundle | What it is |
 |---|---|

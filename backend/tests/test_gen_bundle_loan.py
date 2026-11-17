@@ -70,7 +70,7 @@ def test_clean_control_contents_match_the_design() -> None:
     ]
     assert (
         field(doc(gt, "financial_statement:FY2025"), "company_name")
-        == "Meridian Fastener Supplies Pte. Ltd."
+        == "Meridian Shipping Pte. Ltd."
     )
 
 
@@ -263,7 +263,7 @@ def test_trade_credits_vs_revenue_in_the_clean_world() -> None:
                 total += D(r["cells"]["credit"]["value"])
     annual = total * D(365) / D(184)
     assert D("0.92") <= annual / D(900000) <= D("1.08")
-    assert load(b, "manifest.json")["applicant"]["name"] == "Meridian Fastener Supplies Pte. Ltd."
+    assert load(b, "manifest.json")["applicant"]["name"] == "Meridian Shipping Pte. Ltd."
 
 
 def test_registry_is_loadable_by_the_app_and_sorted() -> None:
@@ -274,7 +274,7 @@ def test_registry_is_loadable_by_the_app_and_sorted() -> None:
     reg = load_registry(reg_path)
     assert reg is not None and reg.entities
     ent = reg.lookup(load(b, "manifest.json")["applicant"]["uen"])
-    assert ent is not None and ent.entity_name == "Meridian Fastener Supplies Pte. Ltd."
+    assert ent is not None and ent.entity_name == "Meridian Shipping Pte. Ltd."
     assert [o.name for o in ent.officers] == ["LIM HUI MIN", "MOHD FAIZAL BIN RAHMAT"]
     assert sum(float(s.percent) for s in ent.shareholders) == 100.0
     uens = [e.uen for e in reg.entities]
@@ -409,7 +409,7 @@ def test_oracle_fake_llm_answers_from_the_bundle() -> None:
     assert (
         rows
         and rows[0]["date"]
-        and data["fields"]["account_holder"] == "MERIDIAN FASTENER SUPPLIES PTE. LTD."
+        and data["fields"]["account_holder"] == "MERIDIAN SHIPPING PTE. LTD."
     )
     ocr = fake.complete_json(req.model_copy(update={"purpose": "ocr:page"})).data
     assert ocr["lines"] and {"text", "x", "y", "w", "h"} <= set(ocr["lines"][0])

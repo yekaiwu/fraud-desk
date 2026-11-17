@@ -143,7 +143,7 @@ def r74(b: Bundle, rng: random.Random) -> Outcome:
     retext(
         inv,
         {
-            "Meridian Fastener Supplies Pte. Ltd.": "Acme Trading Pte. Ltd.",
+            "Meridian Shipping Pte. Ltd.": "Acme Trading Pte. Ltd.",
             "20 Kaki Bukit Road #01-48, Singapore 239198": "84 Pandan Crescent #07-58, Singapore 484926",
             "UEN: 201873387K": "UEN: 200414209D",
             "GST Reg No: M38619861E": "GST Reg No: M20041420D",
@@ -166,7 +166,7 @@ def _mirror(b: Bundle, inv: Invoice, src: str) -> Outcome:
         :3
     ]
     vals = [
-        "Meridian Fastener Supplies Pte. Ltd.",
+        "Meridian Shipping Pte. Ltd.",
         "20 Kaki Bukit Road #01-48, Singapore 239198",
         "UEN: 201873387K",
     ]
@@ -285,7 +285,7 @@ def r77(b: Bundle, rng: random.Random) -> Outcome:
     c.drawString(36, 700, "BILL TO")
     for i, t in enumerate(
         [
-            "Meridian Fastener Supplies Pte. Ltd.",
+            "Meridian Shipping Pte. Ltd.",
             "20 Kaki Bukit Road #01-48, Singapore 239198",
             "UEN: 201873387K",
         ]

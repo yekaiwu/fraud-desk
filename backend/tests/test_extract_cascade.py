@@ -406,7 +406,7 @@ def test_fs_through_the_llm_path_is_scaled_once_with_sign_rules(tmp_path: Path) 
     page = empty_page("financial_statement")
     page["fields"].update(
         {
-            "company_name": "Meridian Fastener Supplies Pte. Ltd.",
+            "company_name": "Meridian Shipping Pte. Ltd.",
             "uen": "201912345R",
             "scale_printed": "S$'000",
             "basis": "Audited",

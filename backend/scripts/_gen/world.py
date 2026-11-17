@@ -260,7 +260,7 @@ def _make_company(w: World, rng: random.Random) -> None:
     sc, idx = w.scenario, w.company_index
     if idx == 0:
         name = {
-            "loan": "Meridian Fastener Supplies Pte. Ltd.",
+            "loan": "Meridian Shipping Pte. Ltd.",
             "kyc": "Sembrook Freight Pte. Ltd.",
             "aml": "Tanjong Ridge Trading Pte. Ltd.",
         }[sc]

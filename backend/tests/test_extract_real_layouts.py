@@ -23,7 +23,7 @@ def extract(pdf: bytes, doc_type: str):
 STATEMENT_P1 = [
     (40, 50, "DBS-STYLE MOCK BANK", "l", 16, True),
     (40, 70, "Statement of Account - Current Account"),
-    (40, 92, "MERIDIAN FASTENER SUPPLIES PTE. LTD.", "l", 10, True),
+    (40, 92, "MERIDIAN SHIPPING PTE. LTD.", "l", 10, True),
     (340, 92, "Account summary", "l", 10, True),
     (40, 106, "UEN: 201873387K"),
     (340, 106, "Opening balance"),
@@ -53,7 +53,7 @@ STATEMENT_P1 = [
 ]
 STATEMENT_P2 = [
     (40, 50, "DBS-STYLE MOCK BANK", "l", 16, True),
-    (40, 70, "MERIDIAN FASTENER SUPPLIES PTE. LTD. - Account No: 1091318723 (continued)"),
+    (40, 70, "MERIDIAN SHIPPING PTE. LTD. - Account No: 1091318723 (continued)"),
     (40, 100, "Date", "l", 9, True),
     (100, 100, "Description", "l", 9, True),
     (400, 100, "Withdrawals", "r", 9, True),
@@ -73,7 +73,7 @@ STATEMENT_P2 = [
 def test_unlabelled_holder_dated_forward_row_continued_header_and_summary_box() -> None:
     result, ctx, doc = extract(draw_pages([STATEMENT_P1, STATEMENT_P2]), "bank_statement")
     f = {k: c.value for k, c in result.fields.items()}
-    assert f["account_holder"] == "MERIDIAN FASTENER SUPPLIES PTE. LTD."  # no label printed
+    assert f["account_holder"] == "MERIDIAN SHIPPING PTE. LTD."  # no label printed
     assert f["account_number"] == "1091318723"  # "(continued)" is not part of the number
     assert f["uen"] == "201873387K"
     assert (f["opening_balance"], f["closing_balance"]) == ("61538.72", "29270.25")
@@ -123,7 +123,7 @@ def test_long_description_runs_through_an_empty_cheque_column() -> None:
 # --------------------------------------------------------------------------- invoice and PO
 
 INVOICE = [
-    (40, 50, "Meridian Fastener Supplies Pte. Ltd.", "l", 14, True),
+    (40, 50, "Meridian Shipping Pte. Ltd.", "l", 14, True),
     (400, 50, "TAX INVOICE", "l", 14, True),
     (40, 66, "20 Kaki Bukit Road #01-48, Singapore 239198"),
     (40, 84, "UEN: 201873387K"),
@@ -191,7 +191,7 @@ PURCHASE_ORDER = [
     (340, 112, "Delivery by: 11 Jul 2025"),
     (340, 126, "Contract Ref: C-2025-001"),
     (40, 150, "SUPPLIER", "l", 9, True),
-    (40, 164, "Meridian Fastener Supplies Pte. Ltd."),
+    (40, 164, "Meridian Shipping Pte. Ltd."),
     (340, 164, "Currency: SGD"),
     (40, 178, "UEN: 201873387K"),
     (40, 192, "GST Reg No: M38619861E"),
@@ -220,7 +220,7 @@ def test_purchase_order_with_letterhead_buyer_and_supplier_block() -> None:
     assert f["delivery_date"] == "2025-07-11"
     assert f["buyer_name"] == "Acme Trading Pte. Ltd."  # the letterhead, not 'PURCHASE ORDER'
     assert f["buyer_uen"] == "200414209D"  # the UEN above the SUPPLIER block
-    assert f["supplier_name"] == "Meridian Fastener Supplies Pte. Ltd."
+    assert f["supplier_name"] == "Meridian Shipping Pte. Ltd."
     assert f["supplier_uen"] == "201873387K"
     assert f["contract_reference"] == "C-2025-001"
     assert f["total"] == "8275.87"
@@ -236,7 +236,7 @@ CONTRACT = [
         (40, 86, "Supply Agreement for Industrial Fasteners", "l", 10, True),
         (40, 102, "This Agreement is made on 21 May 2025"),
         (40, 116, "BETWEEN"),
-        (40, 130, "(1) Meridian Fastener Supplies Pte. Ltd. (UEN 201873387K), the Seller;"),
+        (40, 130, "(1) Meridian Shipping Pte. Ltd. (UEN 201873387K), the Seller;"),
         (40, 144, "AND"),
         (40, 158, "(2) Acme Trading Pte. Ltd. (UEN 200414209D), the Buyer."),
         (40, 180, "2. Contract value"),
@@ -266,9 +266,7 @@ def test_prose_contract_parties_dates_value_terms_and_signature_columns() -> Non
     f = {k: c.value for k, c in result.fields.items()}
     assert f["contract_number"] == "C-2025-001"
     assert f["title"] == "Supply Agreement for Industrial Fasteners"  # the sentence-case heading
-    assert (
-        f["seller_name"] == "Meridian Fastener Supplies Pte. Ltd."
-    )  # the full stop of Pte. Ltd. stays
+    assert f["seller_name"] == "Meridian Shipping Pte. Ltd."  # the full stop of Pte. Ltd. stays
     assert f["seller_uen"] == "201873387K"
     assert f["buyer_name"] == "Acme Trading Pte. Ltd."
     assert f["buyer_uen"] == "200414209D"
@@ -290,7 +288,7 @@ def test_prose_contract_parties_dates_value_terms_and_signature_columns() -> Non
 
 def fs_page(title: str, rows: list[tuple[str, str, str]], extra: list[tuple] = ()) -> list[tuple]:  # noqa: B006
     items: list[tuple] = [
-        (40, 50, "Meridian Fastener Supplies Pte. Ltd.", "l", 12, True),
+        (40, 50, "Meridian Shipping Pte. Ltd.", "l", 12, True),
         (40, 66, "Financial Statements"),
         (40, 82, title, "l", 11, True),
         (40, 98, "UEN: 201873387K | (Expressed in Singapore dollars)"),

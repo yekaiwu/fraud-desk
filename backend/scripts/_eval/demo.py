@@ -25,7 +25,7 @@ BUNDLE_STORY = {
     ),
     "loan": (
         "Loan",
-        "Meridian Fastener Supplies Pte. Ltd. prints FY2025 revenue of S$2,400,000.00 against about S$900,000.00 of bank credits; invoices marked paid have no matching receipt; invoices exceed their contract (deck slide 16).",
+        "Meridian Shipping Pte. Ltd. prints FY2025 revenue of S$2,400,000.00 against about S$900,000.00 of bank credits; invoices marked paid have no matching receipt; invoices exceed their contract (deck slide 16).",
     ),
 }
 
