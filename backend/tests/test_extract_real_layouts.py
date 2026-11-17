@@ -266,9 +266,7 @@ def test_prose_contract_parties_dates_value_terms_and_signature_columns() -> Non
     f = {k: c.value for k, c in result.fields.items()}
     assert f["contract_number"] == "C-2025-001"
     assert f["title"] == "Supply Agreement for Industrial Fasteners"  # the sentence-case heading
-    assert (
-        f["seller_name"] == "Meridian Shipping Pte. Ltd."
-    )  # the full stop of Pte. Ltd. stays
+    assert f["seller_name"] == "Meridian Shipping Pte. Ltd."  # the full stop of Pte. Ltd. stays
     assert f["seller_uen"] == "201873387K"
     assert f["buyer_name"] == "Acme Trading Pte. Ltd."
     assert f["buyer_uen"] == "200414209D"
